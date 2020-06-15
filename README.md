@@ -1,4 +1,3 @@
-# Freedom Metal Machine Compatibility Library
+# Freedom Metal
 
-Documentation for the Freedom Metal library [can be found here](https://sifive.github.io/freedom-metal-docs/).
-
+Quick and dirty project to build w/ LLVM & CMake/Ninja
