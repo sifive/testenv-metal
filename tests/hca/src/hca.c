@@ -12,8 +12,10 @@
 #include <api/scl_api.h>
 #include <api/scl_hca.h>
 
+#pragma GCC diagnostic ignored "-Wformat"
+
 #define TEST_AES  0
-#define TEST_SHA  0
+#define TEST_SHA  1
 #define TEST_TRNG 1
 
 #define UNIT32_BE(data, k)      ( (*(data + k) << 24) + (*(data + k + 1) << 16) + (*(data + k + 2) << 8) + (*(data + k + 3)) )
