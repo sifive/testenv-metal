@@ -16,7 +16,7 @@ SET (CMAKE_BUILD_TYPE=DEBUG)
 SET (XTARGET riscv32-unknown-elf)
 SET (XARCH   rv32imac)
 SET (XABI    ilp32)
-SET (XBSP    qemu-sifive-e31)
+SET (XBSP    qemu-arty-e31)
 
 PROJECT (hca C ASM)
 
