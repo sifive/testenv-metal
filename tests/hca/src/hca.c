@@ -12,6 +12,10 @@
 #include <api/scl_api.h>
 #include <api/scl_hca.h>
 
+#define TEST_AES  0
+#define TEST_SHA  0
+#define TEST_TRNG 1
+
 #define UNIT32_BE(data, k)      ( (*(data + k) << 24) + (*(data + k + 1) << 16) + (*(data + k + 2) << 8) + (*(data + k + 3)) )
 
 // Key 2b7e151628aed2a6abf7158809cf4f3c
@@ -184,7 +188,7 @@ uint64_t SHA224_expected[4] = {
     0xbda0b3f7e36c9da7,
     0xbda255b32aadbce4,
     0x3405d8228642a477,
-    0x0000000023097d22   
+    0x0000000023097d22
 };
 
 uint64_t MsgL24B1024[16] = {
@@ -311,7 +315,7 @@ int main(int argc, char *argv[]) {
     printf("HCA base@ = 0x%08lX\n",metal_sifive_scl.hca_base);
 #endif
 
-#if 0
+#if TEST_AES
     printf("AES - ECB\n");
     oldcount = metal_cpu_get_timer(cpu);
     if (SCL_OK == metal_sifive_scl.aes_func.setkey(&metal_sifive_scl, SCL_AES_KEY128, key128_2))
@@ -319,7 +323,7 @@ int main(int argc, char *argv[]) {
         if (SCL_OK == metal_sifive_scl.aes_func.cipher(&metal_sifive_scl, SCL_AES_ECB, SCL_ENCRYPT, SCL_LITTLE_ENDIAN_MODE, 1, (uint8_t *)plaintext_le, (uint8_t *)tmp))
         {
             cyclecount = metal_cpu_get_timer(cpu)-oldcount;
-            
+
             // Check returned value
             if ( (tmp[0] != ciphertext_le_expected[0]) || (tmp[1] != ciphertext_le_expected[1]) )
             {
@@ -334,13 +338,13 @@ int main(int argc, char *argv[]) {
             printf("0x%08lX%08lX 0x%08lX%08lX\n",*(data + 3), *(data + 2), *(data + 1), *data);
 #endif
             printf("cyc: %u\n", (unsigned int)cyclecount);
-        } 
+        }
         else
         {
             printf("AES - ECB Error\n");
         }
     }
-    else 
+    else
     {
         printf("AES - setkey Error\n");
     }
@@ -388,7 +392,7 @@ int main(int argc, char *argv[]) {
 
                 // Check returned value
                 if ( (tmp[0] != F51_ciphertext_le_expected[0]) || (tmp[1] != F51_ciphertext_le_expected[1])
-                     || (tmp[2] != F51_ciphertext_le_expected[2]) || (tmp[3] != F51_ciphertext_le_expected[3]) 
+                     || (tmp[2] != F51_ciphertext_le_expected[2]) || (tmp[3] != F51_ciphertext_le_expected[3])
                      || (tmp[4] != F51_ciphertext_le_expected[4]) || (tmp[5] != F51_ciphertext_le_expected[5]) )
                 {
                     printf("AES - CTR Wrong value returned\n");
@@ -539,7 +543,9 @@ int main(int argc, char *argv[]) {
     {
         printf("AES - setkey Error\n");
     }
+#endif // TEST_AES
 
+#if TEST_SHA
     memset(tmp,0,8*sizeof(uint64_t));
     printf("SHA256\n");
     oldcount = metal_cpu_get_timer(cpu);
@@ -596,7 +602,9 @@ int main(int argc, char *argv[]) {
         printf("SHA224 Error\n");
     }
 
-#endif
+#endif // TEST_SHA
+
+#if TEST_TRNG
 
     memset(tmp,0,8*sizeof(uint64_t));
     printf("TRNG - TEST\n");
@@ -630,7 +638,7 @@ int main(int argc, char *argv[]) {
             }
             else
             {
-                printf("TRNG - get_data Fail\n");   
+                printf("TRNG - get_data Fail\n");
             }
 
             oldcount = metal_cpu_get_timer(cpu);
@@ -646,16 +654,17 @@ int main(int argc, char *argv[]) {
             }
             else
             {
-                printf("TRNG - get_data Fail\n");   
+                printf("TRNG - get_data Fail\n");
             }
         }
         else
         {
-            printf("TRNG - get_data Fail\n");   
+            printf("TRNG - get_data Fail\n");
         }
     }
     else
     {
-        printf("TRNG - Init Fail\n");   
+        printf("TRNG - Init Fail\n");
     }
+#endif // TEST_TRNG
 }
