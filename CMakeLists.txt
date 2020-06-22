@@ -7,16 +7,27 @@
 # Import useful macros
 CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
-SET (XSYSROOT /usr/local/opt/riscv32-newlib)
 SET (CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 SET (CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/riscv.cmake)
-# SET (CMAKE_EXPORT_COMPILE_COMMANDS=ON)
+SET (CMAKE_EXPORT_COMPILE_COMMANDS=ON)
 SET (CMAKE_BUILD_TYPE=DEBUG)
+SET (XTARGET riscv64-unknown-elf)
 
-SET (XTARGET riscv32-unknown-elf)
-SET (XARCH   rv32imac)
-SET (XABI    ilp32)
+# SET (XLEN    64)
+# SET (XISA    imac)
+# SET (XBSP    qemu-arty-s51)
+
+SET (XLEN    32)
+SET (XISA    imac)
 SET (XBSP    qemu-arty-e31)
+
+SET (XARCH   rv${XLEN}${XISA})
+IF (XLEN EQUAL 64)
+  SET (XABI  lp${XLEN})
+ELSE ()
+  SET (XABI  ilp${XLEN})
+ENDIF ()
+SET (XSYSROOT /usr/local/opt/riscv${XLEN}-newlib)
 
 PROJECT (hca C ASM)
 
