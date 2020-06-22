@@ -13,13 +13,17 @@ SET (CMAKE_EXPORT_COMPILE_COMMANDS=ON)
 SET (CMAKE_BUILD_TYPE=DEBUG)
 SET (XTARGET riscv64-unknown-elf)
 
-# SET (XLEN    64)
-# SET (XISA    imac)
-# SET (XBSP    qemu-arty-s51)
-
-SET (XLEN    32)
-SET (XISA    imac)
-SET (XBSP    qemu-arty-e31)
+IF ( TRUE )
+  # 64-bit target
+  SET (XLEN    64)
+  SET (XISA    imac)
+  SET (XBSP    qemu-arty-s51)
+ELSE ()
+  # 32-bit target
+  SET (XLEN    32)
+  SET (XISA    imac)
+  SET (XBSP    qemu-arty-e31)
+ENDIF ()
 
 SET (XARCH   rv${XLEN}${XISA})
 IF (XLEN EQUAL 64)

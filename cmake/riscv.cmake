@@ -17,8 +17,11 @@ STRING (REGEX REPLACE "(riscv64).*-(unknown-elf)\n?" "\\1-\\2"
         XTOOLCHAIN_TRIPLE ${CLANG_TRIPLE})
 
 STRING (REPLACE "64" "${XLEN}" XTARGET ${XTOOLCHAIN_TRIPLE})
-
-# MESSAGE (FATAL_ERROR "XTARGET [${XTARGET}]")
+IF ( XLEN EQUAL 64 )
+  SET (XMODEL medany)
+ELSE ()
+  SET (XMODEL medlow)
+ENDIF ()
 
 FIND_PROGRAM (ctidy NAMES clang-tidy)
 FIND_PROGRAM (xar llvm-ar)
@@ -48,10 +51,14 @@ SET (CMAKE_DEPFILE_FLAGS_CXX "-MD -MT <OBJECT> -MF <DEPFILE>")
 SET (CMAKE_C_LINK_EXECUTABLE
        "${xld} <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
-SET (X_FEAT_FLAGS "-ffunction-sections -fdata-sections")
-SET (X_TARGET_FLAGS "-target ${XTARGET} -march=${XARCH} -mabi=${XABI}")
+SET (X_FEAT_FLAGS
+       "-ffunction-sections -fdata-sections")
+SET (X_TARGET_FLAGS
+       "-target ${XTARGET} -march=${XARCH} -mabi=${XABI} -mcmodel=${XMODEL}")
+SET (X_EXTRA_FLAGS
+       " -fdiagnostics-color=always -fansi-escape-codes")
 
-SET (CMAKE_C_FLAGS "${X_FEAT_FLAGS} ${X_TARGET_FLAGS}")
+SET (CMAKE_C_FLAGS "${X_FEAT_FLAGS} ${X_TARGET_FLAGS} ${X_EXTRA_FLAGS}")
 SET (CMAKE_ASM_FLAGS "${X_FEAT_FLAGS} ${X_TARGET_FLAGS}")
 SET (CMAKE_C_LINK_FLAGS "-b ${XTARGET} -nostartfiles -nostdlib --gc-sections")
 
@@ -78,7 +85,7 @@ ENDFOREACH()
 
 # GET_FILENAME_COMPONENT (XTOOLCHAIN_BIN ${xclang} DIRECTORY)
 # GET_FILENAME_COMPONENT (XTOOLCHAIN_ROOT ${XTOOLCHAIN_BIN} DIRECTORY)
-# 
+#
 # EXECUTE_PROCESS (COMMAND ${xclang} -print-resource-dir
 #                  OUTPUT_VARIABLE XTOOLCHAIN_RESOURCE)
 # STRING (STRIP ${XTOOLCHAIN_RESOURCE} XTOOLCHAIN_RESOURCE)

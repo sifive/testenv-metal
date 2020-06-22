@@ -3,7 +3,8 @@ GET_FILENAME_COMPONENT (COMPONENT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 ADD_EXECUTABLE (${COMPONENT}
                 src/hello.c)
 
-LIST (INSERT PROJECT_LINK_LIBRARIES 0 c clang_rt.builtins-riscv32 metal metal-gloss)
+LIST (INSERT PROJECT_LINK_LIBRARIES 0
+      c clang_rt.builtins-riscv${XLEN} metal metal-gloss)
 
 SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${COMPONENT}.map")
 GET_TARGET_PROPERTY (_link_flags ${COMPONENT}

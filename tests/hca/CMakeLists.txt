@@ -24,7 +24,8 @@ ADD_EXECUTABLE (${COMPONENT}
                 #src/test_runners/test_hca_aes_runner.c
                 )
 
-LIST (INSERT PROJECT_LINK_LIBRARIES 0 c clang_rt.builtins-riscv32 metal metal-gloss scl)
+LIST (INSERT PROJECT_LINK_LIBRARIES 0
+      c clang_rt.builtins-riscv${XLEN} metal metal-gloss scl)
 
 SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${COMPONENT}.map")
 GET_TARGET_PROPERTY (_link_flags ${COMPONENT}
