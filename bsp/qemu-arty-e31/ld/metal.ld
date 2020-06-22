@@ -59,6 +59,13 @@ SECTIONS
      */
     __heap_size = DEFINED(__heap_size) ? __heap_size : 0x800;
 
+    /* Size of the Secure Bootloader header
+     *
+     * For 1-signature authentication, it should be 178 byte long
+     * For 2-signature authentication, it should be 274 byte long
+    */
+    __sbh_size = DEFINED(__sbh_size) ? __sbh_size : 178;
+
     /* The boot hart sets which hart runs the pre-main initialization routines,
      * including copying .data into RAM, zeroing the BSS region, running
      * constructors, etc. After initialization, the boot hart is also the only
@@ -87,6 +94,12 @@ SECTIONS
      * such memory is present in the design, for the entire duration of program
      * execution.
      */
+
+    .sb_header : {
+        . = ALIGN(8);
+        LONG(0x0); /* dummy word to force the linker to preserve the section */
+        . += __sbh_size - 4; /** account for the extra long word */
+    } >rom :rom
 
     .init : {
         /* The _enter symbol is placed in the .text.metal.init.enter section
