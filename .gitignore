@@ -34,3 +34,6 @@
 # ctags
 tags
 build/
+GPATH
+GRTAGS
+GTAGS
