@@ -1,7 +1,28 @@
 GET_FILENAME_COMPONENT (COMPONENT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 ADD_EXECUTABLE (${COMPONENT}
-                src/hca.c)
+                src/api/sha/hardware/test_hca_sha_384.c
+                src/api/sha/hardware/test_hca_sha_512.c
+                src/api/sha/hardware/test_hca_sha_256.c
+                src/api/sha/hardware/test_hca_sha_224.c
+                src/api/sha/soft/test_soft_sha_224.c
+                src/api/sha/soft/test_soft_sha_384.c
+                src/api/sha/soft/test_soft_sha_512.c
+                src/api/sha/soft/test_soft_sha_256.c
+                src/api/aes/hardware/test_hca_aes_256.c
+                src/api/aes/hardware/test_hca_aes_192.c
+                src/api/aes/hardware/test_hca_aes_128.c
+                src/scl/sha/test_scl_sha_512.c
+                src/scl/sha/test_scl_sha_384.c
+                src/scl/sha/test_scl_sha_256.c
+                src/scl/sha/test_scl_sha_224.c
+                src/test_runners/test_hca_sha_runner.c
+                #src/test_runners/test_soft_sha_runner.c
+                #src/test_runners/test_scl_sha_runner.c
+                #src/test_runners/test_hca_aes_runner.c
+                )
 
 LIST (INSERT PROJECT_LINK_LIBRARIES 0 c clang_rt.builtins-riscv32 metal metal-gloss scl)
 
@@ -28,10 +49,10 @@ TARGET_LINK_LIBRARIES (${COMPONENT}
                        ${PROJECT_LINK_LIBRARIES}
                        ${LDPREFIX}${LDENDGROUP})
 
-#SET (xdisassemble
-#     ${gnuxobjdump} -dS)
 SET (xdisassemble
-     ${xobjdump} -disassemble -g -line-numbers -source)
+     ${gnuxobjdump} -dS)
+#SET (xdisassemble
+#     ${xobjdump} -disassemble -g -line-numbers -source)
 
 SET (app ${COMPONENT}${CMAKE_EXECUTABLE_SUFFIX})
 ADD_CUSTOM_COMMAND (TARGET ${COMPONENT} POST_BUILD
