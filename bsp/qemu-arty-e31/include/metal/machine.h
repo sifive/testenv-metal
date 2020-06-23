@@ -139,6 +139,8 @@ extern struct __metal_driver_sifive_test0 __metal_dt_teststatus_4000;
 /* From serial@20000000 */
 extern struct __metal_driver_sifive_uart0 __metal_dt_serial_20000000;
 
+/* From serial@20008000 */
+extern struct __metal_driver_sifive_uart0 __metal_dt_serial_20008000;
 
 
 /* --------------------- fixed_clock ------------ */
@@ -810,6 +812,9 @@ static __inline__ unsigned long __metal_driver_sifive_uart0_control_base(struct 
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return METAL_SIFIVE_UART0_20000000_BASE_ADDRESS;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return METAL_SIFIVE_UART0_20008000_BASE_ADDRESS;
+   }
 	else {
 		return 0;
 	}
@@ -820,6 +825,9 @@ static __inline__ unsigned long __metal_driver_sifive_uart0_control_size(struct 
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return METAL_SIFIVE_UART0_20000000_SIZE;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return METAL_SIFIVE_UART0_20008000_SIZE;
+   }
 	else {
 		return 0;
 	}
@@ -830,6 +838,9 @@ static __inline__ int __metal_driver_sifive_uart0_num_interrupts(struct metal_ua
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return METAL_MAX_UART_INTERRUPTS;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return METAL_MAX_UART_INTERRUPTS;
+   }
 	else {
 		return 0;
 	}
@@ -840,6 +851,9 @@ static __inline__ struct metal_interrupt * __metal_driver_sifive_uart0_interrupt
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return (struct metal_interrupt *)&__metal_dt_interrupt_controller_c000000.controller;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return (struct metal_interrupt *)&__metal_dt_interrupt_controller_c000000.controller;
+   }
 	else {
 		return 0;
 	}
@@ -850,6 +864,9 @@ static __inline__ int __metal_driver_sifive_uart0_interrupt_line(struct metal_ua
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return 17;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return 16;
+   }
 	else {
 		return 0;
 	}
@@ -860,6 +877,9 @@ static __inline__ struct metal_clock * __metal_driver_sifive_uart0_clock(struct 
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return (struct metal_clock *)&__metal_dt_subsystem_pbus_clock.clock;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return (struct metal_clock *)&__metal_dt_subsystem_pbus_clock.clock;
+   }
 	else {
 		return 0;
 	}
@@ -870,6 +890,9 @@ static __inline__ struct __metal_driver_sifive_gpio0 * __metal_driver_sifive_uar
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return NULL;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return NULL;
+   }
 	else {
 		return 0;
 	}
@@ -880,6 +903,9 @@ static __inline__ unsigned long __metal_driver_sifive_uart0_pinmux_output_select
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return 0;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return 0;
+   }
 	else {
 		return 0;
 	}
@@ -890,6 +916,9 @@ static __inline__ unsigned long __metal_driver_sifive_uart0_pinmux_source_select
 	if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20000000) {
 		return 0;
 	}
+   else if ((uintptr_t)uart == (uintptr_t)&__metal_dt_serial_20008000) {
+      return 0;
+   }
 	else {
 		return 0;
 	}
@@ -933,6 +962,8 @@ struct metal_memory *__metal_memory_table[] = {
 #define __METAL_DT_STDOUT_UART_HANDLE (&__metal_dt_serial_20000000.uart)
 
 #define __METAL_DT_SERIAL_20000000_HANDLE (&__metal_dt_serial_20000000.uart)
+
+#define __METAL_DT_SERIAL_20008000_HANDLE (&__metal_dt_serial_20008000.uart)
 
 #define __METAL_DT_STDOUT_UART_BAUD 115200
 
@@ -1013,7 +1044,8 @@ struct __metal_driver_sifive_spi0 *__metal_spi_table[] = {
 
 __asm__ (".weak __metal_uart_table");
 struct __metal_driver_sifive_uart0 *__metal_uart_table[] = {
-					&__metal_dt_serial_20000000};
+					&__metal_dt_serial_20000000,
+               &__metal_dt_serial_20008000};
 
 #define __METAL_DT_MAX_SIMUARTS 0
 

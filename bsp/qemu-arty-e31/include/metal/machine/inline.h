@@ -255,6 +255,10 @@ struct __metal_driver_sifive_uart0 __metal_dt_serial_20000000 = {
     .uart.vtable = &__metal_driver_vtable_sifive_uart0.uart,
 };
 
+/* From serial@20008000 */
+struct __metal_driver_sifive_uart0 __metal_dt_serial_20008000 = {
+    .uart.vtable = &__metal_driver_vtable_sifive_uart0.uart,
+};
 
 #endif /* METAL_INLINE_H*/
 #endif /* ! ASSEMBLY */

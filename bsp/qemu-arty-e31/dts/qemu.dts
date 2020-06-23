@@ -94,6 +94,16 @@
             reg = <0x20000000 0x1000>;
             reg-names = "control";
             compatible = "sifive,uart0";
+            qemu,chardev = "stdio";
+        };
+
+        uart1: uart@20008000 {
+            interrupts = <16>;
+            interrupt-parent = <&plic>;
+            reg = <0x20008000 0x1000>;
+            reg-names = "control";
+            compatible = "sifive,uart0";
+            qemu,chardev = "comm";
         };
 
         pcri@10008000 {

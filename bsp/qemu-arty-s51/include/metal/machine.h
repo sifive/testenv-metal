@@ -139,6 +139,9 @@ extern struct __metal_driver_sifive_test0 __metal_dt_teststatus_4000;
 /* From serial@20000000 */
 extern struct __metal_driver_sifive_uart0 __metal_dt_serial_20000000;
 
+/* From serial@20008000 */
+extern struct __metal_driver_sifive_uart0 __metal_dt_serial_20008000;
+
 
 
 /* --------------------- fixed_clock ------------ */
