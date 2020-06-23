@@ -33,7 +33,7 @@
 [._]sw[a-p]
 # ctags
 tags
-build/
+build*/
 GPATH
 GRTAGS
 GTAGS
