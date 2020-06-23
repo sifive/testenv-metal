@@ -7,15 +7,9 @@
 # Import useful macros
 CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
-SET (CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
-SET (CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/riscv.cmake)
-SET (CMAKE_EXPORT_COMPILE_COMMANDS=ON)
-SET (CMAKE_BUILD_TYPE=DEBUG)
-SET (XTARGET riscv64-unknown-elf)
-
-IF ( TRUE )
+IF (DEFINED XLEN AND XLEN EQUAL 64)
   # 64-bit target
-  SET (XLEN    64)
+  # SET (XLEN    64)
   SET (XISA    imac)
   SET (XBSP    qemu-arty-s51)
 ELSE ()
@@ -24,6 +18,14 @@ ELSE ()
   SET (XISA    imac)
   SET (XBSP    qemu-arty-e31)
 ENDIF ()
+
+MESSAGE (STATUS "${XLEN}-bit target")
+
+SET (CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+SET (CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/riscv.cmake)
+SET (CMAKE_EXPORT_COMPILE_COMMANDS=ON)
+# SET (CMAKE_BUILD_TYPE=DEBUG)  should be defined from command line
+SET (XTARGET riscv64-unknown-elf)
 
 SET (XARCH   rv${XLEN}${XISA})
 IF (XLEN EQUAL 64)
