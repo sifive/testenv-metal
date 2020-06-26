@@ -23,8 +23,8 @@ extern void __attribute__((noreturn)) metal_shutdown(int code);
    if (!(_c_)) { \
       printf("%s[%d] result: %d\n", __func__, __LINE__, !!(_c_)); \
       metal_shutdown(1); \
-   } //else { \
-      //printf("%s: OK\n", __func__); \
-   //}
+   } else { \
+      printf("%s[%d]: OK\n", __func__, __LINE__); \
+   }
 
 #endif // _UNITY_H_

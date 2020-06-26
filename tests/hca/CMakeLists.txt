@@ -21,7 +21,7 @@ ADD_EXECUTABLE (${COMPONENT}
                 src/test_runners/test_hca_sha_runner.c
                 #src/test_runners/test_soft_sha_runner.c
                 #src/test_runners/test_scl_sha_runner.c
-                #src/test_runners/test_hca_aes_runner.c
+                src/test_runners/test_hca_aes_runner.c
                 )
 
 LIST (INSERT PROJECT_LINK_LIBRARIES 0
