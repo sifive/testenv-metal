@@ -34,13 +34,11 @@
     };
 
     dtim@80000000 {
-       // actual memory is declared as DTIM
        device_type = "memory";
        reg = <0x80000000 0x10000>;
     };
 
     itim@1800000 {
-       // actual memory is declared as ITIM
        device_type = "memory";
        // HW: 2*0x2000
        reg = <0x1800000 0x4000>;
