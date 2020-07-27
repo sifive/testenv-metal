@@ -11,16 +11,16 @@
 
         L6: cpu@0 {
             // clocks = <&hfclk>;
-            // add CPU, should be based on ISA and feature
-            // not CPU name
-            compatible = "sifive-e31-riscv-cpu", "riscv";
+            compatible = "sifive-riscv-cpu", "riscv";
             device_type = "cpu";
+            riscv,isa = "rv32imac";
+            riscv,pmp = <1>;
+            riscv,mmu = <0>;
             i-cache-block-size = <64>;
             i-cache-sets = <128>;
             i-cache-size = <16384>;
             // next-level-cache = <&spi0>;
             reg = <0>;
-            riscv,isa = "rv32imac";
             // sifive,dtim = <&dtim>;
             status = "okay";
             timebase-frequency = <1000000>;
@@ -96,7 +96,7 @@
             compatible = "sifive,uart0";
             qemu,chardev = "stdio";
         };
-
+/*
         uart1: uart@20008000 {
             interrupts = <16>;
             interrupt-parent = <&plic>;
@@ -105,7 +105,7 @@
             compatible = "sifive,uart0";
             qemu,chardev = "comm";
         };
-
+*/
         pcri@10008000 {
             reg = <0x10008000 0x1000>;
             compatible = "sifive,prci,e";

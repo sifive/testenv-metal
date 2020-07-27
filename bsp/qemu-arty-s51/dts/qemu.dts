@@ -13,7 +13,7 @@
             // clocks = <&hfclk>;
             // add CPU, should be based on ISA and feature
             // not CPU name
-            compatible = "sifive-s51-riscv-cpu", "riscv";
+            compatible = "sifive-riscv-cpu", "riscv";
             device_type = "cpu";
             i-cache-block-size = <64>;
             i-cache-sets = <128>;
@@ -21,6 +21,8 @@
             // next-level-cache = <&spi0>;
             reg = <0>;
             riscv,isa = "rv64imac";
+            riscv,pmp = <1>;
+            riscv,mmu = <1>;
             // sifive,dtim = <&dtim>;
             status = "okay";
             timebase-frequency = <1000000>;
