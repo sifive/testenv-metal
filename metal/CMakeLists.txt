@@ -1,4 +1,4 @@
-ADD_LIBRARY(metal
+ADD_LIBRARY (metal
   src/atomic.c
   src/button.c
   # src/cache.c

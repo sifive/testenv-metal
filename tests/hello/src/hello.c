@@ -10,6 +10,9 @@ int main() {
 
     printf("Hello, World!\n");
 
+#if 0 // __riscv_xlen == 32
+    #error
+    // secondary UART not yet defined on 64-bit platform
     const char str[] = "HW! direct\n";
     size_t len = strlen(str);
     for (unsigned int ix = 0; ix < len; ++ix) {
@@ -17,7 +20,6 @@ int main() {
     }
 
     printf("Hello, World! after\n");
-
     for(;;) {
         int c;
         metal_uart_getc(UART1, &c);
@@ -33,6 +35,7 @@ int main() {
             for(volatile int ix=0; ix<10000000; ix++) {}
         }
     }
+#endif
 
     return 0;
 }

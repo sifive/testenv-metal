@@ -1,0 +1,3 @@
+[submodule "scl-metal"]
+	path = scl-metal
+	url = https://github.com/sifive/scl-metal.git

@@ -7,10 +7,10 @@ ADD_EXECUTABLE (${COMPONENT}
                 src/api/sha/hardware/test_hca_sha_512.c
                 src/api/sha/hardware/test_hca_sha_256.c
                 src/api/sha/hardware/test_hca_sha_224.c
-                src/api/sha/soft/test_soft_sha_224.c
-                src/api/sha/soft/test_soft_sha_384.c
-                src/api/sha/soft/test_soft_sha_512.c
-                src/api/sha/soft/test_soft_sha_256.c
+                #src/api/sha/soft/test_soft_sha_224.c
+                #src/api/sha/soft/test_soft_sha_384.c
+                #src/api/sha/soft/test_soft_sha_512.c
+                #src/api/sha/soft/test_soft_sha_256.c
                 src/api/aes/hardware/test_hca_aes_256.c
                 src/api/aes/hardware/test_hca_aes_192.c
                 src/api/aes/hardware/test_hca_aes_128.c
