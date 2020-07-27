@@ -5,3 +5,6 @@
 [submodule "tests/scl-metal"]
 	path = tests/scl-metal
 	url = git@ghsi5:sifive/test-scl-metal.git
+[submodule "unity"]
+	path = unity
+	url = https://github.com/ThrowTheSwitch/Unity.git

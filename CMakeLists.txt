@@ -7,16 +7,16 @@
 # Import useful macros
 CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
-IF (DEFINED XLEN AND XLEN EQUAL 64)
-  # 64-bit target
-  # SET (XLEN    64)
-  SET (XISA    imac)
-  SET (XBSP    qemu-arty-s51)
-ELSE ()
+IF (DEFINED XLEN AND XLEN EQUAL 32)
   # 32-bit target
   SET (XLEN    32)
   SET (XISA    imac)
   SET (XBSP    qemu-arty-e31)
+ELSE ()
+  # 64-bit target
+  # SET (XLEN    64)
+  SET (XISA    imac)
+  SET (XBSP    qemu-arty-s51)
 ENDIF ()
 
 MESSAGE (STATUS "${XLEN}-bit target")
@@ -38,7 +38,7 @@ SET (XSYSROOT /usr/local/opt/riscv${XLEN}-newlib)
 SET (_CMAKE_FILE_DIR ${CMAKE_SOURCE_DIR}/files)
 FILE (GLOB_RECURSE cmakefiles
       RELATIVE ${CMAKE_SOURCE_DIR}/cmake/files
-      CONFIGURE_DEPENDS
+      # CONFIGURE_DEPENDS
       ${CMAKE_SOURCE_DIR}/cmake/files/*.txt)
 
 PROJECT (hca C ASM)
@@ -51,11 +51,14 @@ FOREACH (cmakefile ${cmakefiles})
   GET_FILENAME_COMPONENT (cmakedir ${cmakefile} DIRECTORY)
   # MESSAGE (STATUS "CMAKE ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
   #          ${CMAKE_SOURCE_DIR}/${cmakedir}")
-  FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
-        DESTINATION ${CMAKE_SOURCE_DIR}/${cmakedir})
+  IF (NOT EXISTS ${CMAKE_SOURCE_DIR}/${cmakefile})
+    FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
+          DESTINATION ${CMAKE_SOURCE_DIR}/${cmakedir})
+  ENDIF ()
 ENDFOREACH ()
 
 ADD_SUBDIRECTORY (metal)
+ADD_SUBDIRECTORY (unity)
 ADD_SUBDIRECTORY (gloss)
 ADD_SUBDIRECTORY (scl-metal)
 ADD_SUBDIRECTORY (tests)
