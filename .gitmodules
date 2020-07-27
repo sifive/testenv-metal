@@ -1,3 +1,7 @@
 [submodule "scl-metal"]
 	path = scl-metal
-	url = https://github.com/sifive/scl-metal.git
+	url = ../sifive/scl-metal.git
+
+[submodule "tests/scl-metal"]
+	path = tests/scl-metal
+	url = git@ghsi5:sifive/test-scl-metal.git

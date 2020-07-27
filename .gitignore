@@ -37,3 +37,4 @@ build*/
 GPATH
 GRTAGS
 GTAGS
+tests/**/CMakeLists.txt

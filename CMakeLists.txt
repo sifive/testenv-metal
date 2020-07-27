@@ -35,11 +35,25 @@ ELSE ()
 ENDIF ()
 SET (XSYSROOT /usr/local/opt/riscv${XLEN}-newlib)
 
+SET (_CMAKE_FILE_DIR ${CMAKE_SOURCE_DIR}/files)
+FILE (GLOB_RECURSE cmakefiles
+      RELATIVE ${CMAKE_SOURCE_DIR}/cmake/files
+      CONFIGURE_DEPENDS
+      ${CMAKE_SOURCE_DIR}/cmake/files/*.txt)
+
 PROJECT (hca C ASM)
 
 INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/metal/include)
 INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/bsp/${XBSP}/include)
 INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/scl-metal/include)
+
+FOREACH (cmakefile ${cmakefiles})
+  GET_FILENAME_COMPONENT (cmakedir ${cmakefile} DIRECTORY)
+  # MESSAGE (STATUS "CMAKE ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
+  #          ${CMAKE_SOURCE_DIR}/${cmakedir}")
+  FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
+        DESTINATION ${CMAKE_SOURCE_DIR}/${cmakedir})
+ENDFOREACH ()
 
 ADD_SUBDIRECTORY (metal)
 ADD_SUBDIRECTORY (gloss)
