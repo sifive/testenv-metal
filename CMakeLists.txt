@@ -14,7 +14,7 @@ IF (DEFINED XLEN AND XLEN EQUAL 32)
   SET (XBSP    qemu-arty-e31)
 ELSE ()
   # 64-bit target
-  # SET (XLEN    64)
+  SET (XLEN    64)
   SET (XISA    imac)
   SET (XBSP    qemu-arty-s51)
 ENDIF ()
@@ -33,7 +33,16 @@ IF (XLEN EQUAL 64)
 ELSE ()
   SET (XABI  ilp${XLEN})
 ENDIF ()
-SET (XSYSROOT /usr/local/opt/riscv${XLEN}-newlib)
+
+IF (CMAKE_HOST_SYSTEM_NAME STREQUAL Darwin)
+  # Assume a Homebrew build
+  SET (XSYSROOT /usr/local/opt/riscv${XLEN}-newlib)
+ELSEIF (CMAKE_HOST_SYSTEM_NAME STREQUAL Linux)
+  # Assume a Docker build
+  SET (XSYSROOT /usr/local/clang10)
+ELSE ()
+  MESSAGE (FATAL_ERROR "Unknown host ${CMAKE_HOST_SYSTEM_NAME}")
+ENDIF ()
 
 SET (_CMAKE_FILE_DIR ${CMAKE_SOURCE_DIR}/files)
 FILE (GLOB_RECURSE cmakefiles
