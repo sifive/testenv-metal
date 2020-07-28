@@ -13,8 +13,8 @@ RUN apk update
 RUN apk add ninja cmake git curl python3 vim
 # RUN pip3 install -U pip crcmod ruamel.yaml
 
-# docker build -f devenv.docker -t devenv:tmp .
-# docker run --name devenv_tmp -it devenv:tmp /bin/sh -c "exit"
-# docker export devenv_tmp | docker import - devenv:latest
-# docker rm devenv_tmp
-# docker rmi devenv:tmp
+# docker build -f freedom-dev.docker -t freedom-dev:tmp .
+# docker run --name freedom-dev_tmp -it freedom-dev:tmp /bin/sh -c "exit"
+# docker export freedom-dev_tmp | docker import - freedom-dev:latest
+# docker rm freedom-dev_tmp
+# docker rmi freedom-dev:tmp
