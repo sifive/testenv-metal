@@ -11,7 +11,7 @@ The recommended way is to use a Docker environment.
 The following command should pull in all the required containers and test that
 the LLVM toolchain is available.
 
-It is expected to take some time on the first run.
+It is expected to take some time on the first run (about 1.8 GB to download).
 
 ````sh
 docker/bin/dock.sh clang --version
@@ -32,8 +32,8 @@ in Docker images.
     mkdir build
     cd build
     ````
-    Note that this build directory is created in the host environement, as
-   the whole project directory is mapped from the host.
+    This build directory is created in the host environement, as the whole
+    project directory is mapped from the host.
 
 3. Run CMake to create the build environment
     ````sh
@@ -47,6 +47,9 @@ in Docker images.
     Use `-v` option if you want to see the compiler command lines
 
 5. Exit the Docker shell (if required)
+    ````sh
+    exit
+    ````
 
     The output files are still available in the directory that has been created
    from the Docker session.
