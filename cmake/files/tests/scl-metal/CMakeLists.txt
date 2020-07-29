@@ -1,11 +1,13 @@
+# application name radix based on directory's name
 GET_FILENAME_COMPONENT (COMPONENT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/unity/src
-                    ${CMAKE_SOURCE_DIR}/unity/extras/fixture/src
-                    ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
+# where to find unity header file
+INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
+                     ${CMAKE_SOURCE_DIR}/unity/extras/fixture/src
+                     ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
 
-ADD_EXECUTABLE (${COMPONENT}
-  test-scl-metal.c
+# build a library with all the tests
+ADD_LIBRARY (${COMPONENT}
   tests/api/aes/hardware/test_hca_aes_128.c
   tests/api/aes/hardware/test_hca_aes_192.c
   tests/api/aes/hardware/test_hca_aes_256.c
@@ -35,42 +37,64 @@ ADD_EXECUTABLE (${COMPONENT}
   tests/test_runners/test_utils_runner.c
 )
 
+# libraries
 LIST (INSERT PROJECT_LINK_LIBRARIES 0
-      c clang_rt.builtins-riscv${XLEN} metal metal-gloss scl unity)
+      c clang_rt.builtins-riscv${XLEN} metal metal-gloss scl unity
+      ${COMPONENT})
 
-SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${COMPONENT}.map")
-GET_TARGET_PROPERTY (_link_flags ${COMPONENT}
-                     LINK_FLAGS)
-IF (NOT _link_flags)
-  SET (_link_flags)
-ENDIF ()
-SET_TARGET_PROPERTIES (${COMPONENT} PROPERTIES LINK_FLAGS
-  "${_link_flags} ${LDPREFIX}--Map ${LDPREFIX}${mapfile}")
+# which tests to build
+SET (TESTS hca_sha hca_aes)
 
-TARGET_LINK_LIBRARIES (${COMPONENT}
-                       # ${LDPREFIX}--warn-common
-                       ${LDPREFIX}--gc-sections
-                       ${LDPREFIX}--no-whole-archive
-                       ${LDPREFIX}--warn-once
-                       ${LDPREFIX}-static
-                       --allow-multiple-definition
-                       -T ${CMAKE_SOURCE_DIR}/bsp/${XBSP}/ld/metal.ld
-                       ${LINK_C_RUNTIME}
-                       ${LDPREFIX}${LDSTARTGROUP}
-                       ${LINK_SYSTEM_LIBS}
-                       ${PROJECT_LINK_LIBRARIES}
-                       ${LDPREFIX}${LDENDGROUP})
+# build a test application for each test family
+FOREACH (test ${TESTS})
 
-SET (xdisassemble
-     ${gnuxobjdump} -dS)
-#SET (xdisassemble
-#     ${xobjdump} -disassemble -g -line-numbers -source)
+  # build application named after the test kind
+  STRING (REPLACE "_" "-" testname ${test})
+  SET (testapp test-${COMPONENT}-${testname})
+  ADD_EXECUTABLE (${testapp}
+    test-scl-metal.c
+  )
 
-SET (app ${COMPONENT}${CMAKE_EXECUTABLE_SUFFIX})
-ADD_CUSTOM_COMMAND (TARGET ${COMPONENT} POST_BUILD
-                    COMMAND ${xdisassemble}
-                      ${app} 2> /dev/null > ${COMPONENT}.S
-                    COMMENT "Disassembling ELF file" VERBATIM)
-ADD_CUSTOM_COMMAND (TARGET ${COMPONENT} POST_BUILD
-                    COMMAND ${xsize}
-                      ${app})
+  # add a map file
+  SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${testapp}.map")
+  SET_PROPERTY (TARGET ${testapp}
+                APPEND
+                PROPERTY LINK_FLAGS "${LDPREFIX}--Map ${LDPREFIX}${mapfile}")
+
+  # select which tests function are used
+  STRING (TOUPPER ${test} utest)
+  SET_PROPERTY (TARGET ${testapp}
+                APPEND
+                PROPERTY COMPILE_DEFINITIONS TEST_${utest})
+
+  # define the link options
+  TARGET_LINK_LIBRARIES (${testapp}
+                         # ${LDPREFIX}--warn-common
+                         ${LDPREFIX}--gc-sections
+                         ${LDPREFIX}--no-whole-archive
+                         ${LDPREFIX}--warn-once
+                         ${LDPREFIX}-static
+                         --allow-multiple-definition
+                         -T ${CMAKE_SOURCE_DIR}/bsp/${XBSP}/ld/metal.ld
+                         ${LINK_C_RUNTIME}
+                         ${LDPREFIX}${LDSTARTGROUP}
+                         ${LINK_SYSTEM_LIBS}
+                         ${PROJECT_LINK_LIBRARIES}
+                         ${LDPREFIX}${LDENDGROUP})
+
+  # disassemble the ELF file
+  SET (xdisassemble
+       ${gnuxobjdump} -dS)
+  #SET (xdisassemble
+  #     ${xobjdump} -disassemble -g -line-numbers -source)
+  SET (app ${testapp}${CMAKE_EXECUTABLE_SUFFIX})
+  ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
+                      COMMAND ${xdisassemble}
+                        ${app} 2> /dev/null > ${testapp}.S
+                      COMMENT "Disassembling ELF file" VERBATIM)
+  # get size info about the ELF file
+  ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
+                      COMMAND ${xsize}
+                        ${app})
+# each test application
+ENDFOREACH ()
