@@ -1,5 +1,7 @@
 # Only for SCL, there would be too many warning for the whole Metal
 ADD_DEFINITIONS ("-Weverything")
+# ADD_DEFINITIONS ("--analyze -Xanalyzer -analyzer-config "
+#                  "-Xanalyzer -enable-checker=nullability.NullableDereferenced")
 
 # Comment warnings in this list to get the associated error messages
 LIST (APPEND DISABLE_WARNINGS
