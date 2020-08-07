@@ -7,19 +7,29 @@
 # Import useful macros
 CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
-IF (DEFINED XLEN AND XLEN EQUAL 32)
+IF (NOT DEFINED XBSP)
+  SET (XBSP qemu-arty-s51)
+ENDIF ()
+
+IF (NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/bsp/${XBSP})
+  MESSAGE (FATAL_ERROR "Unsupported BSP ${XBSP}")
+ENDIF ()
+
+STRING (REGEX REPLACE "^(qemu-.*-)([es])([0-9]+)$" "\\2" XSERIES ${XBSP})
+IF (XSERIES STREQUAL "e")
   # 32-bit target
   SET (XLEN    32)
   SET (XISA    imac)
-  SET (XBSP    qemu-arty-e31)
-ELSE ()
+ELSEIF (XSERIES STREQUAL "s")
   # 64-bit target
   SET (XLEN    64)
   SET (XISA    imac)
-  SET (XBSP    qemu-arty-s51)
+ELSE ()
+  MESSAGE (FATAL_ERROR "Unsupported XBSP")
 ENDIF ()
 
-MESSAGE (STATUS "${XLEN}-bit target")
+MESSAGE (STATUS "Select ${XLEN}-bit target")
+MESSAGE (STATUS "Select ${XBSP} BSP")
 
 SET (CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 SET (CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/riscv.cmake)
