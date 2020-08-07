@@ -1,0 +1,123 @@
+/dts-v1/;
+/ {
+    #address-cells = <1>;
+    #size-cells = <1>;
+    compatible = "sifive-s51-riscv-cpu";
+    model = "sifive-s51-riscv-cpu";
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        compatible = "sifive,cores";
+
+        L6: cpu@0 {
+            // clocks = <&hfclk>;
+            // add CPU, should be based on ISA and feature
+            // not CPU name
+            compatible = "sifive-riscv-cpu", "riscv";
+            device_type = "cpu";
+            i-cache-block-size = <64>;
+            i-cache-sets = <128>;
+            i-cache-size = <16384>;
+            // next-level-cache = <&spi0>;
+            reg = <0>;
+            riscv,isa = "rv64imac";
+            riscv,pmp = <1>;
+            riscv,mmu = <1>;
+            // sifive,dtim = <&dtim>;
+            status = "okay";
+            timebase-frequency = <1000000>;
+            hardware-exec-breakpoint-count = <4>;
+            hlic: interrupt-controller {
+                    #interrupt-cells = <1>;
+                    compatible = "riscv,cpu-intc";
+                    interrupt-controller;
+            };
+        };
+    };
+
+    dtim@80000000 {
+       device_type = "memory";
+       reg = <0x80000000 0x400000>;
+    };
+
+    rom@1000 {
+        device_type = "memory";
+        reg = <0x1000 0x2000>;
+        qemu,ram = <0x01>;
+        read-only;
+    };
+
+    xip@40000000 {
+        // actual memory is declared as mapped SPI
+        device_type = "memory";
+        reg = <0x40000000 0x1000000>;
+        qemu,ram = <0x01>;
+        read-only;
+    };
+
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        #clock-cells = <1>;
+        compatible = "qemu:system-memory";
+        ranges;
+
+        hca@6000 {
+            // clocks = <&L0>;
+            compatible = "sifive,hca-0.5";
+            interrupt-parent = <&plic>;
+            interrupts = <23 24>;
+            reg = <0x6000 0x1000>;
+            reg-names = "control";
+        };
+
+        otp@20000 {
+            compatible = "sifive,otp,e";
+            reg = <0x20000 0x2000 0x10010000 0x1000>;
+            reg-names = "mem", "control";
+        };
+
+        test@4000 {
+            compatible = "sifive,test";
+            reg = <0x4000 0x1000>;
+        };
+
+        uart0: uart@10013000 {
+            interrupts = <5>;
+            interrupt-parent = <&plic>;
+            reg = <0x10013000 0x1000>;
+            reg-names = "control";
+            compatible = "sifive,uart0";
+        };
+
+        pcri@10008000 {
+            reg = <0x10008000 0x1000>;
+            compatible = "sifive,prci,e";
+        };
+
+        gpio@10012000 {
+            reg = <0x10012000 0x1000>;
+            compatible = "sifive,gpio";
+        };
+
+        plic: interrupt-controller@c000000 {
+            compatible = "riscv,plic0";
+            #interrupt-cells = <0x01>;
+            interrupt-controller;
+            phandle = <0x02>;
+            riscv,ndev = <26>;
+            riscv,max-priority = <7>;
+            reg-names = "control";
+            reg = <0xc000000 0x4000000>;
+            interrupts-extended = <&hlic 11>;
+        };
+
+        clint@2000000 {
+            compatible = "riscv,clint0";
+            interrupts-extended = <&hlic 0x03 &hlic 0x07>;
+            reg = <0x2000000 0x10000>;
+            reg-names = "control";
+            clock-frequency = <32768>;
+        };
+    };
+};
