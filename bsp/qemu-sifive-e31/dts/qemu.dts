@@ -63,6 +63,15 @@
         compatible = "qemu:system-memory";
         ranges;
 
+        hca@6000 {
+            // clocks = <&L0>;
+            compatible = "sifive,hca-0.5";
+            interrupt-parent = <&plic>;
+            interrupts = <23 24>;
+            reg = <0x6000 0x1000>;
+            reg-names = "control";
+        };
+
         otp@20000 {
             compatible = "sifive,otp,e";
             reg = <0x20000 0x2000 0x10010000 0x1000>;
