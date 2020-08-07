@@ -38,7 +38,7 @@ SECTIONS
      * initializes the stack pointers for each hart at the right offset from
      * the _sp symbol.
      */
-    __stack_size = DEFINED(__stack_size) ? __stack_size : 0x400;
+    __stack_size = DEFINED(__stack_size) ? __stack_size : 0x800;
     PROVIDE(__stack_size = __stack_size);
 
     /* The size of the heap can be overriden at build-time by adding the
