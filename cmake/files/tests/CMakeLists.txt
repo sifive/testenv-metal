@@ -1,2 +1,0 @@
-ADD_SUBDIRECTORY (hello)
-ADD_SUBDIRECTORY (scl-metal)

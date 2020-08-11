@@ -76,8 +76,33 @@ FOREACH (cmakefile ${cmakefiles})
   ENDIF ()
 ENDFOREACH ()
 
-ADD_SUBDIRECTORY (metal)
-ADD_SUBDIRECTORY (unity)
-ADD_SUBDIRECTORY (gloss)
-ADD_SUBDIRECTORY (scl-metal)
-ADD_SUBDIRECTORY (tests)
+#------------------------------------------------------------------------------
+# List all subprojects, that is directories that contain a CMakeLists.txt file
+# :outvar: output variable
+#------------------------------------------------------------------------------
+MACRO (find_subprojects outvar)
+  SET (${outvar})
+  FILE (GLOB subfiles
+        LIST_DIRECTORIES true
+        RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeLists.txt)
+  SET (args ${ARGN})
+  FOREACH (prj ${subfiles})
+    GET_FILENAME_COMPONENT (subprj ${prj} DIRECTORY)
+    IF (args)
+      IF (${subprj} IN_LIST args)
+        CONTINUE ()
+      ENDIF ()
+    ENDIF ()
+    LIST (APPEND ${outvar} ${subprj})
+  ENDFOREACH ()
+ENDMACRO ()
+
+#------------------------------------------------------------------------------
+# Subprojects
+#------------------------------------------------------------------------------
+find_subprojects(subprojects)
+
+FOREACH (prj ${subprojects})
+  ADD_SUBDIRECTORY (${prj} ${prj})
+ENDFOREACH ()

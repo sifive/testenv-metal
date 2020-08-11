@@ -1,3 +1,3 @@
-ADD_LIBRARY (pico
-  src/iob.c
-)
+# ADD_LIBRARY (pico
+#   src/iob.c
+# )
