@@ -14,6 +14,9 @@
 #define SHA512_BLOCKSIZE   128u  // bytes
 #define SHA512_LEN_SIZE    16u   // bytes
 
+#define SHA256_BLOCKSIZE   64u  // bytes
+#define SHA256_LEN_SIZE    8u   // bytes
+
 #define DEBUG_HCA
 
 #ifdef DEBUG_HCA
@@ -34,6 +37,7 @@ static const metal_scl_t scl = {
     .hca_base = METAL_SIFIVE_HCA_0_BASE_ADDRESS,
 };
 
+#if 1
 static const char TEXT[] __attribute__((aligned(32)))=
 "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris pellentesque "
 "auctor purus quis euismod. Duis laoreet finibus varius. Aenean egestas massa "
@@ -45,6 +49,9 @@ static const char TEXT[] __attribute__((aligned(32)))=
 "velit tortor. Ut id arcu sit amet odio malesuada mollis non id velit. Nullam "
 "id congue odio. Vivamus tincidunt arcu nisi, ut eleifend eros aliquam "
 "blandit. Pellentesque sed diam placerat erat pharetra scelerisque.";
+#else
+static const char TEXT[] __attribute__((aligned(32)))="abc";
+#endif
 
 #if __riscv_xlen >= 64
 static uint64_t sha2[512u/(CHAR_BIT*sizeof(uint64_t))];
@@ -55,11 +62,22 @@ static uint32_t sha2[512u/(CHAR_BIT*sizeof(uint32_t))];
 static uint8_t buffer[2u*SHA512_BLOCKSIZE] __attribute__((aligned(32)));
 
 static void
+_update_bit_len(uint8_t * eob, uint64_t length)
+{
+    const uint8_t *plen = (const uint8_t *)&length;
+    unsigned int count = sizeof(uint64_t);
+
+    while ( count-- ) {
+        *--eob = *plen++;
+    }
+}
+
+static void
 _sifive_hca_hexdump(const char * func, int line, const char * msg,
                     const uint8_t *buf, size_t size)
 {
     static const char _hex[] = "0123456789ABCDEF";
-    static char hexstr[128];
+    static char hexstr[512];
     for (unsigned int ix = 0 ; ix < size ; ix++) {
         hexstr[(ix * 2)] = _hex[(buf[ix] >> 4) & 0xf];
         hexstr[(ix * 2) + 1] = _hex[buf[ix] & 0xf];
@@ -86,28 +104,40 @@ void run(void) {
         return;
     }
 
-    size_t size = sizeof(TEXT);
+    size_t size = sizeof(TEXT)-1u; // skip trailing NUL char
     size_t dma_size = size / DMA_BLOCK_SIZE;
     size_t trailing = size % DMA_BLOCK_SIZE;
+    size_t dma_payload = size - trailing;
+    size_t skip = dma_payload % SHA512_BLOCKSIZE;
+    PRINTF("Trailing bytes: %zu, skip %zu", trailing, skip);
 
-    PRINTF("Text trailing: %zu", trailing);
-    memcpy(&buffer[0], &TEXT[size], trailing);
-    buffer[trailing++] = 0x80;
-    size_t rem = SHA512_BLOCKSIZE-trailing;
+    // position in a SHA512_BLOCKSIZE buffer
+    unsigned int pos = skip;
+    PRINTF("[%s]", &TEXT[dma_payload]);
+    memcpy(&buffer[pos], &TEXT[dma_payload], trailing);
+    pos += trailing;
+    buffer[pos++] = 0x80;
 
-    size_t buf_size = SHA512_BLOCKSIZE;
+    size_t rem = SHA512_BLOCKSIZE-pos;
+    size_t buf_size = SHA512_BLOCKSIZE-skip;
+
     if ( rem < SHA512_LEN_SIZE ) {
         if ( rem ) {
-            memset(&buffer[trailing], 0, rem);
+            memset(&buffer[pos], 0, rem);
         }
-        trailing += rem;
+        pos += rem;
         rem = SHA512_BLOCKSIZE;
         buf_size += SHA512_BLOCKSIZE;
     }
-    memset(&buffer[trailing], 0, rem);
-    trailing += rem - SHA512_LEN_SIZE;
+    memset(&buffer[pos], 0, rem);
+    pos += rem;
+    PRINTF("POS %u %p", pos, &buffer[pos]);
+    _update_bit_len(&buffer[pos], size*CHAR_BIT);
 
-    // DUMP_HEX("Buffer:", buffer, buf_size);
+
+    const uint8_t * trail = &buffer[skip];
+
+    DUMP_HEX("Buffer:", trail, buf_size);
 
     PRINTF("DMA src:  %p", TEXT);
     PRINTF("DMA size: %zu -> %zu", size, dma_size);
@@ -184,7 +214,7 @@ void run(void) {
     PRINTF("DMA size: %zu -> %zu", buf_size, dma_size);
 
     // DMA source
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_SRC) = (uintptr_t)buffer;
+    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_SRC) = (uintptr_t)trail;
 
     // DMA size
     METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_LEN) = dma_size;
@@ -219,12 +249,13 @@ void run(void) {
 
     PRINTF("SHA finish done");
     for(unsigned int ix=0; ix<ARRAY_SIZE(sha2); ix++) {
+        sha2[ARRAY_SIZE(sha2) - 1u - ix] =
 #if __riscv_xlen >= 64
-        sha2[ix] = METAL_REG64(scl.hca_base,
-                               METAL_SIFIVE_HCA_HASH+ix*sizeof(uint64_t));
+            __builtin_bswap64(METAL_REG64(scl.hca_base,
+                        METAL_SIFIVE_HCA_HASH+ix*sizeof(uint64_t)));
 #else
-        sha2[ix] = METAL_REG32(scl.hca_base,
-                               METAL_SIFIVE_HCA_HASH+ix*sizeof(uint32_t));
+            __builtin_bswap32(METAL_REG32(scl.hca_base,
+                        METAL_SIFIVE_HCA_HASH+ix*sizeof(uint32_t)));
 #endif
     }
     const uint8_t * hash = (const uint8_t *)&sha2[0];
