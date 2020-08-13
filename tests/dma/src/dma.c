@@ -33,15 +33,15 @@ struct sha_desc {
 //-----------------------------------------------------------------------------
 
 #define DMA_BLOCK_SIZE     16u   // bytes
-#define SHA512_BLOCK_SIZE   128u  // bytes
+#define SHA512_BLOCK_SIZE  128u  // bytes
 #define SHA512_LEN_SIZE    16u   // bytes
 
-#define SHA256_BLOCKSIZE   64u  // bytes
-#define SHA256_LEN_SIZE    8u   // bytes
+#define SHA256_BLOCKSIZE   64u   // bytes
+#define SHA256_LEN_SIZE    8u    // bytes
 
 #define HCA_BASE           (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
 
-#if 0
+#if 1
 static const char TEXT[] __attribute__((aligned(32)))=
 "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris pellentesque "
 "auctor purus quis euismod. Duis laoreet finibus varius. Aenean egestas massa "
@@ -126,6 +126,42 @@ _hca_updreg32(uint32_t reg, uint32_t value, size_t offset, uint32_t mask)
     METAL_REG32(HCA_BASE, reg) = reg32;
 }
 
+static inline bool
+_hca_sha_is_busy(void)
+{
+    uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_CR);
+    return !! (sha_cr & (HCA_REGISTER_SHA_CR_BUSY_MASK <<
+                         HCA_REGISTER_SHA_CR_BUSY_OFFSET));
+}
+
+static inline bool
+_hca_dma_is_busy(void)
+{
+    uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
+    return !! (dma_cr & (HCA_REGISTER_DMA_CR_BUSY_MASK <<
+                         HCA_REGISTER_DMA_CR_BUSY_OFFSET));
+}
+
+static void
+_hca_sha_get_hash(const uint8_t ** hash, size_t length)
+{
+    #if __riscv_xlen >= 64
+    size_t size = length/sizeof(uint64_t);
+    #else
+    size_t size = length/sizeof(uint32_t);
+    #endif
+    for(unsigned int ix=0; ix<size; ix++) {
+        sha2[size - 1u - ix] =
+            #if __riscv_xlen >= 64
+            __builtin_bswap64(METAL_REG64(HCA_BASE,
+                              METAL_SIFIVE_HCA_HASH+ix*sizeof(uint64_t)));
+            #else
+            __builtin_bswap32(METAL_REG32(HCA_BASE,
+                              METAL_SIFIVE_HCA_HASH+ix*sizeof(uint32_t)));
+            #endif
+    }
+    *hash = (const uint8_t *)&sha2[0];
+}
 
 static void
 _update_bit_len(uint8_t * eob, uint64_t length)
@@ -138,7 +174,7 @@ _update_bit_len(uint8_t * eob, uint64_t length)
     }
 }
 
-static void
+static int
 _build_sha_desc(struct sha_desc * desc, const uint8_t * src, size_t length)
 {
     // for now, do not manage prolog
@@ -177,23 +213,26 @@ _build_sha_desc(struct sha_desc * desc, const uint8_t * src, size_t length)
 
     if ( buf_size % DMA_BLOCK_SIZE ) {
         PRINTF("ERROR !! %zu", buf_size);
+        return -1;
     }
     // DUMP_HEX("Buffer:", desc->sd_epilog.bd_base, buf_size);
+
+    return 0;
 }
 
-void run(void) {
+int run(void) {
     uint32_t reg;
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
     PRINTF("HCA rev: %08x", reg);
     if ( ! reg ) {
-        return;
+        return -1;
     }
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_REV);
     PRINTF("SHA rev: %08x", reg);
     if ( ! reg ) {
-        return;
+        return -1;
     }
 
     // FIFO mode: SHA
@@ -221,7 +260,17 @@ void run(void) {
 
     struct sha_desc desc;
     // skip trailing NUL char
-    _build_sha_desc(&desc, (const uint8_t *)TEXT, sizeof(TEXT)-1u);
+    if ( _build_sha_desc(&desc, (const uint8_t *)TEXT, sizeof(TEXT)-1u) ){
+        return -1;
+    }
+
+    if ( _hca_sha_is_busy() ) {
+        return -1;
+    }
+
+    if ( _hca_dma_is_busy() ) {
+        return -1;
+    }
 
     PRINTF("SHA start");
 
@@ -243,24 +292,14 @@ void run(void) {
                   HCA_REGISTER_DMA_CR_START_OFFSET,
                   HCA_REGISTER_DMA_CR_START_MASK);
 
-    for(;;) {
-        // Poll on DMA busy
-        uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
-        if ( ! (dma_cr & (HCA_REGISTER_DMA_CR_BUSY_MASK <<
-                          HCA_REGISTER_DMA_CR_BUSY_OFFSET)) ) {
-            break;
-        }
+    while( _hca_dma_is_busy() ) {
+        // busy loop
     }
 
     PRINTF("DMA data done");
 
-    for(;;) {
-        // Poll on SHA busy
-        uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_CR);
-        if ( ! (sha_cr & (HCA_REGISTER_SHA_CR_BUSY_MASK <<
-                          HCA_REGISTER_SHA_CR_BUSY_OFFSET)) ) {
-            break;
-        }
+    while ( _hca_sha_is_busy() ) {
+        // busy loop
     }
 
     PRINTF("SHA finish done");
@@ -277,44 +316,27 @@ void run(void) {
                    HCA_REGISTER_DMA_CR_START_OFFSET,
                    HCA_REGISTER_DMA_CR_START_MASK);
 
-    for(;;) {
-        // Poll on DMA busy
-        uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
-        if ( ! (dma_cr & (HCA_REGISTER_DMA_CR_BUSY_MASK <<
-                          HCA_REGISTER_DMA_CR_BUSY_OFFSET)) ) {
-            break;
-        }
+    while(_hca_dma_is_busy()) {
+        // busy loop
     }
 
     PRINTF("DMA finish done");
 
-    for(;;) {
-        // Poll on SHA busy
-        uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_CR);
-        if ( ! (sha_cr & (HCA_REGISTER_SHA_CR_BUSY_MASK <<
-                          HCA_REGISTER_SHA_CR_BUSY_OFFSET)) ) {
-            break;
-        }
+    while ( _hca_sha_is_busy() ) {
+        // busy loop
     }
 
     PRINTF("SHA finish done");
-    for(unsigned int ix=0; ix<ARRAY_SIZE(sha2); ix++) {
-        sha2[ARRAY_SIZE(sha2) - 1u - ix] =
-#if __riscv_xlen >= 64
-            __builtin_bswap64(METAL_REG64(HCA_BASE,
-                        METAL_SIFIVE_HCA_HASH+ix*sizeof(uint64_t)));
-#else
-            __builtin_bswap32(METAL_REG32(HCA_BASE,
-                        METAL_SIFIVE_HCA_HASH+ix*sizeof(uint32_t)));
-#endif
-    }
-    const uint8_t * hash = (const uint8_t *)&sha2[0];
+    const uint8_t * hash;
+    _hca_sha_get_hash(&hash, 512u/CHAR_BIT);
     DUMP_HEX("SHA512:", hash, 512u/CHAR_BIT);
 
     for(;;) {
         __asm__ volatile ("wfi");
     }
     PRINTF("END");
+
+    return 0;
 }
 
 
