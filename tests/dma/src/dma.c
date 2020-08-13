@@ -10,34 +10,38 @@
 #include "api/hardware/hca_utils.h"
 #include "api/hardware/hca_macro.h"
 
+//-----------------------------------------------------------------------------
+// Type definitions
+//-----------------------------------------------------------------------------
+
+struct buf_desc {
+    const uint8_t * bd_base;
+    union {
+        size_t bd_length;  /**< Size in bytes */
+        size_t bd_count;   /**< Size in DMA block count */
+    };
+};
+
+struct sha_desc {
+    struct buf_desc sd_prolog;
+    struct buf_desc sd_main;
+    struct buf_desc sd_epilog;
+};
+
+//-----------------------------------------------------------------------------
+// Constants
+//-----------------------------------------------------------------------------
+
 #define DMA_BLOCK_SIZE     16u   // bytes
-#define SHA512_BLOCKSIZE   128u  // bytes
+#define SHA512_BLOCK_SIZE   128u  // bytes
 #define SHA512_LEN_SIZE    16u   // bytes
 
 #define SHA256_BLOCKSIZE   64u  // bytes
 #define SHA256_LEN_SIZE    8u   // bytes
 
-#define DEBUG_HCA
+#define HCA_BASE           (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
 
-#ifdef DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...) \
-    printf("%s[%d] " _msg_ "\n", _f_, _l_, ##__VA_ARGS__)
-# define PRINTF(_msg_, ...) \
-    LPRINTF(__func__, __LINE__, _msg_, ##__VA_ARGS__)
-#else // DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...)
-# define PRINTF(_msg_, ...)
-#endif
-
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(_a_) (sizeof((_a_))/sizeof((_a_)[0]))
-#endif // ARRAY_SIZE
-
-static const metal_scl_t scl = {
-    .hca_base = METAL_SIFIVE_HCA_0_BASE_ADDRESS,
-};
-
-#if 1
+#if 0
 static const char TEXT[] __attribute__((aligned(32)))=
 "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris pellentesque "
 "auctor purus quis euismod. Duis laoreet finibus varius. Aenean egestas massa "
@@ -53,13 +57,75 @@ static const char TEXT[] __attribute__((aligned(32)))=
 static const char TEXT[] __attribute__((aligned(32)))="abc";
 #endif
 
+//-----------------------------------------------------------------------------
+// Macros
+//-----------------------------------------------------------------------------
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(_a_) (sizeof((_a_))/sizeof((_a_)[0]))
+#endif // ARRAY_SIZE
+
+//-----------------------------------------------------------------------------
+// Debug
+//-----------------------------------------------------------------------------
+
+#define DEBUG_HCA
+
+#ifdef DEBUG_HCA
+# define LPRINTF(_f_, _l_, _msg_, ...) \
+    printf("%s[%d] " _msg_ "\n", _f_, _l_, ##__VA_ARGS__)
+# define PRINTF(_msg_, ...) \
+    LPRINTF(__func__, __LINE__, _msg_, ##__VA_ARGS__)
+#else // DEBUG_HCA
+# define LPRINTF(_f_, _l_, _msg_, ...)
+# define PRINTF(_msg_, ...)
+#endif
+
+#define DUMP_HEX(_msg_, _buf_, _len_) \
+   _hca_hexdump(__func__, __LINE__, _msg_, _buf_, _len_);
+
+//-----------------------------------------------------------------------------
+// Variables
+//-----------------------------------------------------------------------------
+
 #if __riscv_xlen >= 64
 static uint64_t sha2[512u/(CHAR_BIT*sizeof(uint64_t))];
 #else
 static uint32_t sha2[512u/(CHAR_BIT*sizeof(uint32_t))];
 #endif
 
-static uint8_t buffer[2u*SHA512_BLOCKSIZE] __attribute__((aligned(32)));
+static uint8_t trail_buf[2u*SHA512_BLOCK_SIZE] __attribute__((aligned(32)));
+static uint8_t lead_buf[DMA_BLOCK_SIZE] __attribute__((aligned(8)));
+
+
+//-----------------------------------------------------------------------------
+// Implementation
+//-----------------------------------------------------------------------------
+
+static void
+_hca_hexdump(const char * func, int line, const char * msg,
+                    const uint8_t *buf, size_t size)
+{
+    static const char _hex[] = "0123456789ABCDEF";
+    static char hexstr[512];
+    for (unsigned int ix = 0 ; ix < size ; ix++) {
+        hexstr[(ix * 2)] = _hex[(buf[ix] >> 4) & 0xf];
+        hexstr[(ix * 2) + 1] = _hex[buf[ix] & 0xf];
+    }
+    hexstr[size * 2] = '\0';
+    printf("%s[%d] %s (%zu): %s\n", func, line, msg, size, hexstr);
+}
+
+static inline void
+_hca_updreg32(uint32_t reg, uint32_t value, size_t offset, uint32_t mask)
+{
+    uint32_t reg32;
+    reg32 = METAL_REG32(HCA_BASE, reg);
+    reg32 &= ~(mask << offset);
+    reg32 |= ((value & mask) << offset);
+    METAL_REG32(HCA_BASE, reg) = reg32;
+}
+
 
 static void
 _update_bit_len(uint8_t * eob, uint64_t length)
@@ -73,124 +139,113 @@ _update_bit_len(uint8_t * eob, uint64_t length)
 }
 
 static void
-_sifive_hca_hexdump(const char * func, int line, const char * msg,
-                    const uint8_t *buf, size_t size)
+_build_sha_desc(struct sha_desc * desc, const uint8_t * src, size_t length)
 {
-    static const char _hex[] = "0123456789ABCDEF";
-    static char hexstr[512];
-    for (unsigned int ix = 0 ; ix < size ; ix++) {
-        hexstr[(ix * 2)] = _hex[(buf[ix] >> 4) & 0xf];
-        hexstr[(ix * 2) + 1] = _hex[buf[ix] & 0xf];
-    }
-    hexstr[size * 2] = '\0';
-    printf("%s[%d] %s (%zu): %s\n", func, line, msg, size, hexstr);
-}
+    // for now, do not manage prolog
+    desc->sd_prolog.bd_base = NULL;
+    desc->sd_prolog.bd_length = 0u;
 
-#define DUMP_HEX(_msg_, _buf_, _len_) \
-   _sifive_hca_hexdump(__func__, __LINE__, _msg_, _buf_, _len_);
+    size_t trailing = length % DMA_BLOCK_SIZE;
+    size_t payload_size = length - trailing;
+    size_t skip = payload_size % SHA512_BLOCK_SIZE;
+
+    desc->sd_main.bd_base = src;
+    desc->sd_main.bd_count = length / DMA_BLOCK_SIZE;
+
+    unsigned int pos = skip;
+    memcpy(&trail_buf[pos], &src[payload_size], trailing);
+    pos += trailing;
+    trail_buf[pos++] = 0x80;
+
+    size_t rem = SHA512_BLOCK_SIZE-pos;
+    size_t buf_size = SHA512_BLOCK_SIZE-skip;
+
+    if ( rem < SHA512_LEN_SIZE ) {
+        if ( rem ) {
+            memset(&trail_buf[pos], 0, rem);
+        }
+        pos += rem;
+        rem = SHA512_BLOCK_SIZE;
+        buf_size += SHA512_BLOCK_SIZE;
+    }
+    memset(&trail_buf[pos], 0, rem);
+    pos += rem;
+    _update_bit_len(&trail_buf[pos], length*CHAR_BIT);
+
+    desc->sd_epilog.bd_base = &trail_buf[skip];
+    desc->sd_epilog.bd_count = buf_size / DMA_BLOCK_SIZE;
+
+    if ( buf_size % DMA_BLOCK_SIZE ) {
+        PRINTF("ERROR !! %zu", buf_size);
+    }
+    // DUMP_HEX("Buffer:", desc->sd_epilog.bd_base, buf_size);
+}
 
 void run(void) {
     uint32_t reg;
 
-    reg = METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_HCA_REV);
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
     PRINTF("HCA rev: %08x", reg);
     if ( ! reg ) {
         return;
     }
 
-    reg = METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_SHA_REV);
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_REV);
     PRINTF("SHA rev: %08x", reg);
     if ( ! reg ) {
         return;
     }
 
-    size_t size = sizeof(TEXT)-1u; // skip trailing NUL char
-    size_t dma_size = size / DMA_BLOCK_SIZE;
-    size_t trailing = size % DMA_BLOCK_SIZE;
-    size_t dma_payload = size - trailing;
-    size_t skip = dma_payload % SHA512_BLOCKSIZE;
-    PRINTF("Trailing bytes: %zu, skip %zu", trailing, skip);
-
-    // position in a SHA512_BLOCKSIZE buffer
-    unsigned int pos = skip;
-    PRINTF("[%s]", &TEXT[dma_payload]);
-    memcpy(&buffer[pos], &TEXT[dma_payload], trailing);
-    pos += trailing;
-    buffer[pos++] = 0x80;
-
-    size_t rem = SHA512_BLOCKSIZE-pos;
-    size_t buf_size = SHA512_BLOCKSIZE-skip;
-
-    if ( rem < SHA512_LEN_SIZE ) {
-        if ( rem ) {
-            memset(&buffer[pos], 0, rem);
-        }
-        pos += rem;
-        rem = SHA512_BLOCKSIZE;
-        buf_size += SHA512_BLOCKSIZE;
-    }
-    memset(&buffer[pos], 0, rem);
-    pos += rem;
-    PRINTF("POS %u %p", pos, &buffer[pos]);
-    _update_bit_len(&buffer[pos], size*CHAR_BIT);
-
-
-    const uint8_t * trail = &buffer[skip];
-
-    DUMP_HEX("Buffer:", trail, buf_size);
-
-    PRINTF("DMA src:  %p", TEXT);
-    PRINTF("DMA size: %zu -> %zu", size, dma_size);
-
     // FIFO mode: SHA
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_CR, 1,
-                   HCA_REGISTER_CR_IFIFOTGT_OFFSET,
-                   HCA_REGISTER_CR_IFIFOTGT_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
+                  HCA_REGISTER_CR_IFIFOTGT_OFFSET,
+                  HCA_REGISTER_CR_IFIFOTGT_MASK);
 
     // IRQ: not on Crypto done
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_CR, 0,
-                   HCA_REGISTER_CR_CRYPTODIE_OFFSET,
-                   HCA_REGISTER_CR_CRYPTODIE_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_CRYPTODIE_OFFSET,
+                  HCA_REGISTER_CR_CRYPTODIE_MASK);
     // IRQ: not on output FIFO not empty
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_CR, 0,
-                   HCA_REGISTER_CR_OFIFOIE_OFFSET,
-                   HCA_REGISTER_CR_OFIFOIE_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_OFIFOIE_OFFSET,
+                  HCA_REGISTER_CR_OFIFOIE_MASK);
     // IRQ: not on DMA done
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_CR, 0,
-                   HCA_REGISTER_CR_DMADIE_OFFSET,
-                   HCA_REGISTER_CR_DMADIE_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_DMADIE_OFFSET,
+                  HCA_REGISTER_CR_DMADIE_MASK);
 
     // SHA mode: SHA2-512
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_SHA_CR, 0x3,
-                   HCA_REGISTER_SHA_CR_MODE_OFFSET,
-                   HCA_REGISTER_SHA_CR_MODE_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 0x3,
+                  HCA_REGISTER_SHA_CR_MODE_OFFSET,
+                  HCA_REGISTER_SHA_CR_MODE_MASK);
+
+    struct sha_desc desc;
+    // skip trailing NUL char
+    _build_sha_desc(&desc, (const uint8_t *)TEXT, sizeof(TEXT)-1u);
 
     PRINTF("SHA start");
 
     // SHA start
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_SHA_CR, 1,
-                   HCA_REGISTER_SHA_CR_INIT_OFFSET,
-                   HCA_REGISTER_SHA_CR_INIT_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 1,
+                  HCA_REGISTER_SHA_CR_INIT_OFFSET,
+                  HCA_REGISTER_SHA_CR_INIT_MASK);
 
     PRINTF("DMA data start");
 
-    // DMA source
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_SRC) = (uintptr_t)TEXT;
-
-    // DMA destination (none)
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_DEST) = 0;
-
-    // DMA size
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_LEN) = dma_size;
+    // DMA config
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
+        (uintptr_t)desc.sd_main.bd_base;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = 0u;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_main.bd_count;
 
     // DMA start
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_DMA_CR, 1,
-                   HCA_REGISTER_DMA_CR_START_OFFSET,
-                   HCA_REGISTER_DMA_CR_START_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
+                  HCA_REGISTER_DMA_CR_START_OFFSET,
+                  HCA_REGISTER_DMA_CR_START_MASK);
 
     for(;;) {
         // Poll on DMA busy
-        uint32_t dma_cr = METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_CR);
+        uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
         if ( ! (dma_cr & (HCA_REGISTER_DMA_CR_BUSY_MASK <<
                           HCA_REGISTER_DMA_CR_BUSY_OFFSET)) ) {
             break;
@@ -201,7 +256,7 @@ void run(void) {
 
     for(;;) {
         // Poll on SHA busy
-        uint32_t sha_cr = METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_SHA_CR);
+        uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_CR);
         if ( ! (sha_cr & (HCA_REGISTER_SHA_CR_BUSY_MASK <<
                           HCA_REGISTER_SHA_CR_BUSY_OFFSET)) ) {
             break;
@@ -210,26 +265,21 @@ void run(void) {
 
     PRINTF("SHA finish done");
 
-    dma_size = buf_size / DMA_BLOCK_SIZE;
-    PRINTF("DMA size: %zu -> %zu", buf_size, dma_size);
-
-    // DMA source
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_SRC) = (uintptr_t)trail;
-
-    // DMA size
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_LEN) = dma_size;
-
+    // DMA source & size
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
+        (uintptr_t)desc.sd_epilog.bd_base;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_epilog.bd_count;
 
     PRINTF("DMA finish start");
 
     // DMA start
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_DMA_CR, 1,
+    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
                    HCA_REGISTER_DMA_CR_START_OFFSET,
                    HCA_REGISTER_DMA_CR_START_MASK);
 
     for(;;) {
         // Poll on DMA busy
-        uint32_t dma_cr = METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_DMA_CR);
+        uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
         if ( ! (dma_cr & (HCA_REGISTER_DMA_CR_BUSY_MASK <<
                           HCA_REGISTER_DMA_CR_BUSY_OFFSET)) ) {
             break;
@@ -240,7 +290,7 @@ void run(void) {
 
     for(;;) {
         // Poll on SHA busy
-        uint32_t sha_cr = METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_SHA_CR);
+        uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_CR);
         if ( ! (sha_cr & (HCA_REGISTER_SHA_CR_BUSY_MASK <<
                           HCA_REGISTER_SHA_CR_BUSY_OFFSET)) ) {
             break;
@@ -251,10 +301,10 @@ void run(void) {
     for(unsigned int ix=0; ix<ARRAY_SIZE(sha2); ix++) {
         sha2[ARRAY_SIZE(sha2) - 1u - ix] =
 #if __riscv_xlen >= 64
-            __builtin_bswap64(METAL_REG64(scl.hca_base,
+            __builtin_bswap64(METAL_REG64(HCA_BASE,
                         METAL_SIFIVE_HCA_HASH+ix*sizeof(uint64_t)));
 #else
-            __builtin_bswap32(METAL_REG32(scl.hca_base,
+            __builtin_bswap32(METAL_REG32(HCA_BASE,
                         METAL_SIFIVE_HCA_HASH+ix*sizeof(uint32_t)));
 #endif
     }
