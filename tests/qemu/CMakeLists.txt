@@ -6,7 +6,9 @@ INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
                      ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
 
 ADD_EXECUTABLE (${COMPONENT}
-                src/dma.c)
+                src/dma.c
+                src/qemu.c
+                src/trng.c)
 
 LIST (INSERT PROJECT_LINK_LIBRARIES 0
       c clang_rt.builtins-riscv${XLEN} metal metal-gloss scl unity)

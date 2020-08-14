@@ -502,39 +502,25 @@ _hca_irq_init(struct worker * work)
     // Lets get the CPU and and its interrupt
     struct metal_cpu *cpu;
     cpu = metal_cpu_get(metal_cpu_get_current_hartid());
-    if ( ! cpu ) {
-        PRINTF("Abort. CPU is null.");
-        return;
-    }
+    TEST_ASSERT_NOT_NULL_MESSAGE(cpu, "Cannot get CPU");
 
     struct metal_interrupt *cpu_intr;
     cpu_intr = metal_cpu_interrupt_controller(cpu);
-    if ( ! cpu_intr ) {
-        PRINTF("Abort. CPU interrupt controller is null.");
-    }
+    TEST_ASSERT_NOT_NULL_MESSAGE(cpu_intr, "Cannot get CPU controller");
     metal_interrupt_init(cpu_intr);
 
     struct metal_interrupt * plic;
     plic = metal_interrupt_get_controller(METAL_PLIC_CONTROLLER, 0);
-    if ( ! plic ) {
-        PRINTF("No PLIC?");
-        return;
-    }
-    metal_interrupt_init(plic);
+    TEST_ASSERT_NOT_NULL_MESSAGE(plic, "Cannot get PLIC");
+     metal_interrupt_init(plic);
 
     int rc;
     rc = metal_interrupt_register_handler(plic, HCA_ASD_IRQ_CHANNEL,
                                           &_hca_irq_handler, work);
-    if ( rc ) {
-        PRINTF("Cannot register ASD handler");
-        return;
-    }
+    TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
 
     rc = metal_interrupt_enable(plic, HCA_ASD_IRQ_CHANNEL);
-    if ( rc ) {
-        PRINTF("Cannot enable ASD handler");
-        return;
-    }
+    TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot enable IRQ");
 
     metal_interrupt_set_threshold(plic, 1);
     metal_interrupt_set_priority(plic, HCA_ASD_IRQ_CHANNEL, 2);
@@ -553,9 +539,7 @@ _hca_irq_init(struct worker * work)
     tmr_id = metal_cpu_timer_get_interrupt_id(cpu);
     rc = metal_interrupt_register_handler(tmr_intr, tmr_id, _timer_irq_handler,
                                           cpu);
-    if ( rc ) {
-        PRINTF("Cannot enable timer handler");
-    }
+    TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
 
     metal_cpu_set_mtimecmp(cpu, metal_cpu_get_mtime(cpu)+HEART_BEAT_TIME);
     metal_interrupt_enable(tmr_intr, tmr_id);
@@ -569,15 +553,11 @@ _hca_irq_fini(void)
 
     struct metal_interrupt * plic;
     plic = metal_interrupt_get_controller(METAL_PLIC_CONTROLLER, 0);
-    if ( ! plic ) {
-        PRINTF("No PLIC?");
-    }
-    else {
-        rc = metal_interrupt_disable(plic, HCA_ASD_IRQ_CHANNEL);
-        if ( rc ) {
-            PRINTF("Cannot disable ASD handler");
-        }
-    }
+    TEST_ASSERT_NOT_NULL_MESSAGE(plic, "Cannot get PLIC");
+
+    rc = metal_interrupt_disable(plic, HCA_ASD_IRQ_CHANNEL);
+    TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot diable IRQ");
+
 
     // clear interrupts
     _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
@@ -790,24 +770,4 @@ TEST_GROUP_RUNNER(dma_sha)
 {
     RUN_TEST_CASE(dma_sha, sha512_poll);
     RUN_TEST_CASE(dma_sha, sha512_irq);
-}
-
-//-----------------------------------------------------------------------------
-// Unit test main
-//-----------------------------------------------------------------------------
-
-static void
-_ut_run(void)
-{
-    UnityFixture.Verbose = 1;
-    UnityFixture.GroupFilter = "dma_sha";
-   // UnityFixture.NameFilter = "msg_abc_all_aligned";
-
-    RUN_TEST_GROUP(dma_sha);
-    // RUN_TEST_GROUP(dma_aes);
-}
-
-int main(int argc, const char *argv[])
-{
-    return UnityMain(argc, argv, _ut_run);
 }
