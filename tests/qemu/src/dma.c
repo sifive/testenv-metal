@@ -93,6 +93,16 @@ static, 0xconst char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
 
 #define ALIGN(_a_) __attribute__((aligned((_a_))))
 
+#ifndef METAL_REG16
+#define METAL_REG16(base, offset)                                              \
+    (__METAL_ACCESS_ONCE((uint16_t *)((base) + (offset))))
+#endif
+
+#ifndef METAL_REG8
+#define METAL_REG8(base, offset)                                              \
+    (__METAL_ACCESS_ONCE((uint8_t *)((base) + (offset))))
+#endif
+
 //-----------------------------------------------------------------------------
 // Debug
 //-----------------------------------------------------------------------------
