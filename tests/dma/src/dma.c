@@ -30,28 +30,34 @@ struct sha_desc {
 };
 
 struct worker {
-    bool wk_sha;
-    bool wk_dma;
+    volatile size_t wk_crypto_count; /**< Count of crypto block IRQs */
+    volatile size_t wk_dma_count;    /**< Count of DMA block IRQs */
+    volatile size_t wk_crypto_total;
+    volatile size_t wk_dma_total;
 };
 
 //-----------------------------------------------------------------------------
 // Constants
 //-----------------------------------------------------------------------------
 
-#define HCA_ASD_IRQ_CHANNEL 23u
+#define HCA_ASD_IRQ_CHANNEL  23u
 
-#define DMA_ALIGNMENT       32u
-#define DMA_BLOCK_SIZE      16u   // bytes
-#define SHA512_BLOCK_SIZE   128u  // bytes
-#define SHA512_LEN_SIZE     16u   // bytes
+#define TIME_BASE            32768u // cannot rely on buggy metal API
+#define HEART_BEAT_FREQUENCY 32u
+#define HEART_BEAT_TIME      ((TIME_BASE)/(HEART_BEAT_FREQUENCY))
 
-#define SHA256_BLOCKSIZE    64u   // bytes
-#define SHA256_LEN_SIZE     8u    // bytes
+#define DMA_ALIGNMENT        32u
+#define DMA_BLOCK_SIZE       16u   // bytes
+#define SHA512_BLOCK_SIZE    128u  // bytes
+#define SHA512_LEN_SIZE      16u   // bytes
+
+#define SHA256_BLOCKSIZE     64u   // bytes
+#define SHA256_LEN_SIZE      8u    // bytes
 
 #define HCA_BASE            (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
 
 #if 1
-static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))=
+static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT))) =
 "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris pellentesque "
 "auctor purus quis euismod. Duis laoreet finibus varius. Aenean egestas massa "
 "ac nunc placerat, quis accumsan arcu fermentum. Curabitur lectus metus, "
@@ -62,8 +68,18 @@ static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))=
 "velit tortor. Ut id arcu sit amet odio malesuada mollis non id velit. Nullam "
 "id congue odio. Vivamus tincidunt arcu nisi, ut eleifend eros aliquam "
 "blandit.";
+
+static const uint8_t TEXT_HASH[] = {
+   0x5E, 0x29, 0xD6, 0x26, 0x94, 0x4B, 0xAB, 0xC1, 0xB5, 0xE4, 0x27, 0x3E,
+   0xC0, 0xF0, 0x0D, 0x32, 0x98, 0x7C, 0xFB, 0xA8, 0x91, 0x60, 0xA3, 0xB4,
+   0xE5, 0xFE, 0x37, 0xEB, 0x30, 0xF4, 0x8D, 0x69, 0xAF, 0x66, 0xF2, 0xFA,
+   0xB4, 0x2F, 0xF0, 0x7D, 0xE4, 0xC7, 0x8C, 0xEF, 0xB0, 0xBF, 0x61, 0x06,
+   0x7B, 0xE2, 0x4A, 0x72, 0x8F, 0x95, 0x15, 0xBF, 0xCA, 0xFD, 0x20, 0xC0,
+   0x9B, 0xD9, 0x4F, 0xC6
+};
+
 #else
-static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
+static, 0xconst char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
 #endif
 
 //-----------------------------------------------------------------------------
@@ -81,6 +97,7 @@ static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
 //-----------------------------------------------------------------------------
 
 #define DEBUG_HCA
+#undef SHOW_STEP
 
 #ifdef DEBUG_HCA
 # define LPRINTF(_f_, _l_, _msg_, ...) \
@@ -99,14 +116,10 @@ static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
 // Variables
 //-----------------------------------------------------------------------------
 
-#if __riscv_xlen >= 64
-static uint64_t sha2[512u/(CHAR_BIT*sizeof(uint64_t))];
-#else
-static uint32_t sha2[512u/(CHAR_BIT*sizeof(uint32_t))];
-#endif
-
-static uint8_t src_buf[sizeof(TEXT)+DMA_ALIGNMENT] ALIGN(DMA_ALIGNMENT);
-static uint8_t trail_buf[2u*SHA512_BLOCK_SIZE] ALIGN(DMA_ALIGNMENT);
+static struct worker _work;
+static uint8_t _sha2_buf[512u/CHAR_BIT] ALIGN(sizeof(uint64_t));
+static uint8_t _src_buf[sizeof(TEXT)+DMA_ALIGNMENT] ALIGN(DMA_ALIGNMENT);
+static uint8_t _trail_buf[2u*SHA512_BLOCK_SIZE] ALIGN(DMA_ALIGNMENT);
 
 
 //-----------------------------------------------------------------------------
@@ -153,16 +166,51 @@ _hca_dma_is_busy(void)
                          HCA_REGISTER_DMA_CR_BUSY_OFFSET));
 }
 
-static void
-_hca_sha_get_hash(const uint8_t ** hash, size_t length)
+static inline bool
+_hca_crypto_is_irq(void)
 {
+    uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !! (sha_cr & (HCA_REGISTER_CR_CRYPTODIS_MASK <<
+                         HCA_REGISTER_CR_CRYPTODIS_OFFSET));
+}
+
+static inline bool
+_hca_dma_is_irq(void)
+{
+    uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !! (dma_cr & (HCA_REGISTER_CR_DMADIS_MASK <<
+                         HCA_REGISTER_CR_DMADIS_OFFSET));
+}
+
+static inline void
+_hca_crypto_clear_irq(void)
+{
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
+                  HCA_REGISTER_CR_CRYPTODIS_OFFSET,
+                  HCA_REGISTER_CR_CRYPTODIS_MASK);
+}
+
+static inline void
+_hca_dma_clear_irq(void)
+{
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
+                   HCA_REGISTER_CR_DMADIS_OFFSET,
+                   HCA_REGISTER_CR_DMADIS_MASK);
+}
+
+static void
+_hca_sha_get_hash(uint8_t * hash, size_t length)
+{
+    // hash should be aligned, not checked here
     #if __riscv_xlen >= 64
     size_t size = length/sizeof(uint64_t);
+    uint64_t * ptr = (uint64_t *)hash;
     #else
     size_t size = length/sizeof(uint32_t);
+    uint32_t * ptr = (uint32_t *)hash;
     #endif
     for(unsigned int ix=0; ix<size; ix++) {
-        sha2[size - 1u - ix] =
+        ptr[size - 1u - ix] =
             #if __riscv_xlen >= 64
             __builtin_bswap64(METAL_REG64(HCA_BASE,
                               METAL_SIFIVE_HCA_HASH+ix*sizeof(uint64_t)));
@@ -171,7 +219,6 @@ _hca_sha_get_hash(const uint8_t ** hash, size_t length)
                               METAL_SIFIVE_HCA_HASH+ix*sizeof(uint32_t)));
             #endif
     }
-    *hash = (const uint8_t *)&sha2[0];
 }
 
 static void
@@ -215,18 +262,18 @@ _build_sha_desc(struct sha_desc * desc, const uint8_t * src, size_t length)
 
     // PRINTF("To end %zu, rem len %zu", to_end, length);
 
-    memcpy(trail_buf, src, length);
-    uint8_t * ptr = &trail_buf[length];
+    memcpy(_trail_buf, src, length);
+    uint8_t * ptr = &_trail_buf[length];
     memset(ptr, 0, to_end);
     *ptr |= 0x80;
     _update_bit_len(&ptr[to_end], msg_size*CHAR_BIT);
 
     length += to_end;
 
-    desc->sd_finish.bd_base = trail_buf;
+    desc->sd_finish.bd_base = _trail_buf;
     desc->sd_finish.bd_count = length / DMA_BLOCK_SIZE;
 
-    ptr = &trail_buf[desc->sd_finish.bd_count*DMA_BLOCK_SIZE];
+    ptr = &_trail_buf[desc->sd_finish.bd_count*DMA_BLOCK_SIZE];
     length -= desc->sd_finish.bd_count*DMA_BLOCK_SIZE;
     if ( length ) {
         desc->sd_epilog.bd_base = ptr;
@@ -236,7 +283,7 @@ _build_sha_desc(struct sha_desc * desc, const uint8_t * src, size_t length)
         desc->sd_epilog.bd_count = 0;
     }
 
-    #if 0
+    #ifdef SHOW_STEP
     PRINTF("Prolog: %p %zu", desc->sd_prolog.bd_base,
            desc->sd_prolog.bd_length);
     PRINTF("Main:   %p %zu [%zu]", desc->sd_main.bd_base,
@@ -403,17 +450,11 @@ _test_sha_dma_poll(const uint8_t * buf, size_t buflen) {
         PRINTF("No epilog");
     }
 
-    const uint8_t * hash;
-    _hca_sha_get_hash(&hash, 512u/CHAR_BIT);
-    DUMP_HEX("SHA512:", hash, 512u/CHAR_BIT);
-
-#if 0
-    // expect no interrupt
-    for(;;) {
-        __asm__ volatile ("wfi");
+    _hca_sha_get_hash(_sha2_buf, 512u/CHAR_BIT);
+    if ( memcmp(_sha2_buf, TEXT_HASH, sizeof(TEXT_HASH)) ) {
+        DUMP_HEX("Invalid SHA512 hash:", _sha2_buf, 512u/CHAR_BIT);
+        return -1;
     }
-    PRINTF("END");
-#endif
 
     return 0;
 }
@@ -425,25 +466,26 @@ _hca_irq_handler(int id, void * opaque)
 
     uint32_t cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
 
-    if ( cr & (HCA_REGISTER_CR_CRYPTODIS_MASK <<
-               HCA_REGISTER_CR_CRYPTODIS_OFFSET) ) {
-        work->wk_sha = false;
-        // clear SHA done IRQ
-        _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
-                     HCA_REGISTER_CR_CRYPTODIS_OFFSET,
-                     HCA_REGISTER_CR_CRYPTODIS_MASK);
-        PRINTF("^SHA");
-    }
-
     if ( cr & (HCA_REGISTER_CR_DMADIS_MASK <<
                HCA_REGISTER_CR_DMADIS_OFFSET) ) {
-        work->wk_dma = false;
-        // clear DMA done IRQ
-        _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
-                      HCA_REGISTER_CR_DMADIS_OFFSET,
-                      HCA_REGISTER_CR_DMADIS_MASK);
-        PRINTF("^DMA");
+        work->wk_dma_count += 1u;
+        work->wk_dma_total += 1u;
+        //puts("^D\n");
     }
+
+    if ( cr & (HCA_REGISTER_CR_CRYPTODIS_MASK <<
+               HCA_REGISTER_CR_CRYPTODIS_OFFSET) ) {
+        work->wk_crypto_count += 1u;
+        work->wk_crypto_total += 1u;
+        //puts("^S\n");
+    }
+}
+
+static void
+_timer_irq_handler(int id, void * opaque) {
+    struct metal_cpu *cpu = (struct metal_cpu *)opaque;
+    metal_cpu_set_mtimecmp(cpu, metal_cpu_get_mtime(cpu)+HEART_BEAT_TIME);
+    // puts("^T\n");
 }
 
 static void
@@ -488,30 +530,62 @@ _hca_irq_init(struct worker * work)
 
     metal_interrupt_set_threshold(plic, 1);
     metal_interrupt_set_priority(plic, HCA_ASD_IRQ_CHANNEL, 2);
-    metal_interrupt_enable(cpu_intr, 0);
 
-    // enable SHA done IRQ
-    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
-                  HCA_REGISTER_CR_CRYPTODIE_OFFSET,
-                  HCA_REGISTER_CR_CRYPTODIE_MASK);
-    // enable DMA done IRQ
-    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
-                  HCA_REGISTER_CR_DMADIE_OFFSET,
-                  HCA_REGISTER_CR_DMADIE_MASK);
-
-#if 0
-    rc = metal_interrupt_disable(plic, HCA_TRNG_IRQ_CHANNEL);
-    if ( rc ) {
-        PRINTF("Cannot disable TRNG handler");
+    // use a timer IRQ as an easier workaround for a time vulnarability
+    // issue between WFI instruction and ISR. To avoid being stuck in WFI,
+    // add an hearbeat.
+    struct metal_interrupt *tmr_intr;
+    tmr_intr = metal_cpu_timer_interrupt_controller(cpu);
+    if ( !tmr_intr ) {
         return;
     }
-    // clear interrupt
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_TRNG_DATA);
-#endif
+    metal_interrupt_init(tmr_intr);
+
+    int tmr_id;
+    tmr_id = metal_cpu_timer_get_interrupt_id(cpu);
+    rc = metal_interrupt_register_handler(tmr_intr, tmr_id, _timer_irq_handler,
+                                          cpu);
+    if ( rc ) {
+        PRINTF("Cannot enable timer handler");
+    }
+
+    metal_cpu_set_mtimecmp(cpu, metal_cpu_get_mtime(cpu)+HEART_BEAT_TIME);
+    metal_interrupt_enable(tmr_intr, tmr_id);
+    metal_interrupt_enable(cpu_intr, 0);
+}
+
+static void
+_hca_irq_fini(void)
+{
+    int rc;
+
+    struct metal_interrupt * plic;
+    plic = metal_interrupt_get_controller(METAL_PLIC_CONTROLLER, 0);
+    if ( ! plic ) {
+        PRINTF("No PLIC?");
+    }
+    else {
+        rc = metal_interrupt_disable(plic, HCA_ASD_IRQ_CHANNEL);
+        if ( rc ) {
+            PRINTF("Cannot disable ASD handler");
+        }
+    }
+
+    // clear interrupts
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_CRYPTODIE_OFFSET,
+                  HCA_REGISTER_CR_CRYPTODIE_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_OFIFOIE_OFFSET,
+                  HCA_REGISTER_CR_OFIFOIE_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_DMADIE_OFFSET,
+                  HCA_REGISTER_CR_DMADIE_MASK);
 }
 
 static int
 _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
+    uint32_t step = 0u;
     uint32_t reg;
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
@@ -531,7 +605,7 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
                   HCA_REGISTER_CR_IFIFOTGT_OFFSET,
                   HCA_REGISTER_CR_IFIFOTGT_MASK);
 
-    // IRQ: not on Crypto done
+    // IRQ: on Crypto done
     _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
                   HCA_REGISTER_CR_CRYPTODIE_OFFSET,
                   HCA_REGISTER_CR_CRYPTODIE_MASK);
@@ -539,8 +613,8 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
     _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
                   HCA_REGISTER_CR_OFIFOIE_OFFSET,
                   HCA_REGISTER_CR_OFIFOIE_MASK);
-    // IRQ: not on DMA done
-    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+    // IRQ: on DMA done
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
                   HCA_REGISTER_CR_DMADIE_OFFSET,
                   HCA_REGISTER_CR_DMADIE_MASK);
 
@@ -549,7 +623,11 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
                   HCA_REGISTER_SHA_CR_MODE_OFFSET,
                   HCA_REGISTER_SHA_CR_MODE_MASK);
 
-    struct sha_desc desc;
+    // SHA does not expect a destination buffer
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = 0u;
+
+    static struct sha_desc desc;
+
     // skip trailing NUL char
     if ( _build_sha_desc(&desc, buf, buflen) ){
         PRINTF("Error");
@@ -566,8 +644,20 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
         return -1;
     }
 
-    work->wk_sha = true;
-    work->wk_dma = true;
+    // DMA IRQ is used to get notified whenever the DMA is complete
+    // However, using Crypto IRQ is mostly sugar, as it would be difficult
+    // to use it along with DMA: it should raises once every SHA block.
+    // It cannot be enabled right once the DMA complete IRQ is raised, as there
+    // would be a vulnerability window (64 to 80 cycles betwen both IRQs) and
+    // the last crypto IRQ could be missed.
+    // Another way would be to count and compare the expected crypto IRQ count
+    // but as SHA blocks and DMA blocks are not in sync, especially with
+    // unaligned source, it should be tracked across prolog, main, finish and
+    // epilog steps...
+    // it is far easier, and robust, to poll for crypto block completion after
+    // the last step (epilog)
+
+    memset(work, 0, sizeof(*work));
 
     // SHA start
     _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 1,
@@ -575,83 +665,131 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
                   HCA_REGISTER_SHA_CR_INIT_MASK);
 
     if ( desc.sd_prolog.bd_length ) {
+        #ifdef SHOW_STEP
+        PRINTF("1. Prolog");
+        #endif
         _sha_push(desc.sd_prolog.bd_base, desc.sd_prolog.bd_length);
+        if ( work->wk_dma_count ) {
+            PRINTF("Unexpected DMA IRQ");
+            return -1;
+        }
+        step |= 1<<0;
     }
 
-    // DMA config
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
-        (uintptr_t)desc.sd_main.bd_base;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = 0u;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_main.bd_count;
+    if ( desc.sd_main.bd_count ) {
+        #ifdef SHOW_STEP
+        PRINTF("2. Main");
+        #endif
 
-    // DMA start
-    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
-                  HCA_REGISTER_DMA_CR_START_OFFSET,
-                  HCA_REGISTER_DMA_CR_START_MASK);
+        // DMA config
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
+            (uintptr_t)desc.sd_main.bd_base;
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) =
+            desc.sd_main.bd_count;
 
+        if ( work->wk_dma_count || _hca_dma_is_irq() ) {
+            PRINTF("Unexpected DMA IRQ");
+            return -1;
+        }
 
-    while( work->wk_sha & work->wk_dma ) {
-        __asm__ volatile ("wfi");
+        // DMA start
+        _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
+                      HCA_REGISTER_DMA_CR_START_OFFSET,
+                      HCA_REGISTER_DMA_CR_START_MASK);
+
+        while( ! work->wk_dma_count ) {
+            __asm__ volatile ("wfi");
+        }
+        _hca_dma_clear_irq();
+
+        step |= 1<<1;
+        work->wk_dma_count = 0u;
     }
 
-    // DMA source & size
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
-        (uintptr_t)desc.sd_finish.bd_base;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_finish.bd_count;
+    if ( desc.sd_finish.bd_count ) {
+        #ifdef SHOW_STEP
+        PRINTF("3. Finish");
+        #endif
 
-    work->wk_sha = true;
-    work->wk_dma = true;
+        // DMA source & size
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
+            (uintptr_t)desc.sd_finish.bd_base;
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) =
+            desc.sd_finish.bd_count;
 
-    // DMA start
-    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
-                   HCA_REGISTER_DMA_CR_START_OFFSET,
-                   HCA_REGISTER_DMA_CR_START_MASK);
+        if ( work->wk_dma_count || _hca_dma_is_irq() ) {
+            PRINTF("Unexpected DMA IRQ");
+            return -1;
+        }
 
-    while( work->wk_sha & work->wk_dma ) {
-        __asm__ volatile ("wfi");
+        // DMA start
+        _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
+                       HCA_REGISTER_DMA_CR_START_OFFSET,
+                       HCA_REGISTER_DMA_CR_START_MASK);
+
+        while( ! work->wk_dma_count ) {
+            __asm__ volatile ("wfi");
+        }
+        _hca_dma_clear_irq();
+
+        work->wk_dma_count = 0u;
+        step |= 1<<2;
     }
 
     if ( desc.sd_epilog.bd_length ) {
-        PRINTF("SHA epilog");
-        work->wk_sha = true;
-
+        #ifdef SHOW_STEP
+        PRINTF("4. Epilog");
+        #endif
         _sha_push(desc.sd_epilog.bd_base, desc.sd_epilog.bd_length);
-        while( work->wk_sha ) {
-            __asm__ volatile ("wfi");
+
+        if ( work->wk_dma_count || _hca_dma_is_irq() ) {
+            PRINTF("Unexpected DMA IRQ");
+            return -1;
         }
-    } else {
-        PRINTF("No epilog");
+        step |= 1<<3;
     }
 
-    const uint8_t * hash;
-    _hca_sha_get_hash(&hash, 512u/CHAR_BIT);
-    DUMP_HEX("SHA512:", hash, 512u/CHAR_BIT);
-
-#if 0
-    // expect no interrupt
-    for(;;) {
-        __asm__ volatile ("wfi");
+    // wait for crypto block completion, using polling
+    while ( _hca_sha_is_busy() ) {
+        // busy loop
     }
-    PRINTF("END");
-#endif
+
+    _hca_sha_get_hash(_sha2_buf, 512u/CHAR_BIT);
+
+    if ( memcmp(_sha2_buf, TEXT_HASH, sizeof(TEXT_HASH)) ) {
+        DUMP_HEX("Invalid hash:", _sha2_buf, 512u/CHAR_BIT);
+        DUMP_HEX("Ref:         ", TEXT_HASH, sizeof(TEXT_HASH));
+
+        return -1;
+    }
 
     return 0;
 }
 
 static void
 run(void) {
-    PRINTF("-- ALIGNED");
     #if 0
+    PRINTF("-- ALIGNED");
     _test_sha_dma_poll((const uint8_t *)TEXT, sizeof(TEXT)-1u);
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
         PRINTF("-- UNALIGNED %u", ix);
-        memcpy(&src_buf[ix], TEXT, sizeof(TEXT));
-        _test_sha_dma_poll(&src_buf[ix], sizeof(TEXT)-1u);
+        memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
+        _test_sha_dma_poll(&_src_buf[ix], sizeof(TEXT)-1u);
     }
     #endif
-    struct worker work;
-    _hca_irq_init(&work);
-    _test_sha_dma_irq((const uint8_t *)TEXT, sizeof(TEXT)-1u, &work);
+    #if 1
+    PRINTF("-- ALIGNED");
+    _hca_irq_init(&_work);
+    _test_sha_dma_irq((const uint8_t *)TEXT, sizeof(TEXT)-1u, &_work);
+    _hca_irq_fini();
+    #endif
+    for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
+        PRINTF("-- UNALIGNED %u", ix);
+        memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
+        _hca_irq_init(&_work);
+        _test_sha_dma_irq(&_src_buf[ix], sizeof(TEXT)-1u, &_work);
+        _hca_irq_fini();
+    }
 }
 
 int main(void) {
