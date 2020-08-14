@@ -1,10 +1,15 @@
 GET_FILENAME_COMPONENT (COMPONENT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
+# where to find unity header file
+INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
+                     ${CMAKE_SOURCE_DIR}/unity/extras/fixture/src
+                     ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
+
 ADD_EXECUTABLE (${COMPONENT}
                 src/dma.c)
 
 LIST (INSERT PROJECT_LINK_LIBRARIES 0
-      c clang_rt.builtins-riscv${XLEN} metal metal-gloss scl)
+      c clang_rt.builtins-riscv${XLEN} metal metal-gloss scl unity)
 
 SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${COMPONENT}.map")
 GET_TARGET_PROPERTY (_link_flags ${COMPONENT}

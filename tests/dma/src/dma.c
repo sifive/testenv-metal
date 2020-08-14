@@ -9,6 +9,7 @@
 #include "api/hardware/v0.5/sifive_hca-0.5.x.h"
 #include "api/hardware/hca_utils.h"
 #include "api/hardware/hca_macro.h"
+#include "unity_fixture.h"
 
 //-----------------------------------------------------------------------------
 // Type definitions
@@ -123,22 +124,8 @@ static uint8_t _trail_buf[2u*SHA512_BLOCK_SIZE] ALIGN(DMA_ALIGNMENT);
 
 
 //-----------------------------------------------------------------------------
-// Implementation
+// Inline helpers
 //-----------------------------------------------------------------------------
-
-static void
-_hca_hexdump(const char * func, int line, const char * msg,
-                    const uint8_t *buf, size_t size)
-{
-    static const char _hex[] = "0123456789ABCDEF";
-    static char hexstr[512];
-    for (unsigned int ix = 0 ; ix < size ; ix++) {
-        hexstr[(ix * 2)] = _hex[(buf[ix] >> 4) & 0xf];
-        hexstr[(ix * 2) + 1] = _hex[buf[ix] & 0xf];
-    }
-    hexstr[size * 2] = '\0';
-    printf("%s[%d] %s (%zu): %s\n", func, line, msg, size, hexstr);
-}
 
 static inline void
 _hca_updreg32(uint32_t reg, uint32_t value, size_t offset, uint32_t mask)
@@ -198,6 +185,34 @@ _hca_dma_clear_irq(void)
                    HCA_REGISTER_CR_DMADIS_MASK);
 }
 
+//-----------------------------------------------------------------------------
+// Debug helpers
+//-----------------------------------------------------------------------------
+
+static void
+_hca_hexdump(const char * func, int line, const char * msg,
+                    const uint8_t *buf, size_t size)
+{
+    static const char _hex[] = "0123456789ABCDEF";
+    static char hexstr[512];
+    for (unsigned int ix = 0 ; ix < size ; ix++) {
+        hexstr[(ix * 2)] = _hex[(buf[ix] >> 4) & 0xf];
+        hexstr[(ix * 2) + 1] = _hex[buf[ix] & 0xf];
+    }
+    hexstr[size * 2] = '\0';
+    printf("%s[%d] %s (%zu): %s\n", func, line, msg, size, hexstr);
+}
+
+//-----------------------------------------------------------------------------
+// DMA SHA tests
+//-----------------------------------------------------------------------------
+
+TEST_GROUP(dma_sha);
+
+TEST_SETUP(dma_sha) {}
+
+TEST_TEAR_DOWN(dma_sha) {}
+
 static void
 _hca_sha_get_hash(uint8_t * hash, size_t length)
 {
@@ -222,7 +237,7 @@ _hca_sha_get_hash(uint8_t * hash, size_t length)
 }
 
 static void
-_update_bit_len(uint8_t * eob, uint64_t length)
+_sha_update_bit_len(uint8_t * eob, uint64_t length)
 {
     const uint8_t *plen = (const uint8_t *)&length;
     unsigned int count = sizeof(uint64_t);
@@ -266,7 +281,7 @@ _build_sha_desc(struct sha_desc * desc, const uint8_t * src, size_t length)
     uint8_t * ptr = &_trail_buf[length];
     memset(ptr, 0, to_end);
     *ptr |= 0x80;
-    _update_bit_len(&ptr[to_end], msg_size*CHAR_BIT);
+    _sha_update_bit_len(&ptr[to_end], msg_size*CHAR_BIT);
 
     length += to_end;
 
@@ -338,20 +353,20 @@ _sha_push(const uint8_t * src, size_t length)
     }
 }
 
-static int
+static void
 _test_sha_dma_poll(const uint8_t * buf, size_t buflen) {
     uint32_t reg;
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
     if ( ! reg ) {
         PRINTF("HCA rev: %08x", reg);
-        return -1;
+        TEST_FAIL_MESSAGE("HCA rev is nil");
     }
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_REV);
     if ( ! reg ) {
         PRINTF("SHA rev: %08x", reg);
-        return -1;
+        TEST_FAIL_MESSAGE("SHA rev is nil");
     }
 
     // FIFO mode: SHA
@@ -378,20 +393,17 @@ _test_sha_dma_poll(const uint8_t * buf, size_t buflen) {
                   HCA_REGISTER_SHA_CR_MODE_MASK);
 
     struct sha_desc desc;
-    // skip trailing NUL char
+
     if ( _build_sha_desc(&desc, buf, buflen) ){
-        PRINTF("Error");
-        return -1;
+        TEST_FAIL_MESSAGE("Cannot build sequence descriptor");
     }
 
     if ( _hca_sha_is_busy() ) {
-        PRINTF("Error");
-        return -1;
+        TEST_FAIL_MESSAGE("SHA HW is busy");
     }
 
     if ( _hca_dma_is_busy() ) {
-        PRINTF("Error");
-        return -1;
+        TEST_FAIL_MESSAGE("DMA HW is busy");
     }
 
     // SHA start
@@ -441,22 +453,18 @@ _test_sha_dma_poll(const uint8_t * buf, size_t buflen) {
     }
 
     if ( desc.sd_epilog.bd_length ) {
-        PRINTF("SHA epilog");
         _sha_push(desc.sd_epilog.bd_base, desc.sd_epilog.bd_length);
         while ( _hca_sha_is_busy() ) {
             // busy loop
         }
     } else {
-        PRINTF("No epilog");
     }
 
     _hca_sha_get_hash(_sha2_buf, 512u/CHAR_BIT);
     if ( memcmp(_sha2_buf, TEXT_HASH, sizeof(TEXT_HASH)) ) {
         DUMP_HEX("Invalid SHA512 hash:", _sha2_buf, 512u/CHAR_BIT);
-        return -1;
+        TEST_FAIL_MESSAGE("Hash mismatch");
     }
-
-    return 0;
 }
 
 static void
@@ -583,21 +591,21 @@ _hca_irq_fini(void)
                   HCA_REGISTER_CR_DMADIE_MASK);
 }
 
-static int
+static void
 _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
     uint32_t step = 0u;
     uint32_t reg;
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
     if ( ! reg ) {
-        PRINTF("HCA rev: %08x", reg);
-        return -1;
+        TEST_FAIL_MESSAGE("HCA rev is nil");
+        TEST_FAIL();
     }
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_REV);
     if ( ! reg ) {
         PRINTF("SHA rev: %08x", reg);
-        return -1;
+        TEST_FAIL_MESSAGE("SHA rev is nil");
     }
 
     // FIFO mode: SHA
@@ -628,20 +636,16 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
 
     static struct sha_desc desc;
 
-    // skip trailing NUL char
     if ( _build_sha_desc(&desc, buf, buflen) ){
-        PRINTF("Error");
-        return -1;
+        TEST_FAIL_MESSAGE("Cannot build sequence descriptor");
     }
 
     if ( _hca_sha_is_busy() ) {
-        PRINTF("Error");
-        return -1;
+        TEST_FAIL_MESSAGE("SHA HW is busy");
     }
 
     if ( _hca_dma_is_busy() ) {
-        PRINTF("Error");
-        return -1;
+        TEST_FAIL_MESSAGE("DMA HW is busy");
     }
 
     // DMA IRQ is used to get notified whenever the DMA is complete
@@ -670,8 +674,7 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
         #endif
         _sha_push(desc.sd_prolog.bd_base, desc.sd_prolog.bd_length);
         if ( work->wk_dma_count ) {
-            PRINTF("Unexpected DMA IRQ");
-            return -1;
+            TEST_FAIL_MESSAGE("Unexpected DMA IRQ");
         }
         step |= 1<<0;
     }
@@ -688,8 +691,7 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
             desc.sd_main.bd_count;
 
         if ( work->wk_dma_count || _hca_dma_is_irq() ) {
-            PRINTF("Unexpected DMA IRQ");
-            return -1;
+            TEST_FAIL_MESSAGE("Unexpected DMA IRQ");
         }
 
         // DMA start
@@ -718,8 +720,7 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
             desc.sd_finish.bd_count;
 
         if ( work->wk_dma_count || _hca_dma_is_irq() ) {
-            PRINTF("Unexpected DMA IRQ");
-            return -1;
+            TEST_FAIL_MESSAGE("Unexpected DMA IRQ");
         }
 
         // DMA start
@@ -743,8 +744,7 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
         _sha_push(desc.sd_epilog.bd_base, desc.sd_epilog.bd_length);
 
         if ( work->wk_dma_count || _hca_dma_is_irq() ) {
-            PRINTF("Unexpected DMA IRQ");
-            return -1;
+            TEST_FAIL_MESSAGE("Unexpected DMA IRQ");
         }
         step |= 1<<3;
     }
@@ -760,31 +760,25 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
         DUMP_HEX("Invalid hash:", _sha2_buf, 512u/CHAR_BIT);
         DUMP_HEX("Ref:         ", TEXT_HASH, sizeof(TEXT_HASH));
 
-        return -1;
+        TEST_FAIL_MESSAGE("Hash mismatch");
     }
-
-    return 0;
 }
 
-static void
-run(void) {
-    #if 0
-    PRINTF("-- ALIGNED");
+TEST(dma_sha, sha512_poll)
+{
     _test_sha_dma_poll((const uint8_t *)TEXT, sizeof(TEXT)-1u);
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
-        PRINTF("-- UNALIGNED %u", ix);
         memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
         _test_sha_dma_poll(&_src_buf[ix], sizeof(TEXT)-1u);
     }
-    #endif
-    #if 1
-    PRINTF("-- ALIGNED");
+}
+
+TEST(dma_sha, sha512_irq)
+{
     _hca_irq_init(&_work);
     _test_sha_dma_irq((const uint8_t *)TEXT, sizeof(TEXT)-1u, &_work);
     _hca_irq_fini();
-    #endif
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
-        PRINTF("-- UNALIGNED %u", ix);
         memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
         _hca_irq_init(&_work);
         _test_sha_dma_irq(&_src_buf[ix], sizeof(TEXT)-1u, &_work);
@@ -792,9 +786,28 @@ run(void) {
     }
 }
 
-int main(void) {
+TEST_GROUP_RUNNER(dma_sha)
+{
+    RUN_TEST_CASE(dma_sha, sha512_poll);
+    RUN_TEST_CASE(dma_sha, sha512_irq);
+}
 
-    run();
+//-----------------------------------------------------------------------------
+// Unit test main
+//-----------------------------------------------------------------------------
 
-    return 0;
+static void
+_ut_run(void)
+{
+    UnityFixture.Verbose = 1;
+    UnityFixture.GroupFilter = "dma_sha";
+   // UnityFixture.NameFilter = "msg_abc_all_aligned";
+
+    RUN_TEST_GROUP(dma_sha);
+    // RUN_TEST_GROUP(dma_aes);
+}
+
+int main(int argc, const char *argv[])
+{
+    return UnityMain(argc, argv, _ut_run);
 }
