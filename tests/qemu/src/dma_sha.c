@@ -564,7 +564,7 @@ _test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen) {
         // busy loop
     }
 
-    if ( buflen > 1024 ) {
+    if ( buflen > 4096u ) {
         // whenever the buffer is greater than the VM chunk size, we expect
         // the guest code to be re-scheduled before the VM DMA completion
         TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
