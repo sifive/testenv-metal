@@ -38,57 +38,6 @@ struct worker {
 };
 
 //-----------------------------------------------------------------------------
-// Constants
-//-----------------------------------------------------------------------------
-
-#define HCA_ASD_IRQ_CHANNEL  23u
-
-#define TIME_BASE            32768u // cannot rely on buggy metal API
-#define HEART_BEAT_FREQUENCY 32u
-#define HEART_BEAT_TIME      ((TIME_BASE)/(HEART_BEAT_FREQUENCY))
-
-#define PAGE_SIZE            4096  // bytes
-#define DMA_ALIGNMENT        32u   // bytes
-#define DMA_BLOCK_SIZE       16u   // bytes
-#define SHA512_BLOCK_SIZE    128u  // bytes
-#define SHA512_LEN_SIZE      16u   // bytes
-
-#define SHA256_BLOCKSIZE     64u   // bytes
-#define SHA256_LEN_SIZE      8u    // bytes
-
-#define HCA_BASE            (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
-
-static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT))) =
-"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris pellentesque "
-"auctor purus quis euismod. Duis laoreet finibus varius. Aenean egestas massa "
-"ac nunc placerat, quis accumsan arcu fermentum. Curabitur lectus metus, "
-"suscipit in est sed, elementum imperdiet sapien. Morbi feugiat non sem ac "
-"auctor. Suspendisse ullamcorper iaculis congue. Nullam vitae leo sed odio "
-"semper ornare. Aenean bibendum eget orci sed malesuada. Praesent placerat "
-"sit amet justo euismod suscipit. Pellentesque ut placerat libero. Etiam in "
-"velit tortor. Ut id arcu sit amet odio malesuada mollis non id velit. Nullam "
-"id congue odio. Vivamus tincidunt arcu nisi, ut eleifend eros aliquam "
-"blandit.";
-
-static const uint8_t TEXT_HASH[] = {
-    0x5E, 0x29, 0xD6, 0x26, 0x94, 0x4B, 0xAB, 0xC1, 0xB5, 0xE4, 0x27, 0x3E,
-    0xC0, 0xF0, 0x0D, 0x32, 0x98, 0x7C, 0xFB, 0xA8, 0x91, 0x60, 0xA3, 0xB4,
-    0xE5, 0xFE, 0x37, 0xEB, 0x30, 0xF4, 0x8D, 0x69, 0xAF, 0x66, 0xF2, 0xFA,
-    0xB4, 0x2F, 0xF0, 0x7D, 0xE4, 0xC7, 0x8C, 0xEF, 0xB0, 0xBF, 0x61, 0x06,
-    0x7B, 0xE2, 0x4A, 0x72, 0x8F, 0x95, 0x15, 0xBF, 0xCA, 0xFD, 0x20, 0xC0,
-    0x9B, 0xD9, 0x4F, 0xC6
-};
-
-static const uint8_t LONG_BUF_HASH[] = {
-    0x0A, 0x98, 0xCF, 0xDD, 0xB0, 0x8E, 0x08, 0x50, 0xC9, 0x20, 0xB2,
-    0x96, 0x70, 0x04, 0x42, 0x5E, 0x2B, 0x2E, 0x8F, 0xA9, 0x4A, 0xF5,
-    0xCE, 0x8E, 0xBD, 0x0B, 0x2C, 0xA1, 0x59, 0x43, 0xF4, 0x25, 0x27,
-    0x24, 0x53, 0xA2, 0x48, 0x41, 0x46, 0xB6, 0x83, 0x2A, 0x01, 0x95,
-    0x70, 0xF5, 0x27, 0xE6, 0xAA, 0xAC, 0xF9, 0x0B, 0xE5, 0x79, 0x06,
-    0x5B, 0x9F, 0xF3, 0xA7, 0x6E, 0xA0, 0xFE, 0x10, 0x5B
-};
-
-//-----------------------------------------------------------------------------
 // Macros
 //-----------------------------------------------------------------------------
 
@@ -99,12 +48,12 @@ static const uint8_t LONG_BUF_HASH[] = {
 #define ALIGN(_a_) __attribute__((aligned((_a_))))
 
 #ifndef METAL_REG16
-#define METAL_REG16(base, offset)                                              \
+#define METAL_REG16(base, offset) \
     (__METAL_ACCESS_ONCE((uint16_t *)((base) + (offset))))
 #endif
 
 #ifndef METAL_REG8
-#define METAL_REG8(base, offset)                                              \
+#define METAL_REG8(base, offset) \
     (__METAL_ACCESS_ONCE((uint8_t *)((base) + (offset))))
 #endif
 
@@ -124,6 +73,58 @@ static const uint8_t LONG_BUF_HASH[] = {
 
 #define HCA_CR_IFIFO_EMPTY_BIT \
     (HCA_REGISTER_CR_IFIFOEMPTY_MASK << HCA_REGISTER_CR_IFIFOEMPTY_OFFSET)
+#define HCA_CR_IFIFO_FULL_BIT \
+    (HCA_REGISTER_CR_IFIFOFULL_MASK << HCA_REGISTER_CR_IFIFOFULL_OFFSET)
+
+//-----------------------------------------------------------------------------
+// Constants
+//-----------------------------------------------------------------------------
+
+#define HCA_BASE             (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
+#define HCA_ASD_IRQ_CHANNEL  23u
+
+#define TIME_BASE            32768u // cannot rely on buggy metal API
+#define HEART_BEAT_FREQUENCY 32u
+#define HEART_BEAT_TIME      ((TIME_BASE)/(HEART_BEAT_FREQUENCY))
+
+#define PAGE_SIZE            4096  // bytes
+#define DMA_ALIGNMENT        32u   // bytes
+#define DMA_BLOCK_SIZE       16u   // bytes
+#define SHA512_BLOCK_SIZE    128u  // bytes
+#define SHA512_LEN_SIZE      16u   // bytes
+
+#define SHA256_BLOCKSIZE     64u   // bytes
+#define SHA256_LEN_SIZE      8u    // bytes
+
+static const char _TEXT[] __attribute__((aligned(DMA_ALIGNMENT))) =
+"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris pellentesque "
+"auctor purus quis euismod. Duis laoreet finibus varius. Aenean egestas massa "
+"ac nunc placerat, quis accumsan arcu fermentum. Curabitur lectus metus, "
+"suscipit in est sed, elementum imperdiet sapien. Morbi feugiat non sem ac "
+"auctor. Suspendisse ullamcorper iaculis congue. Nullam vitae leo sed odio "
+"semper ornare. Aenean bibendum eget orci sed malesuada. Praesent placerat "
+"sit amet justo euismod suscipit. Pellentesque ut placerat libero. Etiam in "
+"velit tortor. Ut id arcu sit amet odio malesuada mollis non id velit. Nullam "
+"id congue odio. Vivamus tincidunt arcu nisi, ut eleifend eros aliquam "
+"blandit.";
+
+static const uint8_t _TEXT_HASH[] = {
+    0x5E, 0x29, 0xD6, 0x26, 0x94, 0x4B, 0xAB, 0xC1, 0xB5, 0xE4, 0x27, 0x3E,
+    0xC0, 0xF0, 0x0D, 0x32, 0x98, 0x7C, 0xFB, 0xA8, 0x91, 0x60, 0xA3, 0xB4,
+    0xE5, 0xFE, 0x37, 0xEB, 0x30, 0xF4, 0x8D, 0x69, 0xAF, 0x66, 0xF2, 0xFA,
+    0xB4, 0x2F, 0xF0, 0x7D, 0xE4, 0xC7, 0x8C, 0xEF, 0xB0, 0xBF, 0x61, 0x06,
+    0x7B, 0xE2, 0x4A, 0x72, 0x8F, 0x95, 0x15, 0xBF, 0xCA, 0xFD, 0x20, 0xC0,
+    0x9B, 0xD9, 0x4F, 0xC6
+};
+
+static const uint8_t _LONG_BUF_HASH[] = {
+    0x0A, 0x98, 0xCF, 0xDD, 0xB0, 0x8E, 0x08, 0x50, 0xC9, 0x20, 0xB2,
+    0x96, 0x70, 0x04, 0x42, 0x5E, 0x2B, 0x2E, 0x8F, 0xA9, 0x4A, 0xF5,
+    0xCE, 0x8E, 0xBD, 0x0B, 0x2C, 0xA1, 0x59, 0x43, 0xF4, 0x25, 0x27,
+    0x24, 0x53, 0xA2, 0x48, 0x41, 0x46, 0xB6, 0x83, 0x2A, 0x01, 0x95,
+    0x70, 0xF5, 0x27, 0xE6, 0xAA, 0xAC, 0xF9, 0x0B, 0xE5, 0x79, 0x06,
+    0x5B, 0x9F, 0xF3, 0xA7, 0x6E, 0xA0, 0xFE, 0x10, 0x5B
+};
 
 //-----------------------------------------------------------------------------
 // Debug
@@ -153,7 +154,7 @@ static const uint8_t LONG_BUF_HASH[] = {
 
 static struct worker _work;
 static uint8_t _sha2_buf[512u/CHAR_BIT] ALIGN(sizeof(uint64_t));
-static uint8_t _src_buf[sizeof(TEXT)+DMA_ALIGNMENT] ALIGN(DMA_ALIGNMENT);
+static uint8_t _src_buf[sizeof(_TEXT)+DMA_ALIGNMENT] ALIGN(DMA_ALIGNMENT);
 static uint8_t _trail_buf[2u*SHA512_BLOCK_SIZE] ALIGN(DMA_ALIGNMENT);
 static uint8_t _long_buf[4u*PAGE_SIZE+DMA_ALIGNMENT] ALIGN(DMA_ALIGNMENT);
 
@@ -243,14 +244,8 @@ _hca_hexdump(const char * func, int line, const char * msg,
 }
 
 //-----------------------------------------------------------------------------
-// DMA SHA tests
+// DMA SHA test implementation
 //-----------------------------------------------------------------------------
-
-TEST_GROUP(dma_sha);
-
-TEST_SETUP(dma_sha) {}
-
-TEST_TEAR_DOWN(dma_sha) {}
 
 static void
 _hca_sha_get_hash(uint8_t * hash, size_t length)
@@ -297,7 +292,6 @@ _build_sha_desc(struct sha_desc * desc, const uint8_t * src, size_t length)
         src += desc->sd_prolog.bd_length;
         length -= desc->sd_prolog.bd_length;
     } else {
-        // for now, do not manage prolog
         desc->sd_prolog.bd_base = NULL;
         desc->sd_prolog.bd_length = 0u;
     }
@@ -502,6 +496,11 @@ _test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen) {
                   HCA_REGISTER_CR_IFIFOTGT_OFFSET,
                   HCA_REGISTER_CR_IFIFOTGT_MASK);
 
+    // FIFO endianess: natural order
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
+                  HCA_REGISTER_CR_ENDIANNESS_OFFSET,
+                  HCA_REGISTER_CR_ENDIANNESS_MASK);
+
     // IRQ: not on Crypto done
     _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
                   HCA_REGISTER_CR_CRYPTODIE_OFFSET,
@@ -514,6 +513,14 @@ _test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen) {
     _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
                   HCA_REGISTER_CR_DMADIE_OFFSET,
                   HCA_REGISTER_CR_DMADIE_MASK);
+
+    // sanity check
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    TEST_ASSERT_EQUAL_MESSAGE(reg & HCA_CR_IFIFO_EMPTY_BIT,
+                              HCA_CR_IFIFO_EMPTY_BIT,
+                              "FIFO in is not empty");
+    TEST_ASSERT_EQUAL_MESSAGE(reg & HCA_CR_IFIFO_FULL_BIT, 0u,
+                              "FIFO in is full");
 
     // SHA mode: SHA2-512
     _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 0x3,
@@ -886,35 +893,45 @@ _test_sha_dma_irq(const uint8_t * refh, const uint8_t * buf, size_t buflen,
     }
 }
 
+//-----------------------------------------------------------------------------
+// Unity tests
+//-----------------------------------------------------------------------------
+
+TEST_GROUP(dma_sha);
+
+TEST_SETUP(dma_sha) {}
+
+TEST_TEAR_DOWN(dma_sha) {}
+
 TEST(dma_sha, unaligned_poll)
 {
     // note: error behaviour will DMA/IRQ is not defined in HCA documentation
     // it needs to be addressed somehow
     for (unsigned int ix=0; ix<DMA_ALIGNMENT; ix++) {
-        _test_sha_dma_unaligned_poll((const uint8_t *)&TEXT[ix],
+        _test_sha_dma_unaligned_poll((const uint8_t *)&_TEXT[ix],
                                      DMA_BLOCK_SIZE);
     }
 }
 
 TEST(dma_sha, sha512_poll)
 {
-    _test_sha_dma_poll(TEXT_HASH, (const uint8_t *)TEXT, sizeof(TEXT)-1u);
+    _test_sha_dma_poll(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u);
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
-        memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
-        _test_sha_dma_poll(TEXT_HASH, &_src_buf[ix], sizeof(TEXT)-1u);
+        memcpy(&_src_buf[ix], _TEXT, sizeof(_TEXT));
+        _test_sha_dma_poll(_TEXT_HASH, &_src_buf[ix], sizeof(_TEXT)-1u);
     }
 }
 
 TEST(dma_sha, sha512_irq)
 {
     _hca_irq_init(&_work);
-    _test_sha_dma_irq(TEXT_HASH, (const uint8_t *)TEXT, sizeof(TEXT)-1u,
+    _test_sha_dma_irq(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u,
                       &_work);
     _hca_irq_fini();
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
-        memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
+        memcpy(&_src_buf[ix], _TEXT, sizeof(_TEXT));
         _hca_irq_init(&_work);
-        _test_sha_dma_irq(TEXT_HASH, &_src_buf[ix], sizeof(TEXT)-1u, &_work);
+        _test_sha_dma_irq(_TEXT_HASH, &_src_buf[ix], sizeof(_TEXT)-1u, &_work);
         _hca_irq_fini();
     }
 }
@@ -928,7 +945,7 @@ TEST(dma_sha, sha512_long_poll)
     //DUMP_HEX("longbuf", _long_buf, sizeof(_long_buf));
     uint8_t * ptr = _long_buf;
     for (unsigned int ix=0; ix<DMA_ALIGNMENT; ix++) {
-        _test_sha_dma_poll(LONG_BUF_HASH, ptr,
+        _test_sha_dma_poll(_LONG_BUF_HASH, ptr,
                            sizeof(_long_buf)-DMA_ALIGNMENT);
         memmove(ptr+1, ptr, sizeof(_long_buf)-DMA_ALIGNMENT);
         ptr += 1;
