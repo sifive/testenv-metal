@@ -103,6 +103,23 @@ static, 0xconst char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
     (__METAL_ACCESS_ONCE((uint8_t *)((base) + (offset))))
 #endif
 
+#define HCA_DMA_CR_ERROR_BITS                    \
+    ((HCA_REGISTER_DMA_CR_RDALIGNERR_MASK <<     \
+        HCA_REGISTER_DMA_CR_RDALIGNERR_OFFSET) | \
+     (HCA_REGISTER_DMA_CR_WRALIGNERR_MASK <<     \
+        HCA_REGISTER_DMA_CR_WRALIGNERR_OFFSET) | \
+     (HCA_REGISTER_DMA_CR_RESPERR_MASK <<        \
+        HCA_REGISTER_DMA_CR_RESPERR_OFFSET) |    \
+     (HCA_REGISTER_DMA_CR_LEGALERR_MASK <<       \
+        HCA_REGISTER_DMA_CR_LEGALERR_OFFSET))
+
+#define HCA_DMA_CR_RD_ERROR_BIT                  \
+    (HCA_REGISTER_DMA_CR_RDALIGNERR_MASK <<      \
+        HCA_REGISTER_DMA_CR_RDALIGNERR_OFFSET)
+
+#define HCA_CR_IFIFO_EMPTY_BIT \
+    (HCA_REGISTER_CR_IFIFOEMPTY_MASK << HCA_REGISTER_CR_IFIFOEMPTY_OFFSET)
+
 //-----------------------------------------------------------------------------
 // Debug
 //-----------------------------------------------------------------------------
@@ -361,6 +378,95 @@ _sha_push(const uint8_t * src, size_t length)
             continue;
         }
     }
+}
+
+static void
+_test_sha_dma_unaligned_poll(const uint8_t * buf, size_t buflen) {
+    uint32_t reg;
+
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
+    if ( ! reg ) {
+        PRINTF("HCA rev: %08x", reg);
+        TEST_FAIL_MESSAGE("HCA rev is nil");
+    }
+
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_SHA_REV);
+    if ( ! reg ) {
+        PRINTF("SHA rev: %08x", reg);
+        TEST_FAIL_MESSAGE("SHA rev is nil");
+    }
+
+    // FIFO mode: SHA
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
+                  HCA_REGISTER_CR_IFIFOTGT_OFFSET,
+                  HCA_REGISTER_CR_IFIFOTGT_MASK);
+
+    // IRQ: not on Crypto done
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_CRYPTODIE_OFFSET,
+                  HCA_REGISTER_CR_CRYPTODIE_MASK);
+    // IRQ: not on output FIFO not empty
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_OFIFOIE_OFFSET,
+                  HCA_REGISTER_CR_OFIFOIE_MASK);
+    // IRQ: not on DMA done
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_DMADIE_OFFSET,
+                  HCA_REGISTER_CR_DMADIE_MASK);
+
+    // SHA mode: SHA2-512
+    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 0x3,
+                  HCA_REGISTER_SHA_CR_MODE_OFFSET,
+                  HCA_REGISTER_SHA_CR_MODE_MASK);
+
+    if ( _hca_sha_is_busy() ) {
+        TEST_FAIL_MESSAGE("SHA HW is busy");
+    }
+
+    if ( _hca_dma_is_busy() ) {
+        TEST_FAIL_MESSAGE("DMA HW is busy");
+    }
+
+    // SHA start (don't care about the results, but the FIFO in should be
+    // emptied)
+    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 1,
+                  HCA_REGISTER_SHA_CR_INIT_OFFSET,
+                  HCA_REGISTER_SHA_CR_INIT_MASK);
+
+    // DMA config
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =(uintptr_t)buf;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = 0u;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = buflen/DMA_BLOCK_SIZE;
+
+    bool exp_fail = !!(((uintptr_t)buf) & (DMA_ALIGNMENT - 1u));
+
+    // DMA start
+    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1u,
+                  HCA_REGISTER_DMA_CR_START_OFFSET,
+                  HCA_REGISTER_DMA_CR_START_MASK);
+
+    while( _hca_dma_is_busy() ) {
+        // busy loop
+    }
+
+    uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
+
+    if ( ! exp_fail ) {
+        TEST_ASSERT_EQUAL_UINT32_MESSAGE(
+            dma_cr & HCA_DMA_CR_ERROR_BITS, 0u, "Unexpected DMA error");
+    } else {
+        TEST_ASSERT_NOT_EQUAL_UINT32_MESSAGE(
+            dma_cr & HCA_DMA_CR_ERROR_BITS, 0u, "Unexpected DMA success");
+        TEST_ASSERT_EQUAL_UINT32_MESSAGE(
+            dma_cr & HCA_DMA_CR_ERROR_BITS, HCA_DMA_CR_RD_ERROR_BIT,
+            "Wrong DMA error");
+    }
+
+    // be sure to leave the IFIFO empty, or other tests would fail
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
+
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(
+        hca_cr & HCA_CR_IFIFO_EMPTY_BIT, 0u, "FIFI not empty");
 }
 
 static void
@@ -754,6 +860,16 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
     }
 }
 
+TEST(dma_sha, unaligned_poll)
+{
+    // note: error behaviour will DMA/IRQ is not defined in HCA documentation
+    // it needs to be addressed somehow
+    for (unsigned int ix=0; ix<DMA_ALIGNMENT; ix++) {
+        _test_sha_dma_unaligned_poll((const uint8_t *)&TEXT[ix],
+                                     DMA_BLOCK_SIZE);
+    }
+}
+
 TEST(dma_sha, sha512_poll)
 {
     _test_sha_dma_poll((const uint8_t *)TEXT, sizeof(TEXT)-1u);
@@ -778,6 +894,7 @@ TEST(dma_sha, sha512_irq)
 
 TEST_GROUP_RUNNER(dma_sha)
 {
+    RUN_TEST_CASE(dma_sha, unaligned_poll);
     RUN_TEST_CASE(dma_sha, sha512_poll);
     RUN_TEST_CASE(dma_sha, sha512_irq);
 }
