@@ -11,11 +11,11 @@ _ut_run(void)
 {
     UnityFixture.Verbose = 1;
     // UnityFixture.GroupFilter = "dma_sha";
-    // UnityFixture.NameFilter = "irq";
+    UnityFixture.NameFilter = "ecb";
 
     RUN_TEST_GROUP(trng);
     RUN_TEST_GROUP(dma_sha);
-    // RUN_TEST_GROUP(dma_aes);
+    RUN_TEST_GROUP(dma_aes);
 }
 
 int main(int argc, const char *argv[])
