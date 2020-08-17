@@ -47,7 +47,8 @@ struct worker {
 #define HEART_BEAT_FREQUENCY 32u
 #define HEART_BEAT_TIME      ((TIME_BASE)/(HEART_BEAT_FREQUENCY))
 
-#define DMA_ALIGNMENT        32u
+#define PAGE_SIZE            4096  // bytes
+#define DMA_ALIGNMENT        32u   // bytes
 #define DMA_BLOCK_SIZE       16u   // bytes
 #define SHA512_BLOCK_SIZE    128u  // bytes
 #define SHA512_LEN_SIZE      16u   // bytes
@@ -57,7 +58,6 @@ struct worker {
 
 #define HCA_BASE            (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
 
-#if 1
 static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT))) =
 "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris pellentesque "
 "auctor purus quis euismod. Duis laoreet finibus varius. Aenean egestas massa "
@@ -71,17 +71,22 @@ static const char TEXT[] __attribute__((aligned(DMA_ALIGNMENT))) =
 "blandit.";
 
 static const uint8_t TEXT_HASH[] = {
-   0x5E, 0x29, 0xD6, 0x26, 0x94, 0x4B, 0xAB, 0xC1, 0xB5, 0xE4, 0x27, 0x3E,
-   0xC0, 0xF0, 0x0D, 0x32, 0x98, 0x7C, 0xFB, 0xA8, 0x91, 0x60, 0xA3, 0xB4,
-   0xE5, 0xFE, 0x37, 0xEB, 0x30, 0xF4, 0x8D, 0x69, 0xAF, 0x66, 0xF2, 0xFA,
-   0xB4, 0x2F, 0xF0, 0x7D, 0xE4, 0xC7, 0x8C, 0xEF, 0xB0, 0xBF, 0x61, 0x06,
-   0x7B, 0xE2, 0x4A, 0x72, 0x8F, 0x95, 0x15, 0xBF, 0xCA, 0xFD, 0x20, 0xC0,
-   0x9B, 0xD9, 0x4F, 0xC6
+    0x5E, 0x29, 0xD6, 0x26, 0x94, 0x4B, 0xAB, 0xC1, 0xB5, 0xE4, 0x27, 0x3E,
+    0xC0, 0xF0, 0x0D, 0x32, 0x98, 0x7C, 0xFB, 0xA8, 0x91, 0x60, 0xA3, 0xB4,
+    0xE5, 0xFE, 0x37, 0xEB, 0x30, 0xF4, 0x8D, 0x69, 0xAF, 0x66, 0xF2, 0xFA,
+    0xB4, 0x2F, 0xF0, 0x7D, 0xE4, 0xC7, 0x8C, 0xEF, 0xB0, 0xBF, 0x61, 0x06,
+    0x7B, 0xE2, 0x4A, 0x72, 0x8F, 0x95, 0x15, 0xBF, 0xCA, 0xFD, 0x20, 0xC0,
+    0x9B, 0xD9, 0x4F, 0xC6
 };
 
-#else
-static, 0xconst char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
-#endif
+static const uint8_t LONG_BUF_HASH[] = {
+    0x0A, 0x98, 0xCF, 0xDD, 0xB0, 0x8E, 0x08, 0x50, 0xC9, 0x20, 0xB2,
+    0x96, 0x70, 0x04, 0x42, 0x5E, 0x2B, 0x2E, 0x8F, 0xA9, 0x4A, 0xF5,
+    0xCE, 0x8E, 0xBD, 0x0B, 0x2C, 0xA1, 0x59, 0x43, 0xF4, 0x25, 0x27,
+    0x24, 0x53, 0xA2, 0x48, 0x41, 0x46, 0xB6, 0x83, 0x2A, 0x01, 0x95,
+    0x70, 0xF5, 0x27, 0xE6, 0xAA, 0xAC, 0xF9, 0x0B, 0xE5, 0x79, 0x06,
+    0x5B, 0x9F, 0xF3, 0xA7, 0x6E, 0xA0, 0xFE, 0x10, 0x5B
+};
 
 //-----------------------------------------------------------------------------
 // Macros
@@ -137,6 +142,8 @@ static, 0xconst char TEXT[] __attribute__((aligned(DMA_ALIGNMENT)))="abc";
 # define PRINTF(_msg_, ...)
 #endif
 
+#define HEX_LINE_LEN  64u
+
 #define DUMP_HEX(_msg_, _buf_, _len_) \
    _hca_hexdump(__func__, __LINE__, _msg_, _buf_, _len_);
 
@@ -148,7 +155,7 @@ static struct worker _work;
 static uint8_t _sha2_buf[512u/CHAR_BIT] ALIGN(sizeof(uint64_t));
 static uint8_t _src_buf[sizeof(TEXT)+DMA_ALIGNMENT] ALIGN(DMA_ALIGNMENT);
 static uint8_t _trail_buf[2u*SHA512_BLOCK_SIZE] ALIGN(DMA_ALIGNMENT);
-
+static uint8_t _long_buf[4u*PAGE_SIZE+DMA_ALIGNMENT] ALIGN(DMA_ALIGNMENT);
 
 //-----------------------------------------------------------------------------
 // Inline helpers
@@ -221,13 +228,18 @@ _hca_hexdump(const char * func, int line, const char * msg,
                     const uint8_t *buf, size_t size)
 {
     static const char _hex[] = "0123456789ABCDEF";
-    static char hexstr[512];
-    for (unsigned int ix = 0 ; ix < size ; ix++) {
-        hexstr[(ix * 2)] = _hex[(buf[ix] >> 4) & 0xf];
-        hexstr[(ix * 2) + 1] = _hex[buf[ix] & 0xf];
+    static char hexstr[HEX_LINE_LEN*2u+1u];
+    const uint8_t * end = buf+size;
+    while ( buf < end ) {
+        unsigned int ix = 0;
+        while ( (ix < HEX_LINE_LEN) && (buf < end) ) {
+            hexstr[(ix * 2)] = _hex[(*buf >> 4) & 0xf];
+            hexstr[(ix * 2) + 1] = _hex[*buf & 0xf];
+            buf++; ix++;
+        }
+        hexstr[2*HEX_LINE_LEN] = '\0';
+        printf("%s[%d] %s (%zu): %s\n", func, line, msg, size, hexstr);
     }
-    hexstr[size * 2] = '\0';
-    printf("%s[%d] %s (%zu): %s\n", func, line, msg, size, hexstr);
 }
 
 //-----------------------------------------------------------------------------
@@ -470,7 +482,7 @@ _test_sha_dma_unaligned_poll(const uint8_t * buf, size_t buflen) {
 }
 
 static void
-_test_sha_dma_poll(const uint8_t * buf, size_t buflen) {
+_test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen) {
     uint32_t reg;
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
@@ -542,12 +554,21 @@ _test_sha_dma_poll(const uint8_t * buf, size_t buflen) {
                   HCA_REGISTER_DMA_CR_START_OFFSET,
                   HCA_REGISTER_DMA_CR_START_MASK);
 
+    size_t dma_loop = 0;
     while( _hca_dma_is_busy() ) {
         // busy loop
+        dma_loop += 1;
     }
 
     while ( _hca_sha_is_busy() ) {
         // busy loop
+    }
+
+    if ( buflen > 1024 ) {
+        // whenever the buffer is greater than the VM chunk size, we expect
+        // the guest code to be re-scheduled before the VM DMA completion
+        TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
+            1000u, dma_loop, "VM may have freeze guest code execution");
     }
 
     // DMA source & size
@@ -577,9 +598,12 @@ _test_sha_dma_poll(const uint8_t * buf, size_t buflen) {
     }
 
     _hca_sha_get_hash(_sha2_buf, 512u/CHAR_BIT);
-    if ( memcmp(_sha2_buf, TEXT_HASH, sizeof(TEXT_HASH)) ) {
-        DUMP_HEX("Invalid SHA512 hash:", _sha2_buf, 512u/CHAR_BIT);
-        TEST_FAIL_MESSAGE("Hash mismatch");
+    if ( refh ) {
+        if ( memcmp(_sha2_buf, refh, 512u/CHAR_BIT) ) {
+            DUMP_HEX("Invalid hash:", _sha2_buf, 512u/CHAR_BIT);
+            DUMP_HEX("Ref:         ", refh, 512u/CHAR_BIT);
+            TEST_FAIL_MESSAGE("Hash mismatch");
+        }
     }
 }
 
@@ -688,7 +712,8 @@ _hca_irq_fini(void)
 }
 
 static void
-_test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
+_test_sha_dma_irq(const uint8_t * refh, const uint8_t * buf, size_t buflen,
+                  struct worker * work) {
     uint32_t step = 0u;
     uint32_t reg;
 
@@ -852,11 +877,12 @@ _test_sha_dma_irq(const uint8_t * buf, size_t buflen, struct worker * work) {
 
     _hca_sha_get_hash(_sha2_buf, 512u/CHAR_BIT);
 
-    if ( memcmp(_sha2_buf, TEXT_HASH, sizeof(TEXT_HASH)) ) {
-        DUMP_HEX("Invalid hash:", _sha2_buf, 512u/CHAR_BIT);
-        DUMP_HEX("Ref:         ", TEXT_HASH, sizeof(TEXT_HASH));
-
-        TEST_FAIL_MESSAGE("Hash mismatch");
+    if ( refh ) {
+        if ( memcmp(_sha2_buf, refh, 512u/CHAR_BIT) ) {
+            DUMP_HEX("Invalid hash:", _sha2_buf, 512u/CHAR_BIT);
+            DUMP_HEX("Ref:         ", refh, 512u/CHAR_BIT);
+            TEST_FAIL_MESSAGE("Hash mismatch");
+        }
     }
 }
 
@@ -872,23 +898,40 @@ TEST(dma_sha, unaligned_poll)
 
 TEST(dma_sha, sha512_poll)
 {
-    _test_sha_dma_poll((const uint8_t *)TEXT, sizeof(TEXT)-1u);
+    _test_sha_dma_poll(TEXT_HASH, (const uint8_t *)TEXT, sizeof(TEXT)-1u);
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
         memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
-        _test_sha_dma_poll(&_src_buf[ix], sizeof(TEXT)-1u);
+        _test_sha_dma_poll(TEXT_HASH, &_src_buf[ix], sizeof(TEXT)-1u);
     }
 }
 
 TEST(dma_sha, sha512_irq)
 {
     _hca_irq_init(&_work);
-    _test_sha_dma_irq((const uint8_t *)TEXT, sizeof(TEXT)-1u, &_work);
+    _test_sha_dma_irq(TEXT_HASH, (const uint8_t *)TEXT, sizeof(TEXT)-1u,
+                      &_work);
     _hca_irq_fini();
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
         memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
         _hca_irq_init(&_work);
-        _test_sha_dma_irq(&_src_buf[ix], sizeof(TEXT)-1u, &_work);
+        _test_sha_dma_irq(TEXT_HASH, &_src_buf[ix], sizeof(TEXT)-1u, &_work);
         _hca_irq_fini();
+    }
+}
+
+TEST(dma_sha, sha512_long_poll)
+{
+    for(unsigned int ix=0;
+        ix<(sizeof(_long_buf)-DMA_ALIGNMENT)/sizeof(uint32_t); ix++) {
+        ((uint32_t*) _long_buf)[ix] = ix;
+    }
+    //DUMP_HEX("longbuf", _long_buf, sizeof(_long_buf));
+    uint8_t * ptr = _long_buf;
+    for (unsigned int ix=0; ix<DMA_ALIGNMENT; ix++) {
+        _test_sha_dma_poll(LONG_BUF_HASH, ptr,
+                           sizeof(_long_buf)-DMA_ALIGNMENT);
+        memmove(ptr+1, ptr, sizeof(_long_buf)-DMA_ALIGNMENT);
+        ptr += 1;
     }
 }
 
@@ -897,4 +940,5 @@ TEST_GROUP_RUNNER(dma_sha)
     RUN_TEST_CASE(dma_sha, unaligned_poll);
     RUN_TEST_CASE(dma_sha, sha512_poll);
     RUN_TEST_CASE(dma_sha, sha512_irq);
+    RUN_TEST_CASE(dma_sha, sha512_long_poll);
 }
