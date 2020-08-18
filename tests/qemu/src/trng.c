@@ -9,12 +9,13 @@
 #include "api/hardware/hca_utils.h"
 #include "api/hardware/hca_macro.h"
 #include "unity_fixture.h"
+#include "dma_test.h"
+
 
 //-----------------------------------------------------------------------------
 // Constants
 //-----------------------------------------------------------------------------
 
-#define HCA_TRNG_IRQ_CHANNEL 24
 #define TRNG_MAX_RESULTS     8
 
 static const metal_scl_t scl = {
@@ -31,32 +32,6 @@ struct trng_results
     bool     tr_resume;
     uint32_t tr_values[TRNG_MAX_RESULTS];
  };
-
-//-----------------------------------------------------------------------------
-// Macros
-//-----------------------------------------------------------------------------
-
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(_a_) (sizeof((_a_))/sizeof((_a_)[0]))
-#endif // ARRAY_SIZE
-
-#define ALIGN(_a_) __attribute__((aligned((_a_))))
-
-//-----------------------------------------------------------------------------
-// Debug
-//-----------------------------------------------------------------------------
-
-#define DEBUG_HCA
-
-#ifdef DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...) \
-    printf("%s[%d] " _msg_ "\n", _f_, _l_, ##__VA_ARGS__)
-# define PRINTF(_msg_, ...) \
-    LPRINTF(__func__, __LINE__, _msg_, ##__VA_ARGS__)
-#else // DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...)
-# define PRINTF(_msg_, ...)
-#endif
 
 //-----------------------------------------------------------------------------
 // Variables
@@ -91,9 +66,9 @@ TEST(trng, poll)
         //PRINTF("RNG: 0x%08x", out);
     }
 
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_TRNG_CR, 1,
-                   HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
-                   HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_TRNG_CR, 1,
+                  HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
+                  HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
 
 
     for(unsigned int ix=0; ix<4; ix++) {
@@ -104,9 +79,9 @@ TEST(trng, poll)
         //PRINTF("RNG: 0x%08x", out);
     }
 
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_TRNG_CR, 0,
-                   HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
-                   HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_TRNG_CR, 0,
+                  HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
+                  HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
 
 
     for(unsigned int ix=0; ix<4; ix++) {
@@ -124,9 +99,9 @@ void hca_irq_handler(int id, void * opaque)
 
     if ( results->tr_count == (ARRAY_SIZE(results->tr_values)/2u - 1u) ) {
         // switch to burst mode
-        hca_setfield32(&scl, METAL_SIFIVE_HCA_TRNG_CR, 1,
-               HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
-               HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
+        _hca_updreg32(METAL_SIFIVE_HCA_TRNG_CR, 1,
+                      HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
+                      HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
     }
     if ( results->tr_count < ARRAY_SIZE(results->tr_values) ) {
         uint32_t out;
@@ -170,17 +145,17 @@ TEST(trng, irq)
     rc = metal_interrupt_enable(plic, HCA_TRNG_IRQ_CHANNEL);
     TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot enable IRQ");
 
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_TRNG_CR, 0,
-           HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
-           HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_TRNG_CR, 0,
+                  HCA_REGISTER_TRNG_CR_BURSTEN_OFFSET,
+                  HCA_REGISTER_TRNG_CR_BURSTEN_MASK);
 
     metal_interrupt_set_threshold(plic, 1);
     metal_interrupt_set_priority(plic, HCA_TRNG_IRQ_CHANNEL, 2);
     metal_interrupt_enable(cpu_intr, 0);
 
-    hca_setfield32(&scl, METAL_SIFIVE_HCA_TRNG_CR, 1,
-                   HCA_REGISTER_TRNG_CR_RNDIRQEN_OFFSET,
-                   HCA_REGISTER_TRNG_CR_RNDIRQEN_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_TRNG_CR, 1,
+                  HCA_REGISTER_TRNG_CR_RNDIRQEN_OFFSET,
+                  HCA_REGISTER_TRNG_CR_RNDIRQEN_MASK);
 
     while ( _trng_results.tr_resume ) {
         // do not use WFI as there is a small time vulnerability window

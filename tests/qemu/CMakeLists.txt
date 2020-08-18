@@ -6,7 +6,8 @@ INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
                      ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
 
 ADD_EXECUTABLE (${COMPONENT}
-                src/dma_aes.c
+                src/dma_aes_ecb.c
+                src/dma_aes_gcm.c
                 src/dma_sha.c
                 src/qemu.c
                 src/trng.c)

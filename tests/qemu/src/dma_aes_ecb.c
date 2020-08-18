@@ -10,77 +10,12 @@
 #include "api/hardware/hca_utils.h"
 #include "api/hardware/hca_macro.h"
 #include "unity_fixture.h"
+#include "dma_test.h"
 
-//-----------------------------------------------------------------------------
-// Type definitions
-//-----------------------------------------------------------------------------
-
-struct worker {
-    volatile size_t wk_crypto_count; /**< Count of crypto block IRQs */
-    volatile size_t wk_dma_count;    /**< Count of DMA block IRQs */
-    volatile size_t wk_crypto_total;
-    volatile size_t wk_dma_total;
-};
-
-//-----------------------------------------------------------------------------
-// Macros
-//-----------------------------------------------------------------------------
-
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(_a_) (sizeof((_a_))/sizeof((_a_)[0]))
-#endif // ARRAY_SIZE
-
-#define ALIGN(_a_) __attribute__((aligned((_a_))))
-
-#ifndef METAL_REG16
-#define METAL_REG16(base, offset)                                              \
-    (__METAL_ACCESS_ONCE((uint16_t *)((base) + (offset))))
-#endif
-
-#ifndef METAL_REG8
-#define METAL_REG8(base, offset)                                              \
-    (__METAL_ACCESS_ONCE((uint8_t *)((base) + (offset))))
-#endif
-
-#define HCA_DMA_CR_ERROR_BITS                    \
-    ((HCA_REGISTER_DMA_CR_RDALIGNERR_MASK <<     \
-        HCA_REGISTER_DMA_CR_RDALIGNERR_OFFSET) | \
-     (HCA_REGISTER_DMA_CR_WRALIGNERR_MASK <<     \
-        HCA_REGISTER_DMA_CR_WRALIGNERR_OFFSET) | \
-     (HCA_REGISTER_DMA_CR_RESPERR_MASK <<        \
-        HCA_REGISTER_DMA_CR_RESPERR_OFFSET) |    \
-     (HCA_REGISTER_DMA_CR_LEGALERR_MASK <<       \
-        HCA_REGISTER_DMA_CR_LEGALERR_OFFSET))
-
-#define HCA_DMA_CR_RD_ERROR_BIT                  \
-    (HCA_REGISTER_DMA_CR_RDALIGNERR_MASK <<      \
-        HCA_REGISTER_DMA_CR_RDALIGNERR_OFFSET)
-
-#define HCA_CR_IFIFO_EMPTY_BIT \
-    (HCA_REGISTER_CR_IFIFOEMPTY_MASK << HCA_REGISTER_CR_IFIFOEMPTY_OFFSET)
-#define HCA_CR_OFIFO_EMPTY_BIT \
-    (HCA_REGISTER_CR_OFIFOEMPTY_MASK << HCA_REGISTER_CR_OFIFOEMPTY_OFFSET)
-#define HCA_CR_IFIFO_FULL_BIT \
-    (HCA_REGISTER_CR_IFIFOFULL_MASK << HCA_REGISTER_CR_IFIFOFULL_OFFSET)
-#define HCA_CR_OFIFO_FULL_BIT \
-    (HCA_REGISTER_CR_OFIFOFULL_MASK << HCA_REGISTER_CR_OFIFOFULL_OFFSET)
 
 //-----------------------------------------------------------------------------
 // Constants
 //-----------------------------------------------------------------------------
-
-#define HCA_BASE             (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
-#define HCA_ASD_IRQ_CHANNEL  23u
-
-#define TIME_BASE            32768u // cannot rely on buggy metal API
-#define HEART_BEAT_FREQUENCY 32u
-#define HEART_BEAT_TIME      ((TIME_BASE)/(HEART_BEAT_FREQUENCY))
-
-#define PAGE_SIZE            4096  // bytes
-#define DMA_ALIGNMENT        32u   // bytes
-#define DMA_BLOCK_SIZE       16u   // bytes
-
-#define AES_BLOCK_SIZE       16u   // bytes
 
 static const uint8_t _KEY_AES128[] = {
    0X2B, 0X7E, 0X15, 0X16, 0X28, 0XAE, 0XD2, 0XA6,
@@ -105,28 +40,6 @@ static const uint8_t _CIPHERTEXT_ECB[] ALIGN(DMA_ALIGNMENT) = {
     0X3F, 0X82, 0X23, 0X20, 0X71, 0X04, 0X72, 0X5D, 0XD4
 };
 
-//-----------------------------------------------------------------------------
-// Debug
-//-----------------------------------------------------------------------------
-
-#define DEBUG_HCA
-#undef SHOW_STEP
-
-#ifdef DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...) \
-    printf("%s[%d] " _msg_ "\n", _f_, _l_, ##__VA_ARGS__)
-# define PRINTF(_msg_, ...) \
-    LPRINTF(__func__, __LINE__, _msg_, ##__VA_ARGS__)
-#else // DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...)
-# define PRINTF(_msg_, ...)
-#endif
-
-#define HEX_LINE_LEN  64u
-
-#define DUMP_HEX(_msg_, _buf_, _len_) \
-   _hca_hexdump(__func__, __LINE__, _msg_, _buf_, _len_);
-
 
 //-----------------------------------------------------------------------------
 // Variables
@@ -137,109 +50,8 @@ static uint8_t _dst_buf[sizeof(_PLAINTEXT_ECB)] ALIGN(DMA_ALIGNMENT);
 static uint8_t _long_buf[4u*PAGE_SIZE] ALIGN(DMA_ALIGNMENT);
 
 //-----------------------------------------------------------------------------
-// Inline helpers
-//-----------------------------------------------------------------------------
-
-static inline void
-_hca_updreg32(uint32_t reg, uint32_t value, size_t offset, uint32_t mask)
-{
-    uint32_t reg32;
-    reg32 = METAL_REG32(HCA_BASE, reg);
-    reg32 &= ~(mask << offset);
-    reg32 |= ((value & mask) << offset);
-    METAL_REG32(HCA_BASE, reg) = reg32;
-}
-
-static inline bool
-_hca_aes_is_busy(void)
-{
-    uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_CR);
-    return !! (sha_cr & (HCA_REGISTER_AES_CR_BUSY_MASK <<
-                         HCA_REGISTER_AES_CR_BUSY_OFFSET));
-}
-
-static inline bool
-_hca_dma_is_busy(void)
-{
-    uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
-    return !! (dma_cr & (HCA_REGISTER_DMA_CR_BUSY_MASK <<
-                         HCA_REGISTER_DMA_CR_BUSY_OFFSET));
-}
-
-static inline bool
-_hca_crypto_is_irq(void)
-{
-    uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
-    return !! (sha_cr & (HCA_REGISTER_CR_CRYPTODIS_MASK <<
-                         HCA_REGISTER_CR_CRYPTODIS_OFFSET));
-}
-
-static inline bool
-_hca_dma_is_irq(void)
-{
-    uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
-    return !! (dma_cr & (HCA_REGISTER_CR_DMADIS_MASK <<
-                         HCA_REGISTER_CR_DMADIS_OFFSET));
-}
-
-static inline void
-_hca_crypto_clear_irq(void)
-{
-    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
-                  HCA_REGISTER_CR_CRYPTODIS_OFFSET,
-                  HCA_REGISTER_CR_CRYPTODIS_MASK);
-}
-
-static inline void
-_hca_dma_clear_irq(void)
-{
-    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
-                   HCA_REGISTER_CR_DMADIS_OFFSET,
-                   HCA_REGISTER_CR_DMADIS_MASK);
-}
-
-static inline void
-_hca_set_aes_key128(const uint8_t * key)
-{
-    const uint32_t * dwkey = (const uint32_t *)key;
-
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x1cu) =
-        __builtin_bswap32(dwkey[0u]);
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x18u) =
-        __builtin_bswap32(dwkey[1u]);
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x14u) =
-        __builtin_bswap32(dwkey[2u]);
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x10u) =
-        __builtin_bswap32(dwkey[3u]);
-}
-
-//-----------------------------------------------------------------------------
-// Debug helpers
-//-----------------------------------------------------------------------------
-
-static void
-_hca_hexdump(const char * func, int line, const char * msg,
-                    const uint8_t *buf, size_t size)
-{
-    static const char _hex[] = "0123456789ABCDEF";
-    static char hexstr[HEX_LINE_LEN*2u+1u];
-    const uint8_t * end = buf+size;
-    while ( buf < end ) {
-        unsigned int ix = 0;
-        while ( (ix < HEX_LINE_LEN) && (buf < end) ) {
-            hexstr[(ix * 2)] = _hex[(*buf >> 4) & 0xf];
-            hexstr[(ix * 2) + 1] = _hex[*buf & 0xf];
-            buf++; ix++;
-        }
-        hexstr[2*HEX_LINE_LEN] = '\0';
-        printf("%s[%d] %s (%zu): %s\n", func, line, msg, size, hexstr);
-    }
-}
-
-//-----------------------------------------------------------------------------
 // DMA AES test implementation
 //-----------------------------------------------------------------------------
-
 
 static void
 _test_dma_poll(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
@@ -726,20 +538,20 @@ _test_dma_irq(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
 // Unity tests
 //-----------------------------------------------------------------------------
 
-TEST_GROUP(dma_aes_poll);
+TEST_GROUP(dma_aes_ecb_poll);
 
-TEST_SETUP(dma_aes_poll) {}
+TEST_SETUP(dma_aes_ecb_poll) {}
 
-TEST_TEAR_DOWN(dma_aes_poll) {}
+TEST_TEAR_DOWN(dma_aes_ecb_poll) {}
 
-TEST(dma_aes_poll, ecb_short)
+TEST(dma_aes_ecb_poll, short)
 {
     memcpy(_long_buf, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
     _test_dma_poll(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _dst_buf,
                    _long_buf, sizeof(_PLAINTEXT_ECB), 1u);
 }
 
-TEST(dma_aes_poll, ecb_long)
+TEST(dma_aes_ecb_poll, long)
 {
     // test a long buffer, which is a repeated version of the short one.
     // also take the opportunity to test src == dst buffers
@@ -753,32 +565,32 @@ TEST(dma_aes_poll, ecb_long)
                    sizeof(_long_buf), repeat);
 }
 
-TEST_GROUP_RUNNER(dma_aes_poll)
+TEST_GROUP_RUNNER(dma_aes_ecb_poll)
 {
-    RUN_TEST_CASE(dma_aes_poll, ecb_short);
-    RUN_TEST_CASE(dma_aes_poll, ecb_long);
+    RUN_TEST_CASE(dma_aes_ecb_poll, short);
+    RUN_TEST_CASE(dma_aes_ecb_poll, long);
 }
 
-TEST_GROUP(dma_aes_irq);
+TEST_GROUP(dma_aes_ecb_irq);
 
-TEST_SETUP(dma_aes_irq)
+TEST_SETUP(dma_aes_ecb_irq)
 {
     _hca_irq_init(&_work);
 }
 
-TEST_TEAR_DOWN(dma_aes_irq)
+TEST_TEAR_DOWN(dma_aes_ecb_irq)
 {
     _hca_irq_fini();
 }
 
-TEST(dma_aes_irq, ecb_short)
+TEST(dma_aes_ecb_irq, short)
 {
     memcpy(_long_buf, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
     _test_dma_irq(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _dst_buf,
                   _long_buf, sizeof(_PLAINTEXT_ECB), 1u, &_work);
 }
 
-TEST(dma_aes_irq, ecb_long)
+TEST(dma_aes_ecb_irq, long)
 {
     // test a long buffer, which is a repeated version of the short one.
     // also take the opportunity to test src == dst buffers
@@ -792,10 +604,10 @@ TEST(dma_aes_irq, ecb_long)
                  sizeof(_long_buf), repeat, &_work);
 }
 
-TEST_GROUP_RUNNER(dma_aes_irq)
+TEST_GROUP_RUNNER(dma_aes_ecb_irq)
 {
-    RUN_TEST_CASE(dma_aes_irq, ecb_short);
-    RUN_TEST_CASE(dma_aes_irq, ecb_long);
+    RUN_TEST_CASE(dma_aes_ecb_irq, short);
+    RUN_TEST_CASE(dma_aes_ecb_irq, long);
 }
 
 
