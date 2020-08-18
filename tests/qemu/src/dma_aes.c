@@ -242,8 +242,8 @@ _hca_hexdump(const char * func, int line, const char * msg,
 
 
 static void
-_test_aes_dma_poll(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
-                   uint8_t * src, size_t length, size_t repeat) {
+_test_dma_poll(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
+               uint8_t * src, size_t length, size_t repeat) {
     uint32_t reg;
 
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)src) & ((DMA_ALIGNMENT) - 1u), 0,
@@ -540,9 +540,9 @@ _hca_irq_fini(void)
 }
 
 static void
-_test_aes_dma_irq(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
-                   uint8_t * src, size_t length, size_t repeat,
-                   struct worker * work) {
+_test_dma_irq(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
+               uint8_t * src, size_t length, size_t repeat,
+               struct worker * work) {
     uint32_t reg;
 
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)src) & ((DMA_ALIGNMENT) - 1u), 0,
@@ -726,20 +726,20 @@ _test_aes_dma_irq(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
 // Unity tests
 //-----------------------------------------------------------------------------
 
-TEST_GROUP(dma_aes);
+TEST_GROUP(dma_aes_poll);
 
-TEST_SETUP(dma_aes) {}
+TEST_SETUP(dma_aes_poll) {}
 
-TEST_TEAR_DOWN(dma_aes) {}
+TEST_TEAR_DOWN(dma_aes_poll) {}
 
-TEST(dma_aes, aes_ecb_poll)
+TEST(dma_aes_poll, ecb_short)
 {
     memcpy(_long_buf, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
-    _test_aes_dma_poll(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _dst_buf,
-                       _long_buf, sizeof(_PLAINTEXT_ECB), 1u);
+    _test_dma_poll(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _dst_buf,
+                   _long_buf, sizeof(_PLAINTEXT_ECB), 1u);
 }
 
-TEST(dma_aes, aes_ecb_long_poll)
+TEST(dma_aes_poll, ecb_long)
 {
     // test a long buffer, which is a repeated version of the short one.
     // also take the opportunity to test src == dst buffers
@@ -749,20 +749,36 @@ TEST(dma_aes, aes_ecb_long_poll)
         memcpy(ptr, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
         ptr += sizeof(_PLAINTEXT_ECB);
     }
-    _test_aes_dma_poll(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _long_buf, _long_buf,
-                       sizeof(_long_buf), repeat);
+    _test_dma_poll(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _long_buf, _long_buf,
+                   sizeof(_long_buf), repeat);
 }
 
-TEST(dma_aes, aes_ecb_irq)
+TEST_GROUP_RUNNER(dma_aes_poll)
 {
-    memcpy(_long_buf, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
+    RUN_TEST_CASE(dma_aes_poll, ecb_short);
+    RUN_TEST_CASE(dma_aes_poll, ecb_long);
+}
+
+TEST_GROUP(dma_aes_irq);
+
+TEST_SETUP(dma_aes_irq)
+{
     _hca_irq_init(&_work);
-    _test_aes_dma_irq(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _dst_buf,
-                       _long_buf, sizeof(_PLAINTEXT_ECB), 1u, &_work);
+}
+
+TEST_TEAR_DOWN(dma_aes_irq)
+{
     _hca_irq_fini();
 }
 
-TEST(dma_aes, aes_ecb_long_irq)
+TEST(dma_aes_irq, ecb_short)
+{
+    memcpy(_long_buf, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
+    _test_dma_irq(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _dst_buf,
+                  _long_buf, sizeof(_PLAINTEXT_ECB), 1u, &_work);
+}
+
+TEST(dma_aes_irq, ecb_long)
 {
     // test a long buffer, which is a repeated version of the short one.
     // also take the opportunity to test src == dst buffers
@@ -772,18 +788,14 @@ TEST(dma_aes, aes_ecb_long_irq)
         memcpy(ptr, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
         ptr += sizeof(_PLAINTEXT_ECB);
     }
-    _hca_irq_init(&_work);
-    _test_aes_dma_irq(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _long_buf, _long_buf,
-                       sizeof(_long_buf), repeat, &_work);
-    _hca_irq_fini();
+    _test_dma_irq(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _long_buf, _long_buf,
+                 sizeof(_long_buf), repeat, &_work);
 }
 
-TEST_GROUP_RUNNER(dma_aes)
+TEST_GROUP_RUNNER(dma_aes_irq)
 {
-    RUN_TEST_CASE(dma_aes, aes_ecb_poll);
-    RUN_TEST_CASE(dma_aes, aes_ecb_long_poll);
-    RUN_TEST_CASE(dma_aes, aes_ecb_irq);
-    RUN_TEST_CASE(dma_aes, aes_ecb_long_irq);
+    RUN_TEST_CASE(dma_aes_irq, ecb_short);
+    RUN_TEST_CASE(dma_aes_irq, ecb_long);
 }
 
 

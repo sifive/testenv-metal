@@ -897,13 +897,13 @@ _test_sha_dma_irq(const uint8_t * refh, const uint8_t * buf, size_t buflen,
 // Unity tests
 //-----------------------------------------------------------------------------
 
-TEST_GROUP(dma_sha);
+TEST_GROUP(dma_sha_poll);
 
-TEST_SETUP(dma_sha) {}
+TEST_SETUP(dma_sha_poll) {}
 
-TEST_TEAR_DOWN(dma_sha) {}
+TEST_TEAR_DOWN(dma_sha_poll) {}
 
-TEST(dma_sha, unaligned_poll)
+TEST(dma_sha_poll, unaligned)
 {
     // note: error behaviour will DMA/IRQ is not defined in HCA documentation
     // it needs to be addressed somehow
@@ -913,7 +913,7 @@ TEST(dma_sha, unaligned_poll)
     }
 }
 
-TEST(dma_sha, sha512_poll)
+TEST(dma_sha_poll, sha512)
 {
     _test_sha_dma_poll(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u);
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
@@ -922,21 +922,7 @@ TEST(dma_sha, sha512_poll)
     }
 }
 
-TEST(dma_sha, sha512_irq)
-{
-    _hca_irq_init(&_work);
-    _test_sha_dma_irq(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u,
-                      &_work);
-    _hca_irq_fini();
-    for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
-        memcpy(&_src_buf[ix], _TEXT, sizeof(_TEXT));
-        _hca_irq_init(&_work);
-        _test_sha_dma_irq(_TEXT_HASH, &_src_buf[ix], sizeof(_TEXT)-1u, &_work);
-        _hca_irq_fini();
-    }
-}
-
-TEST(dma_sha, sha512_long_poll)
+TEST(dma_sha_poll, sha512_long)
 {
     for(unsigned int ix=0;
         ix<(sizeof(_long_buf)-DMA_ALIGNMENT)/sizeof(uint32_t); ix++) {
@@ -952,10 +938,36 @@ TEST(dma_sha, sha512_long_poll)
     }
 }
 
-TEST_GROUP_RUNNER(dma_sha)
+TEST_GROUP_RUNNER(dma_sha_poll)
 {
-    RUN_TEST_CASE(dma_sha, unaligned_poll);
-    RUN_TEST_CASE(dma_sha, sha512_poll);
-    RUN_TEST_CASE(dma_sha, sha512_irq);
-    RUN_TEST_CASE(dma_sha, sha512_long_poll);
+    RUN_TEST_CASE(dma_sha_poll, unaligned);
+    RUN_TEST_CASE(dma_sha_poll, sha512);
+    RUN_TEST_CASE(dma_sha_poll, sha512_long);
+}
+
+TEST_GROUP(dma_sha_irq);
+
+TEST_SETUP(dma_sha_irq)
+{
+    _hca_irq_init(&_work);
+}
+
+TEST_TEAR_DOWN(dma_sha_irq)
+{
+    _hca_irq_fini();
+}
+
+TEST(dma_sha_irq, sha512)
+{
+    _test_sha_dma_irq(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u,
+                      &_work);
+    for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
+        memcpy(&_src_buf[ix], _TEXT, sizeof(_TEXT));
+        _test_sha_dma_irq(_TEXT_HASH, &_src_buf[ix], sizeof(_TEXT)-1u, &_work);
+    }
+}
+
+TEST_GROUP_RUNNER(dma_sha_irq)
+{
+    RUN_TEST_CASE(dma_sha_irq, sha512);
 }
