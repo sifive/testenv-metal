@@ -218,12 +218,16 @@ _hca_dma_clear_irq(void)
 static inline void
 _hca_set_aes_key128(const uint8_t * key)
 {
-    const uint64_t * dwkey = (const uint64_t *)key;
+    const uint32_t * dwkey = (const uint32_t *)key;
 
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x0u) = dwkey[0u];
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x4u) = dwkey[1u];
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x8u) = dwkey[2u];
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0xcu) = dwkey[3u];
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x1cu) =
+        __builtin_bswap32(dwkey[0u]);
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x18u) =
+        __builtin_bswap32(dwkey[1u]);
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x14u) =
+        __builtin_bswap32(dwkey[2u]);
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x10u) =
+        __builtin_bswap32(dwkey[3u]);
 }
 
 //-----------------------------------------------------------------------------
