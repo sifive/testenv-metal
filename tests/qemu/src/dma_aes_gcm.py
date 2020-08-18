@@ -29,9 +29,13 @@ assert(ref_cipher == hexlify(cipher).decode())
 assert(ref_tag == hexlify(tag).decode())
 
 
-def print_c_array(name, data):
+def print_c_array(name, data, align=None):
+    if align is None:
+        align = ''
+    else:
+        align = f'ALIGN({align}) '
     c_array = ', '.join([f'0x{byte:02X}' for byte in data])
-    print(f'static const uint8_t _{name.upper()}[{len(data)}u] = {{')
+    print(f'static const uint8_t _{name.upper()}[{len(data)}u] {align}= {{')
     print(fill(c_array, initial_indent=' '*4, subsequent_indent=' '*4,
                width=80))
     print(f'}};')
@@ -39,19 +43,21 @@ def print_c_array(name, data):
 
 DMA_ALIGNMENT = 32
 DMA_BLOCK_SIZE = 16
+AES_BLOCK_SIZE = 16
 
 nkey = AESGCM.generate_key(bit_length=128)
 niv = urandom(96//8)
 # be sure to generate value that fit no blocks...
 naad = urandom(DMA_ALIGNMENT+DMA_BLOCK_SIZE+9)
-nplain = urandom(3*DMA_ALIGNMENT+DMA_BLOCK_SIZE+7)
+# should be a multiple of AES_BLOCK_SIZE
+nplain = urandom(3*DMA_ALIGNMENT+AES_BLOCK_SIZE)
 nct = AESGCM(nkey).encrypt(niv, nplain, naad)
-ncipher, ntag = nct[:-16], ct[-16:]
+ncipher, ntag = nct[:-16], nct[-16:]
 
 print_c_array('key_gcm2', nkey)
 print_c_array('iv_gcm2', niv)
-print_c_array('aad_gcm2', naad)
-print_c_array('plaintext_gcm2', nplain)
-print_c_array('ciphertext_gcm2', ncipher)
+print_c_array('aad_gcm2', naad, 'DMA_ALIGNMENT')
+print_c_array('plaintext_gcm2', nplain, 'DMA_ALIGNMENT')
+print_c_array('ciphertext_gcm2', ncipher, 'DMA_ALIGNMENT')
 print_c_array('tag_gcm2', ntag)
 

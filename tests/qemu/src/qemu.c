@@ -39,8 +39,8 @@ static void
 _ut_run(void)
 {
     UnityFixture.Verbose = 1;
-    UnityFixture.GroupFilter = "dma_aes_gcm_poll";
-    //UnityFixture.NameFilter = "unaligned";
+    // UnityFixture.GroupFilter = "dma_aes_gcm_poll";
+    // UnityFixture.NameFilter = "unaligned";
 
     RUN_TEST_GROUP(trng);
     RUN_TEST_GROUP(dma_sha_poll);

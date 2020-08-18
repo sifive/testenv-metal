@@ -316,7 +316,8 @@ _test_sha_dma_unaligned_poll(const uint8_t * buf, size_t buflen) {
 }
 
 static void
-_test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen) {
+_test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen)
+{
     uint32_t reg;
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
@@ -568,7 +569,8 @@ _hca_irq_fini(void)
 
 static void
 _test_sha_dma_irq(const uint8_t * refh, const uint8_t * buf, size_t buflen,
-                  struct worker * work) {
+                  struct worker * work)
+{
     uint32_t step = 0u;
     uint32_t reg;
 

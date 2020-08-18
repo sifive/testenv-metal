@@ -55,7 +55,8 @@ static uint8_t _long_buf[4u*PAGE_SIZE] ALIGN(DMA_ALIGNMENT);
 
 static void
 _test_dma_poll(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
-               uint8_t * src, size_t length, size_t repeat) {
+               uint8_t * src, size_t length, size_t repeat)
+{
     uint32_t reg;
 
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)src) & ((DMA_ALIGNMENT) - 1u), 0,
@@ -354,7 +355,8 @@ _hca_irq_fini(void)
 static void
 _test_dma_irq(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
                uint8_t * src, size_t length, size_t repeat,
-               struct worker * work) {
+               struct worker * work)
+{
     uint32_t reg;
 
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)src) & ((DMA_ALIGNMENT) - 1u), 0,

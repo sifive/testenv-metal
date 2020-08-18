@@ -13,6 +13,8 @@
 // Constants
 //-----------------------------------------------------------------------------
 
+#define DEBUG_HCA
+
 #define HCA_BASE             (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
 #define HCA_ASD_IRQ_CHANNEL  23u
 #define HCA_TRNG_IRQ_CHANNEL 24u
@@ -44,7 +46,10 @@ struct worker {
 };
 
 struct buf_desc {
-    const uint8_t * bd_base;
+    union {
+        const uint8_t * bd_base;
+        uint8_t * bd_dest;
+    };
     union {
         size_t bd_length;  /**< Size in bytes */
         size_t bd_count;   /**< Size in DMA block count */
@@ -70,6 +75,14 @@ struct buf_desc {
 #define METAL_REG8(base, offset)                                              \
     (__METAL_ACCESS_ONCE((uint8_t *)((base) + (offset))))
 #endif
+
+#ifndef MIN
+#define MIN(_a_, _b_) ((_a_) < (_b_) ? (_a_) : (_b_))
+#endif // MIN
+
+#ifndef MAX
+#define MAX(_a_, _b_) ((_a_) > (_b_) ? (_a_) : (_b_))
+#endif // MAX
 
 #define HCA_DMA_CR_ERROR_BITS                    \
     ((HCA_REGISTER_DMA_CR_RDALIGNERR_MASK <<     \
