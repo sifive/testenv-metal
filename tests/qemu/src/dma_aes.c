@@ -15,20 +15,6 @@
 // Type definitions
 //-----------------------------------------------------------------------------
 
-struct buf_desc {
-    const uint8_t * bd_base;
-    union {
-        size_t bd_length;  /**< Size in bytes */
-        size_t bd_count;   /**< Size in DMA block count */
-    };
-};
-
-struct aes_desc {
-    struct buf_desc ad_prolog; /**< Send w/o DMA: non-aligned start bytes */
-    struct buf_desc ad_main;   /**< Send w/ DMA: aligned payload */
-    struct buf_desc ad_epilog; /**< Send w/o DMA: non-aligned end bytes */
-};
-
 struct worker {
     volatile size_t wk_crypto_count; /**< Count of crypto block IRQs */
     volatile size_t wk_dma_count;    /**< Count of DMA block IRQs */
@@ -101,7 +87,7 @@ static const uint8_t _KEY_AES128[] = {
    0XAB, 0XF7, 0X15, 0X88, 0X09, 0XCF, 0X4F, 0X3C
 };
 
-static const uint8_t _PLAINTEXT[] ALIGN(DMA_ALIGNMENT) = {
+static const uint8_t _PLAINTEXT_ECB[] ALIGN(DMA_ALIGNMENT) = {
     0X6B, 0XC1, 0XBE, 0XE2, 0X2E, 0X40, 0X9F, 0X96, 0XE9, 0X3D, 0X7E,
     0X11, 0X73, 0X93, 0X17, 0X2A, 0XAE, 0X2D, 0X8A, 0X57, 0X1E, 0X03,
     0XAC, 0X9C, 0X9E, 0XB7, 0X6F, 0XAC, 0X45, 0XAF, 0X8E, 0X51, 0X30,
@@ -147,7 +133,7 @@ static const uint8_t _CIPHERTEXT_ECB[] ALIGN(DMA_ALIGNMENT) = {
 //-----------------------------------------------------------------------------
 
 static struct worker _work;
-static uint8_t _dst_buf[sizeof(_PLAINTEXT)] ALIGN(DMA_ALIGNMENT);
+static uint8_t _dst_buf[sizeof(_PLAINTEXT_ECB)] ALIGN(DMA_ALIGNMENT);
 static uint8_t _long_buf[4u*PAGE_SIZE] ALIGN(DMA_ALIGNMENT);
 
 //-----------------------------------------------------------------------------
@@ -256,8 +242,8 @@ _hca_hexdump(const char * func, int line, const char * msg,
 
 
 static void
-_test_aes_dma_poll(const uint8_t * ref, uint8_t * dst, const uint8_t * src,
-                   size_t length, size_t repeat) {
+_test_aes_dma_poll(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
+                   uint8_t * src, size_t length, size_t repeat) {
     uint32_t reg;
 
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)src) & ((DMA_ALIGNMENT) - 1u), 0,
@@ -323,8 +309,8 @@ _test_aes_dma_poll(const uint8_t * ref, uint8_t * dst, const uint8_t * src,
                   HCA_REGISTER_AES_CR_KEYSZ_MASK);
     // AES process: encryption
     _hca_updreg32(METAL_SIFIVE_HCA_AES_CR, 0u,
-                  HCA_REGISTER_AES_CR_KEYSZ_OFFSET,
-                  HCA_REGISTER_AES_CR_KEYSZ_MASK);
+                  HCA_REGISTER_AES_CR_PROCESS_OFFSET,
+                  HCA_REGISTER_AES_CR_PROCESS_MASK);
     // AES init: no need
     _hca_updreg32(METAL_SIFIVE_HCA_AES_CR, 0u,
                   HCA_REGISTER_AES_CR_INIT_OFFSET,
@@ -333,8 +319,6 @@ _test_aes_dma_poll(const uint8_t * ref, uint8_t * dst, const uint8_t * src,
     // AES key
     _hca_set_aes_key128(_KEY_AES128);
 
-    struct aes_desc desc;
-
     if ( _hca_aes_is_busy() ) {
         TEST_FAIL_MESSAGE("AES HW is busy");
     }
@@ -342,6 +326,8 @@ _test_aes_dma_poll(const uint8_t * ref, uint8_t * dst, const uint8_t * src,
     if ( _hca_dma_is_busy() ) {
         TEST_FAIL_MESSAGE("DMA HW is busy");
     }
+
+    size_t chunk = length/repeat;
 
     // DMA config
     PRINTF("src: %p, dst: %p, len: %zu", src, dst, length);
@@ -371,15 +357,82 @@ _test_aes_dma_poll(const uint8_t * ref, uint8_t * dst, const uint8_t * src,
             1000u, dma_loop, "VM may have freeze guest code execution");
     }
 
-    if ( ref ) {
+    if ( ref_d ) {
+        const uint8_t * ptr = dst;
         for (unsigned int ix=0; ix<repeat; ix++) {
-            size_t chunk = length/repeat;
-            if ( memcmp(dst, ref, chunk) ) {
-                DUMP_HEX("Invalid AES:", dst, chunk);
-                DUMP_HEX("Ref:        ", ref, chunk);
-                TEST_FAIL_MESSAGE("AES mismatch");
+            if ( memcmp(ptr, ref_d, chunk) ) {
+                DUMP_HEX("Invalid AES:", ptr, chunk);
+                DUMP_HEX("Ref:        ", ref_d, chunk);
+                TEST_FAIL_MESSAGE("AES encryption mismatch");
             }
-            dst += chunk;
+            ptr += chunk;
+        }
+    }
+
+    // sanity check
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    TEST_ASSERT_EQUAL_MESSAGE(reg &
+                              (HCA_CR_IFIFO_EMPTY_BIT|HCA_CR_OFIFO_EMPTY_BIT),
+                              HCA_CR_IFIFO_EMPTY_BIT|HCA_CR_OFIFO_EMPTY_BIT,
+                              "FIFOs are not empty");
+    TEST_ASSERT_EQUAL_MESSAGE(reg &
+                              (HCA_CR_IFIFO_FULL_BIT|HCA_CR_OFIFO_FULL_BIT),
+                              0u,
+                              "FIFOs are full");
+
+    // AES process: decryption
+    _hca_updreg32(METAL_SIFIVE_HCA_AES_CR, 1u,
+                  HCA_REGISTER_AES_CR_PROCESS_OFFSET,
+                  HCA_REGISTER_AES_CR_PROCESS_MASK);
+
+    // AES key
+    _hca_set_aes_key128(_KEY_AES128);
+
+    if ( _hca_aes_is_busy() ) {
+        TEST_FAIL_MESSAGE("AES HW is busy");
+    }
+
+    if ( _hca_dma_is_busy() ) {
+        TEST_FAIL_MESSAGE("DMA HW is busy");
+    }
+
+    // DMA config
+    PRINTF("src: %p, dst: %p, len: %zu", src, dst, length);
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) = (uintptr_t)dst;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = (uintptr_t)src;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = length/DMA_BLOCK_SIZE;
+
+    // DMA start
+    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
+                  HCA_REGISTER_DMA_CR_START_OFFSET,
+                  HCA_REGISTER_DMA_CR_START_MASK);
+
+    dma_loop = 0;
+    while( _hca_dma_is_busy() ) {
+        // busy loop
+        dma_loop += 1;
+    }
+
+    while ( _hca_aes_is_busy() ) {
+        // busy loop
+    }
+
+    if ( length > 4096u ) {
+        // whenever the buffer is greater than the VM chunk size, we expect
+        // the guest code to be re-scheduled before the VM DMA completion
+        TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
+            1000u, dma_loop, "VM may have freeze guest code execution");
+    }
+
+    if ( ref_s ) {
+        const uint8_t * ptr = src;
+        for (unsigned int ix=0; ix<repeat; ix++) {
+            if ( memcmp(ptr, ref_s, chunk) ) {
+                DUMP_HEX("Invalid AES:", ptr, chunk);
+                DUMP_HEX("Ref:        ", ref_s, chunk);
+                TEST_FAIL_MESSAGE("AES decryption mismatch");
+            }
+            ptr += chunk;
         }
     }
 }
@@ -396,21 +449,22 @@ TEST_TEAR_DOWN(dma_aes) {}
 
 TEST(dma_aes, aes_ecb_poll)
 {
-    _test_aes_dma_poll(_CIPHERTEXT_ECB, _dst_buf, _PLAINTEXT,
-                       sizeof(_PLAINTEXT), 1u);
+    memcpy(_long_buf, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
+    _test_aes_dma_poll(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _dst_buf,
+                       _long_buf, sizeof(_PLAINTEXT_ECB), 1u);
 }
 
 TEST(dma_aes, aes_ecb_long_poll)
 {
     // test a long buffer, which is a repeated version of the short one.
     // also take the opportunity to test src == dst buffers
-    size_t repeat = sizeof(_long_buf)/sizeof(_PLAINTEXT);
+    size_t repeat = sizeof(_long_buf)/sizeof(_PLAINTEXT_ECB);
     uint8_t * ptr = _long_buf;
     for (unsigned int ix=0; ix<repeat; ix++) {
-        memcpy(ptr, _PLAINTEXT, sizeof(_PLAINTEXT));
-        ptr += sizeof(_PLAINTEXT);
+        memcpy(ptr, _PLAINTEXT_ECB, sizeof(_PLAINTEXT_ECB));
+        ptr += sizeof(_PLAINTEXT_ECB);
     }
-    _test_aes_dma_poll(_CIPHERTEXT_ECB, _long_buf, _long_buf,
+    _test_aes_dma_poll(_CIPHERTEXT_ECB, _PLAINTEXT_ECB, _long_buf, _long_buf,
                        sizeof(_long_buf), repeat);
 }
 
