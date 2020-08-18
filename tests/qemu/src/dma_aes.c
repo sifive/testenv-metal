@@ -96,9 +96,6 @@ struct worker {
 
 #define AES_BLOCK_SIZE       16u   // bytes
 
-//static const uint64_t key128[4] = {0, 0, 0xabf7158809cf4f3c,
-//                                   0x2b7e151628aed2a6};
-
 static const uint8_t _KEY_AES128[] = {
    0X2B, 0X7E, 0X15, 0X16, 0X28, 0XAE, 0XD2, 0XA6,
    0XAB, 0XF7, 0X15, 0X88, 0X09, 0XCF, 0X4F, 0X3C
@@ -260,7 +257,7 @@ _hca_hexdump(const char * func, int line, const char * msg,
 
 static void
 _test_aes_dma_poll(const uint8_t * ref, uint8_t * dst, const uint8_t * src,
-                   size_t length) {
+                   size_t length, size_t repeat) {
     uint32_t reg;
 
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)src) & ((DMA_ALIGNMENT) - 1u), 0,
@@ -375,10 +372,14 @@ _test_aes_dma_poll(const uint8_t * ref, uint8_t * dst, const uint8_t * src,
     }
 
     if ( ref ) {
-        if ( memcmp(dst, ref, length) ) {
-            DUMP_HEX("Invalid AES:", dst, length);
-            DUMP_HEX("Ref:        ", ref, length);
-            TEST_FAIL_MESSAGE("AES mismatch");
+        for (unsigned int ix=0; ix<repeat; ix++) {
+            size_t chunk = length/repeat;
+            if ( memcmp(dst, ref, chunk) ) {
+                DUMP_HEX("Invalid AES:", dst, chunk);
+                DUMP_HEX("Ref:        ", ref, chunk);
+                TEST_FAIL_MESSAGE("AES mismatch");
+            }
+            dst += chunk;
         }
     }
 }
@@ -396,17 +397,27 @@ TEST_TEAR_DOWN(dma_aes) {}
 TEST(dma_aes, aes_ecb_poll)
 {
     _test_aes_dma_poll(_CIPHERTEXT_ECB, _dst_buf, _PLAINTEXT,
-                       sizeof(_PLAINTEXT));
-    // for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
-    //     memcpy(&_src_buf[ix], TEXT, sizeof(TEXT));
-    //     _test_sha_dma_poll(TEXT_HASH, &_src_buf[ix], sizeof(TEXT)-1u);
-    // }
+                       sizeof(_PLAINTEXT), 1u);
 }
 
+TEST(dma_aes, aes_ecb_long_poll)
+{
+    // test a long buffer, which is a repeated version of the short one.
+    // also take the opportunity to test src == dst buffers
+    size_t repeat = sizeof(_long_buf)/sizeof(_PLAINTEXT);
+    uint8_t * ptr = _long_buf;
+    for (unsigned int ix=0; ix<repeat; ix++) {
+        memcpy(ptr, _PLAINTEXT, sizeof(_PLAINTEXT));
+        ptr += sizeof(_PLAINTEXT);
+    }
+    _test_aes_dma_poll(_CIPHERTEXT_ECB, _long_buf, _long_buf,
+                       sizeof(_long_buf), repeat);
+}
 
 TEST_GROUP_RUNNER(dma_aes)
 {
     RUN_TEST_CASE(dma_aes, aes_ecb_poll);
+    RUN_TEST_CASE(dma_aes, aes_ecb_long_poll);
 }
 
 
