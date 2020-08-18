@@ -76,8 +76,6 @@ TEST_TEAR_DOWN(trng) {}
 
 TEST(trng, poll)
 {
-    PRINTF("START Poll mode");
-
     int32_t rc;
 
     rc = hca_trng_init(&scl);
@@ -142,8 +140,6 @@ void hca_irq_handler(int id, void * opaque)
 
 TEST(trng, irq)
 {
-    PRINTF("START IRQ mode");
-
     int32_t rc;
 
     rc = hca_trng_init(&scl);
@@ -212,13 +208,3 @@ TEST_GROUP_RUNNER(trng)
     RUN_TEST_CASE(trng, poll);
     RUN_TEST_CASE(trng, irq);
 }
-
-#if 0
-int main(void) {
-
-    trng();
-    trng_irq();
-
-    return 0;
-}
-#endif

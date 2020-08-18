@@ -353,34 +353,38 @@ _sha_push(const uint8_t * src, size_t length)
         #if __riscv_xlen >= 64
         if ( !(((uintptr_t)src) & (sizeof(uint64_t)-1u)) &&
                 (length >= sizeof(uint64_t))) {
-            //PRINTF("64 bit push");
+            //PRINTF("64 bit push: %zu", length);
             METAL_REG64(HCA_BASE, METAL_SIFIVE_HCA_FIFO_IN) =
                 *(const uint64_t *)src;
             src += sizeof(uint64_t);
+            length -= sizeof(uint64_t);
             continue;
         }
         #endif // __riscv_xlen >= 64
         if ( ! (((uintptr_t)src) & (sizeof(uint32_t)-1u)) &&
                 (length >= sizeof(uint32_t))) {
-            //PRINTF("32 bit push");
+            //PRINTF("32 bit push: %zu", length);
             METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_FIFO_IN) =
                 *(const uint32_t *)src;
             src += sizeof(uint32_t);
+            length -= sizeof(uint32_t);
             continue;
         }
         if ( ! (((uintptr_t)src) & (sizeof(uint16_t)-1u)) &&
                 (length >= sizeof(uint16_t))) {
-            //PRINTF("16 bit push");
+            //PRINTF("16 bit push: %zu", length);
             METAL_REG16(HCA_BASE, METAL_SIFIVE_HCA_FIFO_IN) =
                 *(const uint16_t *)src;
             src += sizeof(uint16_t);
+            length -= sizeof(uint16_t);
             continue;
         }
         if ( ! (((uintptr_t)src) & (sizeof(uint8_t)-1u)) ) {
-            //PRINTF("8 bit push");
+            //PRINTF("8 bit push: %zu", length);
             METAL_REG8(HCA_BASE, METAL_SIFIVE_HCA_FIFO_IN) =
                 *(const uint8_t *)src;
             src += sizeof(uint8_t);
+            length -= sizeof(uint8_t);
             continue;
         }
     }
@@ -433,6 +437,14 @@ _test_sha_dma_unaligned_poll(const uint8_t * buf, size_t buflen) {
         TEST_FAIL_MESSAGE("DMA HW is busy");
     }
 
+    // sanity check
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    TEST_ASSERT_EQUAL_MESSAGE(hca_cr & HCA_CR_IFIFO_EMPTY_BIT,
+                              HCA_CR_IFIFO_EMPTY_BIT,
+                              "FIFO in is not empty");
+    TEST_ASSERT_EQUAL_MESSAGE(hca_cr & HCA_CR_IFIFO_FULL_BIT, 0u,
+                              "FIFO in is full");
+
     // SHA start (don't care about the results, but the FIFO in should be
     // emptied)
     _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 1,
@@ -469,10 +481,14 @@ _test_sha_dma_unaligned_poll(const uint8_t * buf, size_t buflen) {
     }
 
     // be sure to leave the IFIFO empty, or other tests would fail
-    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_CR);
-
-    TEST_ASSERT_EQUAL_UINT32_MESSAGE(
-        hca_cr & HCA_CR_IFIFO_EMPTY_BIT, 0u, "FIFI not empty");
+    // as there is not HCA reset for now, the easiest way is to change the
+    // mode. Note that this may not reflect the way the actual HW behaves..
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_IFIFOTGT_OFFSET,
+                  HCA_REGISTER_CR_IFIFOTGT_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
+                  HCA_REGISTER_CR_IFIFOTGT_OFFSET,
+                  HCA_REGISTER_CR_IFIFOTGT_MASK);
 }
 
 static void
@@ -612,6 +628,14 @@ _test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen) {
             TEST_FAIL_MESSAGE("Hash mismatch");
         }
     }
+
+    // sanity check
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    TEST_ASSERT_EQUAL_MESSAGE(reg & HCA_CR_IFIFO_EMPTY_BIT,
+                              HCA_CR_IFIFO_EMPTY_BIT,
+                              "FIFO in is not empty");
+    TEST_ASSERT_EQUAL_MESSAGE(reg & HCA_CR_IFIFO_FULL_BIT, 0u,
+                              "FIFO in is full");
 }
 
 static void
@@ -913,7 +937,7 @@ TEST(dma_sha_poll, unaligned)
     }
 }
 
-TEST(dma_sha_poll, sha512)
+TEST(dma_sha_poll, sha512_short)
 {
     _test_sha_dma_poll(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u);
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
@@ -928,7 +952,6 @@ TEST(dma_sha_poll, sha512_long)
         ix<(sizeof(_long_buf)-DMA_ALIGNMENT)/sizeof(uint32_t); ix++) {
         ((uint32_t*) _long_buf)[ix] = ix;
     }
-    //DUMP_HEX("longbuf", _long_buf, sizeof(_long_buf));
     uint8_t * ptr = _long_buf;
     for (unsigned int ix=0; ix<DMA_ALIGNMENT; ix++) {
         _test_sha_dma_poll(_LONG_BUF_HASH, ptr,
@@ -941,7 +964,7 @@ TEST(dma_sha_poll, sha512_long)
 TEST_GROUP_RUNNER(dma_sha_poll)
 {
     RUN_TEST_CASE(dma_sha_poll, unaligned);
-    RUN_TEST_CASE(dma_sha_poll, sha512);
+    RUN_TEST_CASE(dma_sha_poll, sha512_short);
     RUN_TEST_CASE(dma_sha_poll, sha512_long);
 }
 
