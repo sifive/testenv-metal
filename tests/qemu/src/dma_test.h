@@ -213,11 +213,11 @@ _hca_set_aes_iv96(const uint8_t * iv)
 {
     const uint32_t * dwiv = (const uint32_t *)iv;
 
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x0cu) =
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_INITV+0x0cu) =
         __builtin_bswap32(dwiv[0u]);
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x08u) =
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_INITV+0x08u) =
         __builtin_bswap32(dwiv[1u]);
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_KEY+0x04u) =
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_INITV+0x04u) =
         __builtin_bswap32(dwiv[2u]);
 }
 

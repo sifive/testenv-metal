@@ -30,14 +30,16 @@ static const uint8_t _AAD_GCM[] ALIGN(DMA_ALIGNMENT) = {
 };
 
 static const uint8_t _PLAINTEXT_GCM[] ALIGN(DMA_ALIGNMENT) = {
-    0xBB, 0x2B, 0xAC, 0x67, 0xA4, 0x70, 0x94, 0x30, 0xC3, 0x9C, 0x2E, 0xB9,
-    0xAC, 0xFA, 0xBC, 0x0D, 0x45, 0x6C, 0x80, 0xD3, 0x0A, 0xA1, 0x73, 0x4E,
+    0xBB, 0x2B, 0xAC, 0x67, 0xA4, 0x70, 0x94, 0x30,
+    0xC3, 0x9C, 0x2E, 0xB9, 0xAC, 0xFA, 0xBC, 0x0D,
+    0x45, 0x6C, 0x80, 0xD3, 0x0A, 0xA1, 0x73, 0x4E,
     0x57, 0x99, 0x7D, 0x54, 0x8A, 0x8F, 0x06, 0x03
 };
 
 static const uint8_t _CIPHERTEXT_GCM[] ALIGN(DMA_ALIGNMENT) = {
-    0xD2, 0x63, 0x22, 0x8B, 0x8C, 0xE0, 0x51, 0xF6, 0x7E, 0x9B, 0xAF, 0x1C,
-    0xE7, 0xDF, 0x97, 0xD1, 0x0C, 0xD5, 0xF3, 0xBC, 0x97, 0x23, 0x62, 0x05,
+    0xD2, 0x63, 0x22, 0x8B, 0x8C, 0xE0, 0x51, 0xF6,
+    0x7E, 0x9B, 0xAF, 0x1C, 0xE7, 0xDF, 0x97, 0xD1,
+    0x0C, 0xD5, 0xF3, 0xBC, 0x97, 0x23, 0x62, 0x05,
     0x51, 0x30, 0xC7, 0xD1, 0x3C, 0x3A, 0xB2, 0xE7
 };
 
@@ -175,7 +177,7 @@ _test_dma_poll(uint8_t * dst, uint8_t * tag,
     // DMA config
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) = (uintptr_t)aad;
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = (uintptr_t)0;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = aad_len;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = aad_len/DMA_BLOCK_SIZE;
 
     // DMA start
     _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1u,
@@ -216,7 +218,7 @@ _test_dma_poll(uint8_t * dst, uint8_t * tag,
     // DMA config
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) = (uintptr_t)src;
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = (uintptr_t)dst;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = src_len;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = src_len/DMA_BLOCK_SIZE;
 
     // DMA start
     _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1u,
@@ -252,8 +254,9 @@ _test_dma_poll(uint8_t * dst, uint8_t * tag,
                               "FIFOs are full");
 
     for (unsigned int ix=0; ix<AES_BLOCK_SIZE; ix+=sizeof(uint32_t)) {
-        *(uint32_t *)&tag[ix] =
-            METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_AUTH+ix);
+        *(uint32_t *)&tag[AES_BLOCK_SIZE - sizeof(uint32_t) - ix] =
+            __builtin_bswap32(
+                METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_AUTH+ix));
     }
 }
 
@@ -560,16 +563,18 @@ TEST_TEAR_DOWN(dma_aes_gcm_poll) {}
 
 TEST(dma_aes_gcm_poll, short)
 {
+    memset(_dst_buf, 0, sizeof(_CIPHERTEXT_GCM));
+    memset(_tag_buf, 0, sizeof(_TAG_GCM));
     _test_dma_poll(_dst_buf, _tag_buf, _PLAINTEXT_GCM, sizeof(_PLAINTEXT_GCM),
                    _AAD_GCM, sizeof(_AAD_GCM));
     if ( memcmp(_dst_buf, _CIPHERTEXT_GCM, sizeof(_CIPHERTEXT_GCM))) {
         DUMP_HEX("Invalid AES:", _dst_buf, sizeof(_CIPHERTEXT_GCM));
-        DUMP_HEX("Ref:        ", _CIPHERTEXT_GCM, sizeof(_CIPHERTEXT_GCM));
+        DUMP_HEX("Ref AES:    ", _CIPHERTEXT_GCM, sizeof(_CIPHERTEXT_GCM));
         TEST_FAIL_MESSAGE("AES encryption mismatch");
     }
     if ( memcmp(_tag_buf, _TAG_GCM, sizeof(_TAG_GCM))) {
-        DUMP_HEX("Invalid AES:", _tag_buf, sizeof(_TAG_GCM));
-        DUMP_HEX("Ref:        ", _TAG_GCM, sizeof(_TAG_GCM));
+        DUMP_HEX("Invalid TAG:", _tag_buf, sizeof(_TAG_GCM));
+        DUMP_HEX("Ref tag:    ", _TAG_GCM, sizeof(_TAG_GCM));
         TEST_FAIL_MESSAGE("AES tag mismatch");
     }
 }
