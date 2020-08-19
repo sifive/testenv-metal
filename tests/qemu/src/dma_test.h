@@ -117,10 +117,12 @@ struct buf_desc {
 # define PRINTF(_msg_, ...)
 #endif
 
-#define HEX_LINE_LEN  64u
+#define HEX_LINE_LEN  32u
 
 #define DUMP_HEX(_msg_, _buf_, _len_) \
    hca_hexdump(__func__, __LINE__, _msg_, _buf_, _len_);
+#define DUMP_SHEX(_msg_, _buf_, _len_) \
+   hca_hexdump(NULL, 0, _msg_, _buf_, _len_);
 
 //-----------------------------------------------------------------------------
 // Global variables

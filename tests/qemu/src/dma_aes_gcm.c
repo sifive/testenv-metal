@@ -123,8 +123,8 @@ struct aes_desc {
 //-----------------------------------------------------------------------------
 
 static struct worker _work;
-static uint8_t _dst_buf[MAX(sizeof(_CIPHERTEXT_GCM),
-                            sizeof(_CIPHERTEXT_GCM2))] ALIGN(DMA_ALIGNMENT);
+static uint8_t _dst_buf[sizeof(_CIPHERTEXT_GCM2)+DMA_BLOCK_SIZE]
+    ALIGN(DMA_ALIGNMENT);
 static uint8_t _aad_buf[sizeof(_AAD_GCM2)+2*DMA_ALIGNMENT] \
     ALIGN(DMA_ALIGNMENT);
 static uint8_t _tag_buf[AES_BLOCK_SIZE] ALIGN(sizeof(uint32_t));
@@ -147,13 +147,11 @@ _test_dma_aligned(uint8_t * dst, uint8_t * tag,
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)aad) & ((DMA_ALIGNMENT) - 1u), 0,
                               "Aad is not aligned on a DMA boundary");
     TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)tag) & ((sizeof(uint32_t)) - 1u), 0,
-                              "Aad is not aligned on a DMA boundary");
+                              "Tag is not aligned on a word");
     TEST_ASSERT_EQUAL_MESSAGE(src_len & (DMA_BLOCK_SIZE - 1u), 0,
                               "Length is not aligned on a DMA block size");
     TEST_ASSERT_EQUAL_MESSAGE(aad_len & (DMA_BLOCK_SIZE - 1u), 0,
                               "Length is not aligned on a DMA block size");
-    TEST_ASSERT_EQUAL_MESSAGE(src_len & (AES_BLOCK_SIZE-1), 0,
-                              "AES data size invalid");
 
     reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
     if ( ! reg ) {
@@ -329,10 +327,6 @@ _test_dma_aligned(uint8_t * dst, uint8_t * tag,
 static int
 _build_aes_desc(struct aes_desc * desc, const uint8_t * src, size_t length)
 {
-    #ifdef SHOW_STEP
-    PRINTF("Desc: %p %zu", src, length);
-    #endif
-
     size_t unaligned_size = (uintptr_t)src & (DMA_ALIGNMENT - 1u);
     size_t data_size = length;
     if ( unaligned_size ) {
@@ -359,17 +353,27 @@ _build_aes_desc(struct aes_desc * desc, const uint8_t * src, size_t length)
         desc->ad_epilog.bd_count = 0;
     }
 
-    #ifdef SHOW_STEP
+
+    return 0;
+}
+
+#ifdef SHOW_STEP
+static void
+_show_desc(const char * name, const uint8_t * src, size_t length,
+           struct aes_desc * desc)
+{
+    PRINTF("");
+    PRINTF("Desc: %s: %p %zu", name, src, length);
     PRINTF("Prolog: %p %zu", desc->ad_prolog.bd_base,
            desc->ad_prolog.bd_length);
     PRINTF("Main:   %p %zu [%zu]", desc->ad_main.bd_base,
         desc->ad_main.bd_count*DMA_BLOCK_SIZE, desc->ad_main.bd_count);
     PRINTF("Epilog: %p %zu", desc->ad_epilog.bd_base,
            desc->ad_epilog.bd_length);
-    #endif
-
-    return 0;
 }
+#else
+# define _show_desc(_n_, _s_, _l_, _d_)
+#endif
 
 static void
 _fifo_in_push(const uint8_t * src, size_t length)
@@ -466,13 +470,16 @@ _test_dma_unaligned(uint8_t * dst, uint8_t * tag,
                     const uint8_t * src, size_t src_len,
                     const uint8_t * aad, size_t aad_len)
 {
-    uintptr_t src_off = ((uintptr_t)src) & ((DMA_ALIGNMENT) - 1u);
+    uintptr_t src_off = ((uintptr_t)src) & ((DMA_BLOCK_SIZE) - 1u);
     uintptr_t dst_off = ((uintptr_t)dst) & ((DMA_ALIGNMENT) - 1u);
 
-    TEST_ASSERT_EQUAL_MESSAGE(src_off, dst_off,
-                              "Source & destination alignment mismatch");
-    TEST_ASSERT_EQUAL_MESSAGE(src_len & (AES_BLOCK_SIZE-1), 0,
-                              "AES data size invalid");
+    TEST_ASSERT_EQUAL_MESSAGE(src_len & (DMA_BLOCK_SIZE - 1u), 0,
+                              "Length is not aligned on a DMA block size");
+    TEST_ASSERT_EQUAL_MESSAGE(((uintptr_t)tag) & ((sizeof(uint32_t)) - 1u), 0,
+                              "Tag is not aligned on a word");
+    // source is not aligned
+    TEST_ASSERT_EQUAL_MESSAGE(dst_off, 0,
+            "Destination is not aligned on a DMA block size");
 
     uint32_t reg;
 
@@ -561,6 +568,24 @@ _test_dma_unaligned(uint8_t * dst, uint8_t * tag,
     _build_aes_desc(&pld_desc, src, src_len);
     _build_aes_desc(&ciph_desc, dst, src_len);
 
+    _show_desc("AAD", aad, aad_len, &aad_desc);
+    _show_desc("IN ", aad, src_len, &pld_desc);
+    _show_desc("OUT", dst, src_len, &ciph_desc);
+
+    if ( ciph_desc.ad_main.bd_count > pld_desc.ad_main.bd_count ) {
+        size_t count = ciph_desc.ad_main.bd_count - pld_desc.ad_main.bd_count;
+        ciph_desc.ad_main.bd_count -= count;
+        size_t length = count*DMA_BLOCK_SIZE;
+        if ( ! ciph_desc.ad_epilog.bd_base ) {
+            ciph_desc.ad_epilog.bd_base = ciph_desc.ad_main.bd_base +
+                ciph_desc.ad_main.bd_count * DMA_BLOCK_SIZE;
+        } else {
+            ciph_desc.ad_epilog.bd_base -= length;
+        }
+        ciph_desc.ad_epilog.bd_length += length;
+        _show_desc("OUT", dst, src_len, &ciph_desc);
+    }
+
     // AES set AAD
     _hca_updreg32(METAL_SIFIVE_HCA_AES_CR, 0u,
                     HCA_REGISTER_AES_CR_DTYPE_OFFSET,
@@ -623,11 +648,23 @@ _test_dma_unaligned(uint8_t * dst, uint8_t * tag,
         _fifo_in_push(pld_desc.ad_prolog.bd_base,
                       pld_desc.ad_prolog.bd_length);
     }
+    reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    if ( pld_desc.ad_prolog.bd_length < AES_BLOCK_SIZE ) {
+        // the HW output FIFO should contain no data, as less than an AES
+        // block size has been pushed in
+        TEST_ASSERT_EQUAL_MESSAGE(reg & HCA_CR_OFIFO_EMPTY_BIT,
+                                  HCA_CR_OFIFO_EMPTY_BIT,
+                                  "FIFO out is not empty");
+    } else {
+        TEST_ASSERT_EQUAL_MESSAGE(reg & HCA_CR_OFIFO_EMPTY_BIT, 0,
+                                  "FIFO out is empty");
+    }
 
     // DMA config
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
         (uintptr_t)pld_desc.ad_main.bd_base;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = (uintptr_t)dst;
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) =
+        (uintptr_t)ciph_desc.ad_main.bd_base;
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) =
         pld_desc.ad_main.bd_count;
 
@@ -1024,10 +1061,46 @@ TEST(dma_aes_gcm_poll, unaligned_aad)
     }
 }
 
+TEST(dma_aes_gcm_poll, unaligned_src)
+{
+    for (unsigned int ix=0; ix<2*DMA_ALIGNMENT; ix++) {
+        memset(_dst_buf, 0, sizeof(_CIPHERTEXT_GCM2));
+        memset(_tag_buf, 0, sizeof(_tag_buf));
+        //memset(_aad_buf, 0, sizeof(_aad_buf));
+        uint8_t * src = &dma_long_buf[ix];
+        memcpy(src, _PLAINTEXT_GCM2, sizeof(_PLAINTEXT_GCM2));
+        memcpy(_aad_buf, _AAD_GCM2, sizeof(_AAD_GCM2));
+        #if 0
+        PRINTF("");
+        PRINTF("src %p..%p dst %p..%p",
+               src, src+sizeof(_PLAINTEXT_GCM2),
+               _dst_buf, _dst_buf+sizeof(_CIPHERTEXT_GCM2));
+        PRINTF("aad %p..%p tag %p..%p",
+               _aad_buf, _aad_buf+sizeof(_AAD_GCM2),
+               _tag_buf, _tag_buf+16u);
+        #endif
+        _test_dma_unaligned(_dst_buf, _tag_buf,
+                            src, sizeof(_PLAINTEXT_GCM2),
+                            _aad_buf, sizeof(_AAD_GCM2));
+        if ( memcmp(_dst_buf, _CIPHERTEXT_GCM2, sizeof(_CIPHERTEXT_GCM2))) {
+            DUMP_SHEX("Invalid AES:", _dst_buf, sizeof(_CIPHERTEXT_GCM2));
+            DUMP_SHEX("Ref AES:    ", _CIPHERTEXT_GCM2,
+                      sizeof(_CIPHERTEXT_GCM2));
+            TEST_FAIL_MESSAGE("AES encryption mismatch");
+        }
+        if ( memcmp(_tag_buf, _TAG_GCM2, sizeof(_TAG_GCM2))) {
+            DUMP_SHEX("Invalid TAG:", _tag_buf, sizeof(_TAG_GCM2));
+            DUMP_SHEX("Ref tag:    ", _TAG_GCM2, sizeof(_TAG_GCM2));
+            TEST_FAIL_MESSAGE("AES tag mismatch");
+        }
+    }
+}
+
 TEST_GROUP_RUNNER(dma_aes_gcm_poll)
 {
-    RUN_TEST_CASE(dma_aes_gcm_poll, aligned);
-    RUN_TEST_CASE(dma_aes_gcm_poll, unaligned_aad);
+    //RUN_TEST_CASE(dma_aes_gcm_poll, aligned);
+    //RUN_TEST_CASE(dma_aes_gcm_poll, unaligned_aad);
+    RUN_TEST_CASE(dma_aes_gcm_poll, unaligned_src);
 }
 
 TEST_GROUP(dma_aes_gcm_irq);
