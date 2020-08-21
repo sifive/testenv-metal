@@ -267,7 +267,7 @@ _test_dma_aligned(struct worker * work, uint8_t * dst, uint8_t * tag,
             // whenever the buffer is greater than the VM chunk size, we expect
             // the guest code to be re-scheduled before the VM DMA completion
             TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
-                1000u, dma_loop, "VM may have freeze guest code execution");
+                10u, dma_loop, "VM may have freeze guest code execution");
         }
     } else {
         while( ! work->wk_dma_count ) {
@@ -329,7 +329,7 @@ _test_dma_aligned(struct worker * work, uint8_t * dst, uint8_t * tag,
             // whenever the buffer is greater than the VM chunk size, we expect
             // the guest code to be re-scheduled before the VM DMA completion
             TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
-                1000u, dma_loop, "VM may have freeze guest code execution");
+                10u, dma_loop, "VM may have freeze guest code execution");
         }
         while ( _hca_aes_is_busy() ) {
             TEST_TIMEOUT(timeout, "Stalled waiting for AES completion");
@@ -677,7 +677,7 @@ _test_dma_unaligned(struct worker * work, uint8_t * dst, uint8_t * tag,
             // whenever the buffer is greater than the VM chunk size, we expect
             // the guest code to be re-scheduled before the VM DMA completion
             TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
-                1000u, dma_loop, "VM may have freeze guest code execution");
+                10u, dma_loop, "VM may have freeze guest code execution");
         }
     } else {
         while( ! work->wk_dma_count ) {
@@ -762,7 +762,7 @@ _test_dma_unaligned(struct worker * work, uint8_t * dst, uint8_t * tag,
             // whenever the buffer is greater than the VM chunk size, we expect
             // the guest code to be re-scheduled before the VM DMA completion
             TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
-                1000u, dma_loop, "VM may have freeze guest code execution");
+                10u, dma_loop, "VM may have freeze guest code execution");
         }
     } else {
         while( ! work->wk_dma_count ) {

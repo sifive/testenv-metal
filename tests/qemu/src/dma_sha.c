@@ -416,7 +416,7 @@ _test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen)
         // whenever the buffer is greater than the VM chunk size, we expect
         // the guest code to be re-scheduled before the VM DMA completion
         TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
-            1000u, dma_loop, "VM may have freeze guest code execution");
+            10u, dma_loop, "VM may have freeze guest code execution");
     }
 
     // DMA source & size
