@@ -20,6 +20,8 @@ IF (XSERIES STREQUAL "e")
   # 32-bit target
   SET (XLEN    32)
   SET (XISA    imac)
+  # Unity test framework: enable 64-bit types on 32-bit platform
+  ADD_DEFINITIONS (-DUNITY_SUPPORT_64)
 ELSEIF (XSERIES STREQUAL "s")
   # 64-bit target
   SET (XLEN    64)
