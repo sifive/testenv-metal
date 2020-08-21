@@ -43,7 +43,7 @@ LIST (INSERT PROJECT_LINK_LIBRARIES 0
       ${COMPONENT})
 
 # which tests to build
-SET (TESTS hca_sha hca_aes)
+SET (TESTS hca_sha hca_aes soft_sha scl_soft_sha soft_bignum scl_aes all)
 
 # build a test application for each test family
 FOREACH (test ${TESTS})
@@ -61,11 +61,22 @@ FOREACH (test ${TESTS})
                 APPEND
                 PROPERTY LINK_FLAGS "${LDPREFIX}--Map ${LDPREFIX}${mapfile}")
 
-  # select which tests function are used
-  STRING (TOUPPER ${test} utest)
-  SET_PROPERTY (TARGET ${testapp}
-                APPEND
-                PROPERTY COMPILE_DEFINITIONS TEST_${utest})
+  IF (test STREQUAL "all")
+    FOREACH (test_ ${TESTS})
+      IF (NOT test_ STREQUAL test)
+        STRING (TOUPPER ${test_} utest)
+        SET_PROPERTY (TARGET ${testapp}
+                      APPEND
+                      PROPERTY COMPILE_DEFINITIONS TEST_${utest})
+      ENDIF ()
+    ENDFOREACH ()
+  ELSE ()
+    # select which tests function are used
+    STRING (TOUPPER ${test} utest)
+    SET_PROPERTY (TARGET ${testapp}
+                  APPEND
+                  PROPERTY COMPILE_DEFINITIONS TEST_${utest})
+  ENDIF()
 
   # define the link options
   TARGET_LINK_LIBRARIES (${testapp}
