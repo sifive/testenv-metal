@@ -124,6 +124,9 @@ struct buf_desc {
 #define DUMP_SHEX(_msg_, _buf_, _len_) \
    hca_hexdump(NULL, 0, _msg_, _buf_, _len_);
 
+#define TEST_TIMEOUT(_to_, _msg_) \
+    TEST_ASSERT_LESS_THAN_UINT64_MESSAGE((_to_), now(), _msg_);
+
 //-----------------------------------------------------------------------------
 // Global variables
 //-----------------------------------------------------------------------------
@@ -142,6 +145,19 @@ hca_hexdump(const char * func, int line, const char * msg,
 // Inline helpers
 //-----------------------------------------------------------------------------
 
+static inline uint64_t
+now(void)
+{
+    return (uint64_t)
+        metal_cpu_get_mtime(metal_cpu_get(metal_cpu_get_current_hartid()));
+}
+
+static inline uint64_t
+ms_to_ts(unsigned int ms)
+{
+    return (TIME_BASE * (uint64_t)ms) / 1000ull;
+}
+
 static inline void
 _hca_updreg32(uint32_t reg, uint32_t value, size_t offset, uint32_t mask)
 {
@@ -155,8 +171,8 @@ _hca_updreg32(uint32_t reg, uint32_t value, size_t offset, uint32_t mask)
 static inline bool
 _hca_aes_is_busy(void)
 {
-    uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_CR);
-    return !! (sha_cr & (HCA_REGISTER_AES_CR_BUSY_MASK <<
+    uint32_t aes_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_CR);
+    return !! (aes_cr & (HCA_REGISTER_AES_CR_BUSY_MASK <<
                          HCA_REGISTER_AES_CR_BUSY_OFFSET));
 }
 
@@ -179,16 +195,16 @@ _hca_dma_is_busy(void)
 static inline bool
 _hca_crypto_is_irq(void)
 {
-    uint32_t sha_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
-    return !! (sha_cr & (HCA_REGISTER_CR_CRYPTODIS_MASK <<
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !! (hca_cr & (HCA_REGISTER_CR_CRYPTODIS_MASK <<
                          HCA_REGISTER_CR_CRYPTODIS_OFFSET));
 }
 
 static inline bool
 _hca_dma_is_irq(void)
 {
-    uint32_t dma_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
-    return !! (dma_cr & (HCA_REGISTER_CR_DMADIS_MASK <<
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !! (hca_cr & (HCA_REGISTER_CR_DMADIS_MASK <<
                          HCA_REGISTER_CR_DMADIS_OFFSET));
 }
 
@@ -206,6 +222,34 @@ _hca_dma_clear_irq(void)
     _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
                    HCA_REGISTER_CR_DMADIS_OFFSET,
                    HCA_REGISTER_CR_DMADIS_MASK);
+}
+
+static inline bool
+_hca_fifo_in_is_empty(void)
+{
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !!(hca_cr & HCA_CR_IFIFO_EMPTY_BIT);
+}
+
+static inline bool
+_hca_fifo_in_is_full(void)
+{
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !!(hca_cr & HCA_CR_IFIFO_FULL_BIT);
+}
+
+static inline bool
+_hca_fifo_out_is_empty(void)
+{
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !!(hca_cr & HCA_CR_OFIFO_EMPTY_BIT);
+}
+
+static inline bool
+_hca_fifo_out_is_full(void)
+{
+    uint32_t hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    return !!(hca_cr & HCA_CR_OFIFO_FULL_BIT);
 }
 
 static inline void

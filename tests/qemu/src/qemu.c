@@ -46,7 +46,7 @@ static void
 _ut_run(void)
 {
     UnityFixture.Verbose = 1;
-    UnityFixture.GroupFilter = "dma_aes_gcm_poll";
+    // UnityFixture.GroupFilter = "dma_aes_gcm";
     // UnityFixture.NameFilter = "unaligned_payload";
 
     RUN_TEST_GROUP(trng);
