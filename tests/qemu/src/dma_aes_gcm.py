@@ -47,8 +47,7 @@ AES_BLOCK_SIZE = 16
 
 nkey = AESGCM.generate_key(bit_length=128)
 niv = urandom(96//8)
-# be sure to generate value that fit no blocks...
-naad = urandom(DMA_ALIGNMENT+DMA_BLOCK_SIZE+9)
+naad = urandom(DMA_ALIGNMENT+DMA_BLOCK_SIZE)
 # should be a multiple of AES_BLOCK_SIZE
 nplain = urandom(3*DMA_ALIGNMENT+AES_BLOCK_SIZE)
 nct = AESGCM(nkey).encrypt(niv, nplain, naad)
