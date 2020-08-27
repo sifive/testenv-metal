@@ -11,7 +11,8 @@ ENTRY(_enter)
 
 MEMORY
 {
-    ram (airwx) : ORIGIN = 0x80000000, LENGTH = 0x400000
+    itim (airwx) : ORIGIN = 0x8000000, LENGTH = 0x2000
+    ram (arw!xi) : ORIGIN = 0x80000000, LENGTH = 0x100000
     rom (irx!wa) : ORIGIN = 0x20400000, LENGTH = 0x1fc00000
 }
 
@@ -38,7 +39,7 @@ SECTIONS
      * initializes the stack pointers for each hart at the right offset from
      * the _sp symbol.
      */
-    __stack_size = DEFINED(__stack_size) ? __stack_size : 0x800;
+    __stack_size = DEFINED(__stack_size) ? __stack_size : 0x400;
     PROVIDE(__stack_size = __stack_size);
 
     /* The size of the heap can be overriden at build-time by adding the
@@ -75,8 +76,12 @@ SECTIONS
     PROVIDE(__metal_eccscrub_bit = 0);
 
     /* The RAM memories map for ECC scrubbing */
+    /* Default zero-scrub to at most 64KB, for limiting RTL simulation run time. */
+    /* User is recommended to enable the full size for manual RTL simulation run! */
     PROVIDE( metal_dtim_0_memory_start = 0x80000000 );
-    PROVIDE( metal_dtim_0_memory_end = 0x80000000 + 0x400000 );
+    PROVIDE( metal_dtim_0_memory_end = 0x80000000 + 0x10000 );
+    PROVIDE( metal_itim_0_memory_start = 0x8000000 );
+    PROVIDE( metal_itim_0_memory_end = 0x8000000 + 0x2000 );
 
     /* ROM SECTION
      *
@@ -171,7 +176,7 @@ SECTIONS
 
     .itim : ALIGN(8) {
         *(.itim .itim.*)
-    } >ram AT>rom :itim_init
+    } >itim AT>rom :itim_init
 
     PROVIDE( metal_segment_itim_source_start = LOADADDR(.itim) );
     PROVIDE( metal_segment_itim_target_start = ADDR(.itim) );
@@ -257,7 +262,7 @@ SECTIONS
         PROVIDE(metal_segment_stack_end = .);
     } >ram :ram
 
-    .heap (NOLOAD) : ALIGN(4) {
+    .heap (NOLOAD) : ALIGN(8) {
         PROVIDE( __end = . );
         PROVIDE( __heap_start = . );
         PROVIDE( metal_segment_heap_target_start = . );
