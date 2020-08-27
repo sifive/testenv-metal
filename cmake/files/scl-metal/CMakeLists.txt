@@ -5,20 +5,20 @@ ADD_DEFINITIONS ("-Weverything")
 
 # Comment warnings in this list to get the associated error messages
 LIST (APPEND DISABLE_WARNINGS
-    reserved-id-macro
-    newline-eof
-    unreachable-code-break
-    shorten-64-to-32
-    cast-qual
-    cast-align
-    sign-conversion
-    missing-variable-declarations
-    covered-switch-default
-    unreachable-code-return
-    padded
-    documentation
+    #reserved-id-macro
+    #newline-eof
+    #unreachable-code-break
+    #shorten-64-to-32
+    #cast-qual
+    #cast-align
+    #sign-conversion
+    #missing-variable-declarations
+    #covered-switch-default
+    #unreachable-code-return
+    #padded
+    #documentation
     vla
-    language-extension-token
+    # language-extension-token
 )
 
 FOREACH (warn ${DISABLE_WARNINGS})
