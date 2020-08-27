@@ -8,30 +8,38 @@
 CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
 IF (NOT DEFINED XBSP)
-  SET (XBSP qemu-arty-s51)
+  MESSAGE (FATAL_ERROR "BSP is not selected; use -DXBSP=...")
 ENDIF ()
 
 IF (NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/bsp/${XBSP})
   MESSAGE (FATAL_ERROR "Unsupported BSP ${XBSP}")
 ENDIF ()
 
+IF (NOT DEFINED CMAKE_BUILD_TYPE)
+  MESSAGE (WARNING "Build type is not selected; use -DCMAKE_BUILD_TYPE=...")
+ENDIF ()
+
+SET (XISA imac)
 STRING (REGEX REPLACE "^(qemu-.*-)([es])([0-9]+)$" "\\2" XSERIES ${XBSP})
 IF (XSERIES STREQUAL "e")
   # 32-bit target
-  SET (XLEN    32)
-  SET (XISA    imac)
+  SET (XLEN 32)
   # Unity test framework: enable 64-bit types on 32-bit platform
   ADD_DEFINITIONS (-DUNITY_SUPPORT_64)
 ELSEIF (XSERIES STREQUAL "s")
   # 64-bit target
-  SET (XLEN    64)
-  SET (XISA    imac)
+  SET (XLEN 64)
 ELSE ()
-  MESSAGE (FATAL_ERROR "Unsupported XBSP")
+  STRING (REGEX MATCH "^qemu-sifive_e_rv(32|64)$" bsp ${XBSP})
+  MESSAGE (STATUS "BSP ${bsp}")
+  IF (NOT bsp)
+    MESSAGE (FATAL_ERROR "Unsupported BSP ${XBSP}")
+  ELSE ()
+    STRING (REGEX REPLACE "^(qemu-sifive_e_rv)(32|64)$" "\\2" XLEN ${XBSP})
+  ENDIF ()
 ENDIF ()
 
 MESSAGE (STATUS "Select ${XLEN}-bit target")
-MESSAGE (STATUS "Select ${XBSP} BSP")
 
 SET (CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 SET (CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/riscv.cmake)
