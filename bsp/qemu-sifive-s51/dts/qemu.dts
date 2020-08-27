@@ -1,31 +1,21 @@
 /dts-v1/;
 / {
-    #address-cells = <1>;
-    #size-cells = <1>;
-    compatible = "sifive-s51-riscv-cpu";
-    model = "sifive-s51-riscv-cpu";
+    #address-cells = <2>;
+    #size-cells = <2>;
+    // based on fe310-g002 (HiFive-revB) with 64-bit core and extensions
+    compatible = "sifive,qemu_sifive_e_64";
+    model = "sifive,qemu_sifive_e_64";
     cpus {
-        #address-cells = <1>;
+        #address-cells = <2>;
         #size-cells = <0>;
         compatible = "sifive,cores";
 
-        L6: cpu@0 {
-            // clocks = <&hfclk>;
-            // add CPU, should be based on ISA and feature
-            // not CPU name
-            compatible = "sifive-riscv-cpu", "riscv";
+       cpu0: cpu@0 {
+            compatible = "sifive-s51-riscv-cpu", "riscv";
             device_type = "cpu";
-            i-cache-block-size = <64>;
-            i-cache-sets = <128>;
-            i-cache-size = <16384>;
-            // next-level-cache = <&spi0>;
-            reg = <0>;
             riscv,isa = "rv64imac";
-            riscv,pmp = <1>;
-            riscv,mmu = <1>;
-            // sifive,dtim = <&dtim>;
-            status = "okay";
-            timebase-frequency = <1000000>;
+            reg = <0x0 0x0>;
+            timebase-frequency = <32768>;
             hardware-exec-breakpoint-count = <4>;
             hlic: interrupt-controller {
                     #interrupt-cells = <1>;
@@ -35,24 +25,35 @@
         };
     };
 
+    resetrom@1000 {
+        device_type = "memory";
+        reg = <0x0 0x000010000x0 0x1000>;
+        qemu,ram = <0x01>;
+        read-only;
+    };
+
+    maskrom@10000 {
+        device_type = "memory";
+        reg = <0x0 0x00010000 0x0 0x2000>;
+        qemu,ram = <0x01>;
+        read-only;
+    };
+
+    itim@8000000 {
+       device_type = "memory";
+       reg = <0x0 0x08000000 0x0 0x2000>;
+    };
+
+    xip@20000000 {
+        device_type = "memory";
+        reg = <0x0 0x20000000 0x0 0x20000000>;
+        qemu,ram = <0x01>;
+        read-only;
+    };
+
     dtim@80000000 {
        device_type = "memory";
-       reg = <0x80000000 0x400000>;
-    };
-
-    rom@1000 {
-        device_type = "memory";
-        reg = <0x1000 0x2000>;
-        qemu,ram = <0x01>;
-        read-only;
-    };
-
-    xip@40000000 {
-        // actual memory is declared as mapped SPI
-        device_type = "memory";
-        reg = <0x40000000 0x1000000>;
-        qemu,ram = <0x01>;
-        read-only;
+       reg = <0x0 0x80000000 0x0 0x100000>;
     };
 
     soc {
@@ -62,62 +63,71 @@
         compatible = "qemu:system-memory";
         ranges;
 
-        hca@6000 {
-            // clocks = <&L0>;
-            compatible = "sifive,hca-0.5";
-            interrupt-parent = <&plic>;
-            interrupts = <23 24>;
-            reg = <0x6000 0x1000>;
-            reg-names = "control";
+        test@12000 {
+            compatible = "sifive,test";
+            reg = <0x0 0x00012000 0x0 0x2000>;
         };
 
         otp@20000 {
             compatible = "sifive,otp,e";
-            reg = <0x20000 0x2000 0x10010000 0x1000>;
+            reg = <0x0 0x20000 0x0 0x2000 0x0 0x10010000 0x0 0x1000>;
             reg-names = "mem", "control";
-        };
-
-        test@4000 {
-            compatible = "sifive,test";
-            reg = <0x4000 0x1000>;
-        };
-
-        uart0: uart@10013000 {
-            interrupts = <5>;
-            interrupt-parent = <&plic>;
-            reg = <0x10013000 0x1000>;
-            reg-names = "control";
-            compatible = "sifive,uart0";
-        };
-
-        pcri@10008000 {
-            reg = <0x10008000 0x1000>;
-            compatible = "sifive,prci,e";
-        };
-
-        gpio@10012000 {
-            reg = <0x10012000 0x1000>;
-            compatible = "sifive,gpio";
-        };
-
-        plic: interrupt-controller@c000000 {
-            compatible = "riscv,plic0";
-            #interrupt-cells = <0x01>;
-            interrupt-controller;
-            phandle = <0x02>;
-            riscv,ndev = <26>;
-            riscv,max-priority = <7>;
-            reg-names = "control";
-            reg = <0xc000000 0x4000000>;
-            interrupts-extended = <&hlic 11>;
         };
 
         clint@2000000 {
             compatible = "riscv,clint0";
-            interrupts-extended = <&hlic 0x03 &hlic 0x07>;
-            reg = <0x2000000 0x10000>;
+            reg = <0x0 0x02000000 0x0 0x10000>;
             reg-names = "control";
+            interrupts-extended = <&hlic 0x03 &hlic 0x07>;
             clock-frequency = <32768>;
+        };
+
+        plic: interrupt-controller@c000000 {
+            compatible = "riscv,plic0";
+            reg = <0x0 0x0c000000 0x0 0x4000000>;
+            reg-names = "control";
+            interrupt-controller;
+            interrupts-extended = <&hlic 11>;
+            #interrupt-cells = <0x01>;
+            riscv,ndev = <54>;
+            riscv,max-priority = <7>;
+        };
+
+        pcri@10008000 {
+            compatible = "sifive,prci,e";
+            reg = <0x0 0x10008000 0x0 0x1000>;
+        };
+
+        gpio@10012000 {
+            reg = <0x0 0x10012000 0x0 0x1000>;
+            compatible = "sifive,gpio";
+            interrupt-parent = <&plic>;
+            interrupts = <8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+                          24 25 26 27 28 29 30 31 32 33 34 34 36 37 38 39>;
+        };
+
+        uart0: uart@10013000 {
+            compatible = "sifive,uart0";
+            interrupt-parent = <&plic>;
+            interrupts = <3>;
+            reg = <0x0 0x10013000 0x0 0x1000>;
+            reg-names = "control";
+        };
+
+        hca0: hca@1007000 {
+            compatible = "sifive,hca-0.5";
+            interrupt-parent = <&plic>;
+            interrupts = <53 54>;
+            reg = <0x0 0x10070000 0x0 0x1000>;
+            reg-names = "control";
+        };
+
+        uart1: uart@10023000 {
+            compatible = "sifive,uart0";
+            interrupt-parent = <&plic>;
+            interrupts = <4>;
+            reg = <0x0 0x10023000 0x0 0x1000>;
+            reg-names = "control";
         };
     };
 };
