@@ -27,7 +27,7 @@
 
     resetrom@1000 {
         device_type = "memory";
-        reg = <0x0 0x000010000x0 0x1000>;
+        reg = <0x0 0x00001000 0x0 0x1000>;
         qemu,ram = <0x01>;
         read-only;
     };
@@ -57,9 +57,8 @@
     };
 
     soc {
-        #address-cells = <1>;
-        #size-cells = <1>;
-        #clock-cells = <1>;
+        #address-cells = <2>;
+        #size-cells = <2>;
         compatible = "qemu:system-memory";
         ranges;
 

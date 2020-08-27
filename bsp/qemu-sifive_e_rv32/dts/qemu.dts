@@ -59,7 +59,6 @@
     soc {
         #address-cells = <1>;
         #size-cells = <1>;
-        #clock-cells = <1>;
         compatible = "qemu:system-memory";
         ranges;
 
