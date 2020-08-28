@@ -11,7 +11,7 @@
         compatible = "sifive,cores";
 
        cpu0: cpu@0 {
-            compatible = "sifive-e31-riscv-cpu", "riscv";
+            compatible = "sifive-riscv-cpu", "riscv";
             device_type = "cpu";
             riscv,isa = "rv32imac";
             reg = <0x0>;
@@ -99,7 +99,8 @@
             riscv,max-priority = <7>;
         };
 
-        pcri@10008000 {
+        prci: prci@10008000 {
+            // this identifier is required by Freedom-E-SDK
             compatible = "sifive,fe310-g000,prci";
             reg = <0x10008000 0x1000>;
         };
