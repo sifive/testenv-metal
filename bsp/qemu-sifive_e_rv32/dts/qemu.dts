@@ -48,15 +48,6 @@
        reg = <0x08000000 0x2000>;
     };
 
-    /*
-    xip@20000000 {
-        device_type = "memory";
-        reg = <0x20000000 0x20000000>;
-        qemu,ram = <0x01>;
-        read-only;
-    };
-    */
-
     dtim: dtim@80000000 {
        device_type = "memory";
        compatible = "sifive,dtim";
