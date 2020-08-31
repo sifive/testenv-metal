@@ -10,6 +10,7 @@ ADD_EXECUTABLE (${COMPONENT}
                 src/dma_aes_gcm.c
                 src/dma_sha.c
                 src/qemu.c
+                src/time.c
                 src/trng.c)
 
 LIST (INSERT PROJECT_LINK_LIBRARIES 0

@@ -46,9 +46,10 @@ static void
 _ut_run(void)
 {
     UnityFixture.Verbose = 1;
-    // UnityFixture.GroupFilter = "dma_aes_gcm";
+    UnityFixture.GroupFilter = "time";
     // UnityFixture.NameFilter = "unaligned_payload";
 
+    RUN_TEST_GROUP(time_irq);
     RUN_TEST_GROUP(trng);
     RUN_TEST_GROUP(dma_sha_poll);
     RUN_TEST_GROUP(dma_sha_irq);
