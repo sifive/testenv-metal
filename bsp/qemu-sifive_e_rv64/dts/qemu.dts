@@ -20,7 +20,7 @@
             // the following definitions are required by Freedom-E-SDk tools
             sifive,dtim = <&dtim>;
             sifive,itim = <&itim>;
-            hlic: interrupt-controller {
+            hlic0: interrupt-controller {
                     #interrupt-cells = <1>;
                     compatible = "riscv,cpu-intc";
                     interrupt-controller;
@@ -75,7 +75,7 @@
             compatible = "riscv,clint0";
             reg = <0x0 0x02000000 0x0 0x10000>;
             reg-names = "control";
-            interrupts-extended = <&hlic 0x03 &hlic 0x07>;
+            interrupts-extended = <&hlic0 0x03 &hlic0 0x07>;
             clock-frequency = <32768>;
         };
 
@@ -84,7 +84,7 @@
             reg = <0x0 0x0c000000 0x0 0x4000000>;
             reg-names = "control";
             interrupt-controller;
-            interrupts-extended = <&hlic 11>;
+            interrupts-extended = <&hlic0 11>;
             #interrupt-cells = <0x01>;
             riscv,ndev = <54>;
             riscv,max-priority = <7>;
