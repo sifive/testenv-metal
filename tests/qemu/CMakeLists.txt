@@ -10,6 +10,7 @@ ADD_EXECUTABLE (${COMPONENT}
                 src/dma_aes_gcm.c
                 src/dma_sha.c
                 src/qemu.c
+                src/secmain.S
                 src/time.c
                 src/trng.c)
 
