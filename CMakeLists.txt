@@ -20,7 +20,7 @@ IF (NOT DEFINED CMAKE_BUILD_TYPE)
 ENDIF ()
 
 SET (XISA imac)
-STRING (REGEX REPLACE "^(qemu-.*-)([es])([0-9]+)$" "\\2" XSERIES ${XBSP})
+STRING (REGEX REPLACE "^(qemu-.*-)([es])([0-9]+).*" "\\2" XSERIES ${XBSP})
 IF (XSERIES STREQUAL "e")
   # 32-bit target
   SET (XLEN 32)
@@ -30,12 +30,12 @@ ELSEIF (XSERIES STREQUAL "s")
   # 64-bit target
   SET (XLEN 64)
 ELSE ()
-  STRING (REGEX MATCH "^qemu-sifive_e_rv(32|64)$" bsp ${XBSP})
+  STRING (REGEX MATCH "^qemu-sifive_e_rv(32|64).*$" bsp ${XBSP})
   MESSAGE (STATUS "BSP ${bsp}")
   IF (NOT bsp)
     MESSAGE (FATAL_ERROR "Unsupported BSP ${XBSP}")
   ELSE ()
-    STRING (REGEX REPLACE "^(qemu-sifive_e_rv)(32|64)$" "\\2" XLEN ${XBSP})
+    STRING (REGEX REPLACE "^(qemu-sifive_e_rv)(32|64).*$" "\\2" XLEN ${XBSP})
   ENDIF ()
 ENDIF ()
 
