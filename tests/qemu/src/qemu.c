@@ -1,20 +1,21 @@
 #include "metal/machine.h"
 #include "unity_fixture.h"
-#include "dma_test.h"
+#include "qemu.h"
 
 //-----------------------------------------------------------------------------
 // Variable
 //-----------------------------------------------------------------------------
 
 uint8_t ALIGN(DMA_ALIGNMENT) dma_long_buf[4*PAGE_SIZE];
+qemu_hart_task_t _metal_exec_array[MAX_HARTS];
 
 //-----------------------------------------------------------------------------
-// Debug helpers
+// Helpers
 //-----------------------------------------------------------------------------
 
 void
-hca_hexdump(const char * func, int line, const char * msg,
-            const uint8_t *buf, size_t size)
+qemu_hexdump(const char * func, int line, const char * msg,
+             const uint8_t *buf, size_t size)
 {
     static const char _hex[] = "0123456789ABCDEF";
     static char hexstr[HEX_LINE_LEN*2u+1u];
@@ -38,6 +39,14 @@ hca_hexdump(const char * func, int line, const char * msg,
     }
 }
 
+void
+qemu_register_hart_task(unsigned int hartid, qemu_hart_task_t task)
+{
+    if ( hartid < ARRAY_SIZE(_metal_exec_array) ) {
+        _metal_exec_array[hartid] = task;
+    }
+}
+
 //-----------------------------------------------------------------------------
 // Unit test main
 //-----------------------------------------------------------------------------
@@ -46,7 +55,7 @@ static void
 _ut_run(void)
 {
     UnityFixture.Verbose = 1;
-    UnityFixture.GroupFilter = "time";
+    UnityFixture.GroupFilter = "time_irq";
     // UnityFixture.NameFilter = "unaligned_payload";
 
     RUN_TEST_GROUP(time_irq);

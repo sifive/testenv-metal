@@ -8,6 +8,7 @@
 #include "api/hardware/v0.5/sifive_hca-0.5.x.h"
 #include "api/hardware/hca_utils.h"
 #include "api/hardware/hca_macro.h"
+#include "qemu.h"
 
 //-----------------------------------------------------------------------------
 // Constants
@@ -16,16 +17,8 @@
 #define DEBUG_HCA
 
 #define HCA_BASE             (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
-#define HCA_ASD_IRQ_CHANNEL  23u
-#define HCA_TRNG_IRQ_CHANNEL 24u
-
-#define TIME_BASE            32768u // cannot rely on buggy metal API
-#define HEART_BEAT_FREQUENCY 32u
-#define HEART_BEAT_TIME      ((TIME_BASE)/(HEART_BEAT_FREQUENCY))
-
-#define PAGE_SIZE            4096  // bytes
-#define DMA_ALIGNMENT        32u   // bytes
-#define DMA_BLOCK_SIZE       16u   // bytes
+#define HCA_ASD_IRQ_CHANNEL  53u
+#define HCA_TRNG_IRQ_CHANNEL 54u
 
 #define AES_BLOCK_SIZE       16u   // bytes
 
@@ -60,30 +53,6 @@ struct buf_desc {
 // Macros
 //-----------------------------------------------------------------------------
 
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(_a_) (sizeof((_a_))/sizeof((_a_)[0]))
-#endif // ARRAY_SIZE
-
-#define ALIGN(_a_) __attribute__((aligned((_a_))))
-
-#ifndef METAL_REG16
-#define METAL_REG16(base, offset)                                              \
-    (__METAL_ACCESS_ONCE((uint16_t *)((base) + (offset))))
-#endif
-
-#ifndef METAL_REG8
-#define METAL_REG8(base, offset)                                              \
-    (__METAL_ACCESS_ONCE((uint8_t *)((base) + (offset))))
-#endif
-
-#ifndef MIN
-#define MIN(_a_, _b_) ((_a_) < (_b_) ? (_a_) : (_b_))
-#endif // MIN
-
-#ifndef MAX
-#define MAX(_a_, _b_) ((_a_) > (_b_) ? (_a_) : (_b_))
-#endif // MAX
-
 #define HCA_DMA_CR_ERROR_BITS                    \
     ((HCA_REGISTER_DMA_CR_RDALIGNERR_MASK <<     \
         HCA_REGISTER_DMA_CR_RDALIGNERR_OFFSET) | \
@@ -107,26 +76,6 @@ struct buf_desc {
 #define HCA_CR_OFIFO_FULL_BIT \
     (HCA_REGISTER_CR_OFIFOFULL_MASK << HCA_REGISTER_CR_OFIFOFULL_OFFSET)
 
-#ifdef DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...) \
-    printf("%s[%d] " _msg_ "\n", _f_, _l_, ##__VA_ARGS__)
-# define PRINTF(_msg_, ...) \
-    LPRINTF(__func__, __LINE__, _msg_, ##__VA_ARGS__)
-#else // DEBUG_HCA
-# define LPRINTF(_f_, _l_, _msg_, ...)
-# define PRINTF(_msg_, ...)
-#endif
-
-#define HEX_LINE_LEN  32u
-
-#define DUMP_HEX(_msg_, _buf_, _len_) \
-   hca_hexdump(__func__, __LINE__, _msg_, _buf_, _len_);
-#define DUMP_SHEX(_msg_, _buf_, _len_) \
-   hca_hexdump(NULL, 0, _msg_, _buf_, _len_);
-
-#define TEST_TIMEOUT(_to_, _msg_) \
-    TEST_ASSERT_LESS_THAN_UINT64_MESSAGE((_to_), now(), _msg_);
-
 //-----------------------------------------------------------------------------
 // Global variables
 //-----------------------------------------------------------------------------
@@ -134,29 +83,8 @@ struct buf_desc {
 extern uint8_t ALIGN(DMA_ALIGNMENT) dma_long_buf[4*PAGE_SIZE];
 
 //-----------------------------------------------------------------------------
-// Helpers
-//-----------------------------------------------------------------------------
-
-void
-hca_hexdump(const char * func, int line, const char * msg,
-            const uint8_t *buf, size_t size);
-
-//-----------------------------------------------------------------------------
 // Inline helpers
 //-----------------------------------------------------------------------------
-
-static inline uint64_t
-now(void)
-{
-    return (uint64_t)
-        metal_cpu_get_mtime(metal_cpu_get(metal_cpu_get_current_hartid()));
-}
-
-static inline uint64_t
-ms_to_ts(unsigned int ms)
-{
-    return (TIME_BASE * (uint64_t)ms) / 1000ull;
-}
 
 static inline void
 _hca_updreg32(uint32_t reg, uint32_t value, size_t offset, uint32_t mask)
@@ -279,6 +207,5 @@ _hca_set_aes_iv96(const uint8_t * iv)
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_INITV+0x04u) =
         __builtin_bswap32(dwiv[2u]);
 }
-
 
 #endif // DMA_TEST_H
