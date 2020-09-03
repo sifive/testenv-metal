@@ -52,44 +52,26 @@ static struct context _ctxs[2u];
 // Test implementation
 //-----------------------------------------------------------------------------
 
-static void
-_timer_irq_handler(int id, void * opaque) {
-    struct context * ct = (struct context *)opaque;
-    uint64_t tick = metal_cpu_get_mtime(ct->ct_cpu);
-    if ( ! ct->ct_first_tick ) {
-        ct->ct_first_tick = tick;
-    } else {
-        ct->ct_tick_count += 1u;
-    }
-    metal_cpu_set_mtimecmp(ct->ct_cpu, tick+LF_CLOCK_PERIOD);
-    // avoid using printf from IRQ
-    char str[] = { '^', 'T', '0' + metal_cpu_get_current_hartid(), '\n', '\0'};
-    puts(str);
-}
-
-static void
-_time_irq_signal_hart(unsigned int hartid)
-{
-    uintptr_t msip_base = 0;
-    /* Get the base address of the MSIP registers */
-    #ifdef __METAL_DT_RISCV_CLINT0_HANDLE
-    msip_base = __metal_driver_sifive_clint0_control_base(
-        __METAL_DT_RISCV_CLINT0_HANDLE);
-    msip_base += METAL_RISCV_CLINT0_MSIP_BASE;
-    #elif __METAL_DT_RISCV_CLIC0_HANDLE
-    msip_base =
-        __metal_driver_sifive_clic0_control_base(__METAL_DT_RISCV_CLIC0_HANDLE);
-    msip_base += METAL_RISCV_CLIC0_MSIP_BASE;
-    #else
-    # error "MSIP not available"
-    #endif
-    METAL_REG32(msip_base, hartid<<2u) = 1u;
-}
 
 static inline void
 _time_irq_wfi(void)
 {
     __asm__ volatile ("wfi");
+}
+
+static void
+_timer_irq_handler(int id, void * opaque) {
+    struct context * ctx = (struct context *)opaque;
+    uint64_t tick = metal_cpu_get_mtime(ctx->ct_cpu);
+    if ( ! ctx->ct_first_tick ) {
+        ctx->ct_first_tick = tick;
+    } else {
+        ctx->ct_tick_count += 1u;
+    }
+    metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
+    // avoid using printf from IRQ
+    char str[] = { '^', 'T', '0' + metal_cpu_get_current_hartid(), '\n', '\0'};
+    puts(str);
 }
 
 static void
@@ -110,6 +92,7 @@ _time_irq_init(struct context * ctx)
 
     ctx->ct_tmr_intr = metal_cpu_timer_interrupt_controller(ctx->ct_cpu);
     TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CLINT");
+
     metal_interrupt_init(ctx->ct_tmr_intr);
     ctx->ct_tmr_id = metal_cpu_timer_get_interrupt_id(ctx->ct_cpu);
 
@@ -123,6 +106,8 @@ _time_irq_init(struct context * ctx)
     rc = metal_interrupt_register_handler(ctx->ct_tmr_intr, ctx->ct_tmr_id,
                                           _timer_irq_handler, ctx);
     TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
+
+    printf("IRQ init id: %u\n", hart_id);
 }
 
 static void
@@ -140,6 +125,87 @@ _time_irq_fini(struct context * ctx)
     memset(ctx, 0, sizeof(*ctx));
 }
 
+static void
+_time_irq_signal_hart(unsigned int hartid, bool enable)
+{
+    // printf("Wake up hartid %u\n", hartid);
+
+    uintptr_t msip_base = 0;
+    /* Get the base address of the MSIP registers */
+    #ifdef __METAL_DT_RISCV_CLINT0_HANDLE
+    msip_base = __metal_driver_sifive_clint0_control_base(
+        __METAL_DT_RISCV_CLINT0_HANDLE);
+    msip_base += METAL_RISCV_CLINT0_MSIP_BASE;
+    #elif __METAL_DT_RISCV_CLIC0_HANDLE
+    msip_base =
+        __metal_driver_sifive_clic0_control_base(__METAL_DT_RISCV_CLIC0_HANDLE);
+    msip_base += METAL_RISCV_CLIC0_MSIP_BASE;
+    #else
+    # error "MSIP not available"
+    #endif
+
+    METAL_REG32(msip_base, hartid<<2u) = enable ? 1u : 0u;
+}
+
+static void
+_time_irq_main(struct context * ctx)
+{
+    printf("Enter test Hart %d %p\n", metal_cpu_get_current_hartid(), ctx->ct_cpu);
+
+    metal_cpu_set_mtimecmp(ctx->ct_cpu,
+                           metal_cpu_get_mtime(ctx->ct_cpu)+LF_CLOCK_PERIOD);
+    metal_interrupt_enable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
+    metal_interrupt_enable(ctx->ct_cpu_intr, 0);
+
+    unsigned int loop;
+    uint64_t tick;
+    uint64_t delay;
+    uint64_t period;
+
+    loop = WAIT_LOOP_COUNT;
+    printf("Hart %d: Start wait loop\n", metal_cpu_get_current_hartid());
+    while ( loop-- ) {
+        _time_irq_wfi();
+        puts(".");
+    }
+    tick = metal_cpu_get_mtime(ctx->ct_cpu);
+    TEST_ASSERT_MESSAGE(ctx->ct_first_tick, "No tick registered");
+    TEST_ASSERT_MESSAGE(ctx->ct_tick_count, "No tick registered");
+    delay = tick - ctx->ct_first_tick;
+    period = delay/ctx->ct_tick_count;
+    printf("Hart %d: End wait loop %lu %lu ms\n",
+            metal_cpu_get_current_hartid(),
+            period, 1000*period/TIME_BASE);
+}
+
+static void
+_time_irq_sequence(struct context * ctx)
+{
+    // should be done from matching hart
+    _time_irq_init(ctx);
+
+    // run with current hart
+    _time_irq_main(ctx);
+
+    _time_irq_fini(ctx);
+}
+
+static void
+_time_irq_main_hart_1(void)
+{
+    // be sure the SW interrupt if clear, as we do not have a handler for it
+    // and we do not want metal to call a default handler whenever the hart #1
+    // is configured to handle exceptions, which is what the timer interrupt
+    // is about to do
+    _time_irq_signal_hart(1u, false);
+
+    // run sequence from hart #1
+    _time_irq_sequence(&_ctxs[1u]);
+
+    // signal hart #0
+    _time_irq_signal_hart(0u, true);
+}
+
 //-----------------------------------------------------------------------------
 // Unity wrappers
 //-----------------------------------------------------------------------------
@@ -148,9 +214,6 @@ TEST_GROUP(time_irq);
 
 TEST_SETUP(time_irq)
 {
-    for (unsigned int cix=0; cix<ARRAY_SIZE(_ctxs); cix++) {
-        _time_irq_init(&_ctxs[cix]);
-    }
 }
 
 TEST_TEAR_DOWN(time_irq)
@@ -160,56 +223,24 @@ TEST_TEAR_DOWN(time_irq)
     }
 }
 
-static void
-_time_irq_loop(struct context * ctx)
-{
-    _time_irq_init(ctx);
-
-    metal_cpu_set_mtimecmp(ctx->ct_cpu,
-                           metal_cpu_get_mtime(ctx->ct_cpu)+LF_CLOCK_PERIOD);
-    metal_interrupt_enable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
-    metal_interrupt_enable(ctx->ct_cpu_intr, 0);
-
-    volatile unsigned int x ;
-    uint64_t tick;
-    uint64_t delay;
-    uint64_t period;
-
-    x = WAIT_LOOP_COUNT;
-    printf("Hart %d: Start wait loop\n", metal_cpu_get_current_hartid());
-    while ( x-- ) {
-        _time_irq_wfi();
-    }
-    tick = metal_cpu_get_mtime(ctx->ct_cpu);
-    delay = tick - ctx->ct_first_tick;
-    period = delay/ctx->ct_tick_count;
-    printf("Hart %d: End wait loop %lu %lu ms\n",
-            metal_cpu_get_current_hartid(),
-           period, 1000*period/TIME_BASE);
-
-    _time_irq_fini(ctx);
-}
-
-static void
-_time_irq_loop_hartid_1(void)
-{
-    _time_irq_loop(&_ctxs[1u]);
-    _time_irq_signal_hart(0u);
-}
-
 TEST(time_irq, lf_clock)
 {
     puts("\n");
 
-    qemu_register_hart_task(1u, &_time_irq_loop_hartid_1);
+    // register the task to call when hart #1 is awaken
+    qemu_register_hart_task(1u, &_time_irq_main_hart_1);
 
-    // run with current hart
-    _time_irq_loop(&_ctxs[0]);
+    // run sequence from hart #0
+    _time_irq_sequence(&_ctxs[0u]);
 
-    // start up next hard
-    _time_irq_signal_hart(1u);
-    // wait for hart task completion
+    // awake hart #1
+    _time_irq_signal_hart(1u, true);
+
+    // take a nap till hart #1 signal hart #0
     _time_irq_wfi();
+
+    _time_irq_signal_hart(0u, false);
+
     printf("Done\n");
 }
 
