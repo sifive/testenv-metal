@@ -70,5 +70,14 @@ _ut_run(void)
 
 int main(int argc, const char *argv[])
 {
+    extern uint32_t __stack_size;
+    uint32_t stack_size = (uint32_t)(uintptr_t)(&__stack_size);
+    if ( stack_size < 0x1000u ) {
+        // cannot event use Unity framework as the stack would be corrupted
+        // by any call to *printf
+        puts("Stack size too small");
+        exit(1);
+    }
+
     return UnityMain(argc, argv, _ut_run);
 }
