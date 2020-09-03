@@ -63,7 +63,7 @@ static void
 _timer_irq_handler(int id, void * opaque) {
     struct context * ctx = (struct context *)opaque;
     uint64_t tick = metal_cpu_get_mtime(ctx->ct_cpu);
-    printf("%08lx %p\n", tick, ctx->ct_cpu);
+    printf("%lx -> %p\n", tick, ctx->ct_cpu);
     metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     if ( ! ctx->ct_first_tick ) {
         ctx->ct_first_tick = tick;
@@ -76,41 +76,52 @@ _timer_irq_handler(int id, void * opaque) {
 }
 
 static void
-_time_irq_init(struct context * ctx, uint32_t hart_id)
+_time_irq_init(void)
 {
-    memset(ctx, 0, sizeof(*ctx));
+    memset(_ctxs, 0, sizeof(_ctxs));
 
-    printf("HART id: %u\n", hart_id);
+    for (unsigned int hart_id=0; hart_id<ARRAY_SIZE(_ctxs); hart_id++) {
+        struct context * ctx = &_ctxs[hart_id];
 
-    ctx->ct_cpu = metal_cpu_get(hart_id);
-    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu, "Cannot get CPU");
+        ctx->ct_cpu = metal_cpu_get(hart_id);
+        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu, "Cannot get CPU");
 
-    ctx->ct_cpu_intr = metal_cpu_interrupt_controller(ctx->ct_cpu);
-    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CPU controller");
-    metal_interrupt_init(ctx->ct_cpu_intr);
-    metal_interrupt_disable(ctx->ct_cpu_intr, 0);
+        printf("HartId %d, CPU %p\n", hart_id, ctx->ct_cpu);
 
-    ctx->ct_tmr_intr = metal_cpu_timer_interrupt_controller(ctx->ct_cpu);
-    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CLINT");
+        ctx->ct_cpu_intr = metal_cpu_interrupt_controller(ctx->ct_cpu);
+        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CPU controller");
+        metal_interrupt_init(ctx->ct_cpu_intr);
+        metal_interrupt_disable(ctx->ct_cpu_intr, 0);
 
-    metal_interrupt_init(ctx->ct_tmr_intr);
-    ctx->ct_tmr_id = metal_cpu_timer_get_interrupt_id(ctx->ct_cpu);
+        ctx->ct_tmr_intr = metal_cpu_timer_interrupt_controller(ctx->ct_cpu);
+        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CLINT");
 
-    ctx->ct_sw_intr = metal_cpu_software_interrupt_controller(ctx->ct_cpu);
-    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_sw_intr, "Cannot get CLINT");
-    metal_interrupt_init(ctx->ct_sw_intr);
+        ctx->ct_sw_intr = metal_cpu_software_interrupt_controller(ctx->ct_cpu);
+        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_sw_intr, "Cannot get CLINT");
+    }
 
-    ctx->ct_sw_id = metal_cpu_software_get_interrupt_id(ctx->ct_cpu);
+    for (unsigned int hart_id=0; hart_id<ARRAY_SIZE(_ctxs); hart_id++) {
+        struct context * ctx = &_ctxs[hart_id];
 
-    int rc;
-    rc = metal_interrupt_register_handler(ctx->ct_tmr_intr, ctx->ct_tmr_id,
-                                          _timer_irq_handler, ctx);
-    TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
+        metal_interrupt_init(ctx->ct_tmr_intr);
+        ctx->ct_tmr_id = metal_cpu_timer_get_interrupt_id(ctx->ct_cpu);
 
-    metal_interrupt_disable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
-    metal_interrupt_disable(ctx->ct_sw_intr, ctx->ct_tmr_id);
+        metal_interrupt_init(ctx->ct_sw_intr);
+        ctx->ct_sw_id = metal_cpu_software_get_interrupt_id(ctx->ct_cpu);
 
-    printf("IRQ init id: %u\n", hart_id);
+        int rc;
+        rc = metal_interrupt_register_handler(ctx->ct_tmr_intr, ctx->ct_tmr_id,
+                                              _timer_irq_handler, ctx);
+        TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
+
+        printf("Registered CTX %p for HartId %u", hart_id);
+
+        metal_interrupt_disable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
+        metal_interrupt_disable(ctx->ct_sw_intr, ctx->ct_tmr_id);
+        break;
+    }
+
+    printf("IRQ initialized\n");
 }
 
 static void
@@ -221,9 +232,9 @@ TEST_GROUP(time_irq);
 
 TEST_SETUP(time_irq)
 {
-    for (unsigned int hid=0; hid<ARRAY_SIZE(_ctxs); hid++) {
-        _time_irq_init(&_ctxs[hid], hid);
-    }
+    puts("\n");
+
+    _time_irq_init();
 }
 
 TEST_TEAR_DOWN(time_irq)
@@ -235,8 +246,6 @@ TEST_TEAR_DOWN(time_irq)
 
 TEST(time_irq, lf_clock)
 {
-    puts("\n");
-
     // register the task to call when hart #1 is awaken
     qemu_register_hart_task(1u, &_time_irq_main_hart_1);
 
