@@ -63,23 +63,22 @@ static void
 _timer_irq_handler(int id, void * opaque) {
     struct context * ctx = (struct context *)opaque;
     uint64_t tick = metal_cpu_get_mtime(ctx->ct_cpu);
+    printf("%08lx %p\n", tick, ctx->ct_cpu);
+    metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     if ( ! ctx->ct_first_tick ) {
         ctx->ct_first_tick = tick;
     } else {
         ctx->ct_tick_count += 1u;
     }
-    metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     // avoid using printf from IRQ
     char str[] = { '^', 'T', '0' + metal_cpu_get_current_hartid(), '\n', '\0'};
     puts(str);
 }
 
 static void
-_time_irq_init(struct context * ctx)
+_time_irq_init(struct context * ctx, uint32_t hart_id)
 {
     memset(ctx, 0, sizeof(*ctx));
-
-    uint32_t hart_id = metal_cpu_get_current_hartid();
 
     printf("HART id: %u\n", hart_id);
 
@@ -89,6 +88,7 @@ _time_irq_init(struct context * ctx)
     ctx->ct_cpu_intr = metal_cpu_interrupt_controller(ctx->ct_cpu);
     TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CPU controller");
     metal_interrupt_init(ctx->ct_cpu_intr);
+    metal_interrupt_disable(ctx->ct_cpu_intr, 0);
 
     ctx->ct_tmr_intr = metal_cpu_timer_interrupt_controller(ctx->ct_cpu);
     TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CLINT");
@@ -106,6 +106,9 @@ _time_irq_init(struct context * ctx)
     rc = metal_interrupt_register_handler(ctx->ct_tmr_intr, ctx->ct_tmr_id,
                                           _timer_irq_handler, ctx);
     TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
+
+    metal_interrupt_disable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
+    metal_interrupt_disable(ctx->ct_sw_intr, ctx->ct_tmr_id);
 
     printf("IRQ init id: %u\n", hart_id);
 }
@@ -126,9 +129,9 @@ _time_irq_fini(struct context * ctx)
 }
 
 static void
-_time_irq_signal_hart(unsigned int hartid, bool enable)
+_time_irq_signal_hart(unsigned int hart_id, bool enable)
 {
-    // printf("Wake up hartid %u\n", hartid);
+    printf("Wake up hartid %u\n", hart_id);
 
     uintptr_t msip_base = 0;
     /* Get the base address of the MSIP registers */
@@ -144,21 +147,24 @@ _time_irq_signal_hart(unsigned int hartid, bool enable)
     # error "MSIP not available"
     #endif
 
-    METAL_REG32(msip_base, hartid<<2u) = enable ? 1u : 0u;
+    METAL_REG32(msip_base, hart_id<<2u) = enable ? 1u : 0u;
 }
 
 static void
 _time_irq_main(struct context * ctx)
 {
-    printf("Enter test Hart %d %p\n", metal_cpu_get_current_hartid(), ctx->ct_cpu);
+    printf("Enter test Hart %d %p\n",
+           metal_cpu_get_current_hartid(), ctx->ct_cpu);
 
-    metal_cpu_set_mtimecmp(ctx->ct_cpu,
-                           metal_cpu_get_mtime(ctx->ct_cpu)+LF_CLOCK_PERIOD);
+    uint64_t tick;
+    tick = metal_cpu_get_mtime(ctx->ct_cpu);
+    printf("Tick: %lx\n", tick);
+
+    metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     metal_interrupt_enable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
     metal_interrupt_enable(ctx->ct_cpu_intr, 0);
 
     unsigned int loop;
-    uint64_t tick;
     uint64_t delay;
     uint64_t period;
 
@@ -176,13 +182,14 @@ _time_irq_main(struct context * ctx)
     printf("Hart %d: End wait loop %lu %lu ms\n",
             metal_cpu_get_current_hartid(),
             period, 1000*period/TIME_BASE);
+
+    _time_irq_fini(ctx);
 }
 
 static void
-_time_irq_sequence(struct context * ctx)
+_time_irq_sequence(unsigned int hart_id)
 {
-    // should be done from matching hart
-    _time_irq_init(ctx);
+    struct context * ctx = &_ctxs[hart_id];
 
     // run with current hart
     _time_irq_main(ctx);
@@ -200,7 +207,7 @@ _time_irq_main_hart_1(void)
     _time_irq_signal_hart(1u, false);
 
     // run sequence from hart #1
-    _time_irq_sequence(&_ctxs[1u]);
+    _time_irq_sequence(1u);
 
     // signal hart #0
     _time_irq_signal_hart(0u, true);
@@ -214,12 +221,15 @@ TEST_GROUP(time_irq);
 
 TEST_SETUP(time_irq)
 {
+    for (unsigned int hid=0; hid<ARRAY_SIZE(_ctxs); hid++) {
+        _time_irq_init(&_ctxs[hid], hid);
+    }
 }
 
 TEST_TEAR_DOWN(time_irq)
 {
-    for (unsigned int cix=0; cix<ARRAY_SIZE(_ctxs); cix++) {
-        _time_irq_fini(&_ctxs[cix]);
+    for (unsigned int hid=0; hid<ARRAY_SIZE(_ctxs); hid++) {
+        _time_irq_fini(&_ctxs[hid]);
     }
 }
 
@@ -231,7 +241,7 @@ TEST(time_irq, lf_clock)
     qemu_register_hart_task(1u, &_time_irq_main_hart_1);
 
     // run sequence from hart #0
-    _time_irq_sequence(&_ctxs[0u]);
+    _time_irq_sequence(0u);
 
     // awake hart #1
     _time_irq_signal_hart(1u, true);
