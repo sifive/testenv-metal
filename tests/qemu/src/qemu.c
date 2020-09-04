@@ -56,7 +56,7 @@ _ut_run(void)
 {
     UnityFixture.Verbose = 1;
     UnityFixture.GroupFilter = "dma";
-    //UnityFixture.NameFilter = "short_msg";
+    //UnityFixture.NameFilter = "short_msg6";
 
     RUN_TEST_GROUP(time_irq);
     RUN_TEST_GROUP(trng);
