@@ -29,24 +29,33 @@ in Docker images.
 
 2. Create a build directory
     ````sh
-    mkdir build
+    mkdir -p build
     cd build
     ````
     This build directory is created in the host environement, as the whole
     project directory is mapped from the host.
 
-3. Run CMake to create the build environment
+3. Select a BSP from the BSPs directory
     ````sh
-    cmake -G Ninja ..
+    ls -1 ../bsp
     ````
 
-4. Build the project
+4. Run CMake to create the build environment
+    ````sh
+    cmake -G Ninja -DXBSP=qemu-sifive_e_rv64 [-DCMAKE_BUILD_TYPE=DEBUG] ..
+    ````
+
+    Note: build type is optional, either `DEBUG` or `RELEASE`.
+
+5. Build the project
     ````sh
     ninja
     ````
     Use `-v` option if you want to see the compiler command lines
 
-5. Exit the Docker shell (if required)
+    Expect some warnings in SCL-metal tests for now
+
+6. Exit the Docker shell (if/when required)
     ````sh
     exit
     ````
