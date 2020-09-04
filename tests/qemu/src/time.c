@@ -16,6 +16,15 @@
 #define WAIT_LOOP_COUNT      4u
 
 //-----------------------------------------------------------------------------
+// Macros
+//-----------------------------------------------------------------------------
+
+#undef PRINTF
+#define PRINTF(_msg_, ...) \
+    printf("{%d} %s[%d] "_msg_"\n", \
+           metal_cpu_get_current_hartid(), __func__, __LINE__, ##__VA_ARGS__)
+
+//-----------------------------------------------------------------------------
 // Missing declarations
 //-----------------------------------------------------------------------------
 
@@ -63,7 +72,7 @@ static void
 _timer_irq_handler(int id, void * opaque) {
     struct context * ctx = (struct context *)opaque;
     uint64_t tick = metal_cpu_get_mtime(ctx->ct_cpu);
-    printf("%lx -> %p\n", tick, ctx->ct_cpu);
+    PRINTF("%lx -> %p", tick, ctx->ct_cpu);
     metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     if ( ! ctx->ct_first_tick ) {
         ctx->ct_first_tick = tick;
@@ -76,52 +85,52 @@ _timer_irq_handler(int id, void * opaque) {
 }
 
 static void
-_time_irq_init(void)
+_time_irq_init(unsigned int hart_id)
 {
-    memset(_ctxs, 0, sizeof(_ctxs));
+    struct context * ctx = &_ctxs[hart_id];
 
-    for (unsigned int hart_id=0; hart_id<ARRAY_SIZE(_ctxs); hart_id++) {
-        struct context * ctx = &_ctxs[hart_id];
+    ctx->ct_cpu = metal_cpu_get(hart_id);
+    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu, "Cannot get CPU");
 
-        ctx->ct_cpu = metal_cpu_get(hart_id);
-        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu, "Cannot get CPU");
+    PRINTF("HartId %d, CPU %p", hart_id, ctx->ct_cpu);
 
-        printf("HartId %d, CPU %p\n", hart_id, ctx->ct_cpu);
+    ctx->ct_cpu_intr = metal_cpu_interrupt_controller(ctx->ct_cpu);
+    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CPU controller");
+    metal_interrupt_init(ctx->ct_cpu_intr);
+    metal_interrupt_disable(ctx->ct_cpu_intr, 0);
 
-        ctx->ct_cpu_intr = metal_cpu_interrupt_controller(ctx->ct_cpu);
-        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CPU controller");
-        metal_interrupt_init(ctx->ct_cpu_intr);
-        metal_interrupt_disable(ctx->ct_cpu_intr, 0);
+    ctx->ct_tmr_intr = metal_cpu_timer_interrupt_controller(ctx->ct_cpu);
+    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CLINT");
 
-        ctx->ct_tmr_intr = metal_cpu_timer_interrupt_controller(ctx->ct_cpu);
-        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_cpu_intr, "Cannot get CLINT");
+    // there are bugs in Freedom Metal which prevents the initialization
+    // of any but the first first core connnected to the same clint
+    // so for the purpose of this test, trick Metal to think the Clint
+    // initialisation has never been done, so it can actually perform the
+    // init of any core.
+    ((struct __metal_driver_riscv_clint0 *)(ctx->ct_tmr_intr))->init_done = 0;
 
-        ctx->ct_sw_intr = metal_cpu_software_interrupt_controller(ctx->ct_cpu);
-        TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_sw_intr, "Cannot get CLINT");
-    }
+    ctx->ct_sw_intr = metal_cpu_software_interrupt_controller(ctx->ct_cpu);
+    TEST_ASSERT_NOT_NULL_MESSAGE(ctx->ct_sw_intr, "Cannot get CLINT");
+}
 
-    for (unsigned int hart_id=0; hart_id<ARRAY_SIZE(_ctxs); hart_id++) {
-        struct context * ctx = &_ctxs[hart_id];
+static void
+_time_irq_enable(unsigned int hart_id)
+{
+    struct context * ctx = &_ctxs[hart_id];
 
-        metal_interrupt_init(ctx->ct_tmr_intr);
-        ctx->ct_tmr_id = metal_cpu_timer_get_interrupt_id(ctx->ct_cpu);
+    metal_interrupt_init(ctx->ct_tmr_intr);
+    ctx->ct_tmr_id = metal_cpu_timer_get_interrupt_id(ctx->ct_cpu);
 
-        metal_interrupt_init(ctx->ct_sw_intr);
-        ctx->ct_sw_id = metal_cpu_software_get_interrupt_id(ctx->ct_cpu);
+    metal_interrupt_init(ctx->ct_sw_intr);
+    ctx->ct_sw_id = metal_cpu_software_get_interrupt_id(ctx->ct_cpu);
 
-        int rc;
-        rc = metal_interrupt_register_handler(ctx->ct_tmr_intr, ctx->ct_tmr_id,
-                                              _timer_irq_handler, ctx);
-        TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
+    int rc;
+    rc = metal_interrupt_register_handler(ctx->ct_tmr_intr, ctx->ct_tmr_id,
+                                          _timer_irq_handler, ctx);
+    TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot register IRQ handler");
 
-        printf("Registered CTX %p for HartId %u", hart_id);
-
-        metal_interrupt_disable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
-        metal_interrupt_disable(ctx->ct_sw_intr, ctx->ct_tmr_id);
-        break;
-    }
-
-    printf("IRQ initialized\n");
+    metal_interrupt_disable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
+    metal_interrupt_disable(ctx->ct_sw_intr, ctx->ct_tmr_id);
 }
 
 static void
@@ -130,19 +139,22 @@ _time_irq_fini(struct context * ctx)
     if ( ctx->ct_tmr_intr ) {
         metal_interrupt_disable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
     }
+
     if ( ctx->ct_sw_intr ) {
         metal_interrupt_disable(ctx->ct_sw_intr, ctx->ct_sw_id);
     }
+
     if ( ctx->ct_cpu_intr ) {
         metal_interrupt_disable(ctx->ct_cpu_intr, 0);
     }
-    memset(ctx, 0, sizeof(*ctx));
 }
 
 static void
 _time_irq_signal_hart(unsigned int hart_id, bool enable)
 {
-    printf("Wake up hartid %u\n", hart_id);
+    if ( enable ) {
+        PRINTF("Wake up hartid %u", hart_id);
+    }
 
     uintptr_t msip_base = 0;
     /* Get the base address of the MSIP registers */
@@ -158,18 +170,20 @@ _time_irq_signal_hart(unsigned int hart_id, bool enable)
     # error "MSIP not available"
     #endif
 
+    // there is no Metal API to set, only to get
     METAL_REG32(msip_base, hart_id<<2u) = enable ? 1u : 0u;
 }
 
 static void
-_time_irq_main(struct context * ctx)
+_time_irq_sequence(unsigned int hart_id)
 {
-    printf("Enter test Hart %d %p\n",
-           metal_cpu_get_current_hartid(), ctx->ct_cpu);
+    struct context * ctx = &_ctxs[hart_id];
+
+    PRINTF("Enter test Hart %p", ctx->ct_cpu);
 
     uint64_t tick;
     tick = metal_cpu_get_mtime(ctx->ct_cpu);
-    printf("Tick: %lx\n", tick);
+    PRINTF("Tick: %lx", tick);
 
     metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     metal_interrupt_enable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
@@ -180,32 +194,23 @@ _time_irq_main(struct context * ctx)
     uint64_t period;
 
     loop = WAIT_LOOP_COUNT;
-    printf("Hart %d: Start wait loop\n", metal_cpu_get_current_hartid());
+    PRINTF("Start wait loop");
     while ( loop-- ) {
         _time_irq_wfi();
-        puts(".");
     }
+    if ( ctx->ct_tmr_intr ) {
+        metal_interrupt_disable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
+    }
+    if ( ctx->ct_sw_intr ) {
+        metal_interrupt_disable(ctx->ct_sw_intr, ctx->ct_sw_id);
+    }
+
     tick = metal_cpu_get_mtime(ctx->ct_cpu);
     TEST_ASSERT_MESSAGE(ctx->ct_first_tick, "No tick registered");
     TEST_ASSERT_MESSAGE(ctx->ct_tick_count, "No tick registered");
     delay = tick - ctx->ct_first_tick;
     period = delay/ctx->ct_tick_count;
-    printf("Hart %d: End wait loop %lu %lu ms\n",
-            metal_cpu_get_current_hartid(),
-            period, 1000*period/TIME_BASE);
-
-    _time_irq_fini(ctx);
-}
-
-static void
-_time_irq_sequence(unsigned int hart_id)
-{
-    struct context * ctx = &_ctxs[hart_id];
-
-    // run with current hart
-    _time_irq_main(ctx);
-
-    _time_irq_fini(ctx);
+    PRINTF("End wait loop %lu %lu ms", period, 1000*period/TIME_BASE);
 }
 
 static void
@@ -216,6 +221,9 @@ _time_irq_main_hart_1(void)
     // is configured to handle exceptions, which is what the timer interrupt
     // is about to do
     _time_irq_signal_hart(1u, false);
+
+    _time_irq_init(1u);
+    _time_irq_enable(1u);
 
     // run sequence from hart #1
     _time_irq_sequence(1u);
@@ -233,21 +241,21 @@ TEST_GROUP(time_irq);
 TEST_SETUP(time_irq)
 {
     puts("\n");
-
-    _time_irq_init();
 }
 
 TEST_TEAR_DOWN(time_irq)
 {
-    for (unsigned int hid=0; hid<ARRAY_SIZE(_ctxs); hid++) {
-        _time_irq_fini(&_ctxs[hid]);
-    }
 }
 
 TEST(time_irq, lf_clock)
 {
+    _time_irq_signal_hart(0u, false);
+
     // register the task to call when hart #1 is awaken
     qemu_register_hart_task(1u, &_time_irq_main_hart_1);
+
+    _time_irq_init(0u);
+    _time_irq_enable(0u);
 
     // run sequence from hart #0
     _time_irq_sequence(0u);
@@ -257,10 +265,9 @@ TEST(time_irq, lf_clock)
 
     // take a nap till hart #1 signal hart #0
     _time_irq_wfi();
-
     _time_irq_signal_hart(0u, false);
 
-    printf("Done\n");
+    PRINTF("Waken up");
 }
 
 TEST_GROUP_RUNNER(time_irq)
