@@ -55,13 +55,15 @@ static void
 _ut_run(void)
 {
     UnityFixture.Verbose = 1;
-    UnityFixture.GroupFilter = "time_irq";
-    // UnityFixture.NameFilter = "unaligned_payload";
+    UnityFixture.GroupFilter = "dma";
+    //UnityFixture.NameFilter = "short_msg";
 
     RUN_TEST_GROUP(time_irq);
     RUN_TEST_GROUP(trng);
-    RUN_TEST_GROUP(dma_sha_poll);
-    RUN_TEST_GROUP(dma_sha_irq);
+    RUN_TEST_GROUP(dma_sha256_poll);
+    RUN_TEST_GROUP(dma_sha256_irq);
+    RUN_TEST_GROUP(dma_sha512_poll);
+    RUN_TEST_GROUP(dma_sha512_irq);
     RUN_TEST_GROUP(dma_aes_ecb_poll);
     RUN_TEST_GROUP(dma_aes_ecb_irq);
     RUN_TEST_GROUP(dma_aes_gcm_poll);

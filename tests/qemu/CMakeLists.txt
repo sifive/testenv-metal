@@ -8,7 +8,8 @@ INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
 ADD_EXECUTABLE (${COMPONENT}
                 src/dma_aes_ecb.c
                 src/dma_aes_gcm.c
-                src/dma_sha.c
+                src/dma_sha256.c
+                src/dma_sha512.c
                 src/qemu.c
                 src/secmain.S
                 src/time.c

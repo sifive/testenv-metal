@@ -249,7 +249,7 @@ _test_sha_dma_unaligned_poll(const uint8_t * buf, size_t buflen) {
                   HCA_REGISTER_CR_DMADIE_MASK);
 
     // SHA mode: SHA2-512
-    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 0x3,
+    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, SHA2_SHA512,
                   HCA_REGISTER_SHA_CR_MODE_OFFSET,
                   HCA_REGISTER_SHA_CR_MODE_MASK);
 
@@ -364,7 +364,7 @@ _test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen)
                               "FIFO in is full");
 
     // SHA mode: SHA2-512
-    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 0x3,
+    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, SHA2_SHA512,
                   HCA_REGISTER_SHA_CR_MODE_OFFSET,
                   HCA_REGISTER_SHA_CR_MODE_MASK);
 
@@ -605,7 +605,7 @@ _test_sha_dma_irq(const uint8_t * refh, const uint8_t * buf, size_t buflen,
                   HCA_REGISTER_CR_DMADIE_MASK);
 
     // SHA mode: SHA2-512
-    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, 0x3,
+    _hca_updreg32(METAL_SIFIVE_HCA_SHA_CR, SHA2_SHA512,
                   HCA_REGISTER_SHA_CR_MODE_OFFSET,
                   HCA_REGISTER_SHA_CR_MODE_MASK);
 
@@ -747,13 +747,13 @@ _test_sha_dma_irq(const uint8_t * refh, const uint8_t * buf, size_t buflen,
 // Unity tests
 //-----------------------------------------------------------------------------
 
-TEST_GROUP(dma_sha_poll);
+TEST_GROUP(dma_sha512_poll);
 
-TEST_SETUP(dma_sha_poll) {}
+TEST_SETUP(dma_sha512_poll) {}
 
-TEST_TEAR_DOWN(dma_sha_poll) {}
+TEST_TEAR_DOWN(dma_sha512_poll) {}
 
-TEST(dma_sha_poll, unaligned)
+TEST(dma_sha512_poll, unaligned)
 {
     // note: error behaviour will DMA/IRQ is not defined in HCA documentation
     // it needs to be addressed somehow
@@ -763,7 +763,7 @@ TEST(dma_sha_poll, unaligned)
     }
 }
 
-TEST(dma_sha_poll, sha512_short)
+TEST(dma_sha512_poll, short_msg)
 {
     _test_sha_dma_poll(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u);
     for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
@@ -772,7 +772,7 @@ TEST(dma_sha_poll, sha512_short)
     }
 }
 
-TEST(dma_sha_poll, sha512_long)
+TEST(dma_sha512_poll, long_msg)
 {
     for(unsigned int ix=0;
         ix<(sizeof(dma_long_buf)-DMA_ALIGNMENT)/sizeof(uint32_t); ix++) {
@@ -787,26 +787,26 @@ TEST(dma_sha_poll, sha512_long)
     }
 }
 
-TEST_GROUP_RUNNER(dma_sha_poll)
+TEST_GROUP_RUNNER(dma_sha512_poll)
 {
-    RUN_TEST_CASE(dma_sha_poll, unaligned);
-    RUN_TEST_CASE(dma_sha_poll, sha512_short);
-    RUN_TEST_CASE(dma_sha_poll, sha512_long);
+    RUN_TEST_CASE(dma_sha512_poll, unaligned);
+    RUN_TEST_CASE(dma_sha512_poll, short_msg);
+    RUN_TEST_CASE(dma_sha512_poll, long_msg);
 }
 
-TEST_GROUP(dma_sha_irq);
+TEST_GROUP(dma_sha512_irq);
 
-TEST_SETUP(dma_sha_irq)
+TEST_SETUP(dma_sha512_irq)
 {
     _hca_irq_init(&_work);
 }
 
-TEST_TEAR_DOWN(dma_sha_irq)
+TEST_TEAR_DOWN(dma_sha512_irq)
 {
     _hca_irq_fini();
 }
 
-TEST(dma_sha_irq, sha512)
+TEST(dma_sha512_irq, short_msg)
 {
     _test_sha_dma_irq(_TEXT_HASH, (const uint8_t *)_TEXT, sizeof(_TEXT)-1u,
                       &_work);
@@ -816,7 +816,7 @@ TEST(dma_sha_irq, sha512)
     }
 }
 
-TEST_GROUP_RUNNER(dma_sha_irq)
+TEST_GROUP_RUNNER(dma_sha512_irq)
 {
-    RUN_TEST_CASE(dma_sha_irq, sha512);
+    RUN_TEST_CASE(dma_sha512_irq, short_msg);
 }

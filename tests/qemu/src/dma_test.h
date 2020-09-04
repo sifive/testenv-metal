@@ -24,8 +24,13 @@
 
 #define SHA512_BLOCK_SIZE    128u  // bytes
 #define SHA512_LEN_SIZE      16u   // bytes
-#define SHA256_BLOCKSIZE     64u   // bytes
+#define SHA256_BLOCK_SIZE    64u   // bytes
 #define SHA256_LEN_SIZE      8u    // bytes
+
+#define SHA2_SHA224          0x0u
+#define SHA2_SHA256          0x1u
+#define SHA2_SHA384          0x2u
+#define SHA2_SHA512          0x3u
 
 //-----------------------------------------------------------------------------
 // Type definitions
