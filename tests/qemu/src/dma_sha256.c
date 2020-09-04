@@ -88,6 +88,21 @@ static const uint8_t _MSG4_HASH[] = {
     0xB4, 0x10, 0xFF, 0x61, 0xF2, 0x00, 0x15, 0xAD,
 };
 
+static const uint8_t _MSG5[] __attribute__((aligned(DMA_ALIGNMENT))) =
+{
+    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB
+};
+
+static const uint8_t _MSG5_HASH[] = {
+    0X21, 0XD0, 0X63, 0X69, 0X3F, 0XBB, 0XA4, 0X4F, 0X9F, 0XFA, 0X96, 0X64,
+    0X66, 0XE2, 0XF9, 0X4D, 0X99, 0X31, 0XB9, 0XC9, 0X51, 0X91, 0X20, 0XC3,
+    0X80, 0X4E, 0XF1, 0XCE, 0XAF, 0XD9, 0X89, 0XB5,
+};
+
 //-----------------------------------------------------------------------------
 // Variables
 //-----------------------------------------------------------------------------
@@ -837,6 +852,15 @@ TEST(dma_sha256_poll, short_msg4)
     }
 }
 
+TEST(dma_sha256_poll, short_msg5)
+{
+    _test_sha_dma_poll(_MSG5_HASH, (const uint8_t *)_MSG5, sizeof(_MSG5));
+    for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
+        memcpy(&_src_buf[ix], _MSG5, sizeof(_MSG5));
+        _test_sha_dma_poll(_MSG5_HASH, &_src_buf[ix], sizeof(_MSG5));
+    }
+}
+
 TEST_GROUP_RUNNER(dma_sha256_poll)
 {
     RUN_TEST_CASE(dma_sha256_poll, unaligned);
@@ -844,6 +868,7 @@ TEST_GROUP_RUNNER(dma_sha256_poll)
     RUN_TEST_CASE(dma_sha256_poll, short_msg2);
     RUN_TEST_CASE(dma_sha256_poll, short_msg3);
     RUN_TEST_CASE(dma_sha256_poll, short_msg4);
+    RUN_TEST_CASE(dma_sha256_poll, short_msg5);
 }
 
 TEST_GROUP(dma_sha256_irq);
@@ -898,10 +923,21 @@ TEST(dma_sha256_irq, short_msg4)
     }
 }
 
+TEST(dma_sha256_irq, short_msg5)
+{
+    _test_sha_dma_irq(_MSG5_HASH, (const uint8_t *)_MSG5, sizeof(_MSG5),
+                      &_work);
+    for (unsigned int ix=1; ix<DMA_ALIGNMENT; ix++) {
+        memcpy(&_src_buf[ix], _MSG5, sizeof(_MSG5));
+        _test_sha_dma_irq(_MSG5_HASH, &_src_buf[ix], sizeof(_MSG5), &_work);
+    }
+}
+
 TEST_GROUP_RUNNER(dma_sha256_irq)
 {
     RUN_TEST_CASE(dma_sha256_irq, short_msg1);
     RUN_TEST_CASE(dma_sha256_irq, short_msg2);
     RUN_TEST_CASE(dma_sha256_irq, short_msg3);
     RUN_TEST_CASE(dma_sha256_irq, short_msg4);
+    RUN_TEST_CASE(dma_sha256_irq, short_msg5);
 }
