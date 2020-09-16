@@ -35,14 +35,16 @@ ADD_LIBRARY (scl
   src/api/hardware/v0.5/hash/hca_sha512.c
   src/api/hardware/v0.5/hash/hca_sha_miscellaneous.c
   src/api/hardware/v0.5/random/hca_trng.c
+  src/api/software/asymmetric/ecc/soft_ecc.c
+  src/api/software/asymmetric/ecc/soft_ecdsa.c
   src/api/software/bignumbers/soft_bignumbers.c
-  # src/api/software/blockcipher/aes/soft_aes.c
   src/api/software/hash/soft_sha.c
   src/api/software/hash/soft_sha224.c
   src/api/software/hash/soft_sha256.c
   src/api/software/hash/soft_sha384.c
   src/api/software/hash/soft_sha512.c
   src/api/utils.c
+  src/asymmetric/ecc/scl_ecdsa.c
   src/blockcipher/aes/scl_aes_cbc.c
   src/blockcipher/aes/scl_aes_ccm.c
   src/blockcipher/aes/scl_aes_cfb.c
