@@ -1,24 +1,28 @@
 # Only for SCL, there would be too many warning for the whole Metal
 ADD_DEFINITIONS ("-Weverything")
-# ADD_DEFINITIONS ("--analyze -Xanalyzer -analyzer-config "
-#                  "-Xanalyzer -enable-checker=nullability.NullableDereferenced")
+
+IF (DEFINED STATIC_ANALYSIS)
+  ADD_DEFINITIONS ("--analyze -Xanalyzer -analyzer-config "
+                   "-Xanalyzer -enable-checker=nullability.NullableDereferenced")
+ENDIF ()
 
 # Comment warnings in this list to get the associated error messages
 LIST (APPEND DISABLE_WARNINGS
-    #reserved-id-macro
-    #newline-eof
-    #unreachable-code-break
-    #shorten-64-to-32
-    #cast-qual
-    #cast-align
-    #sign-conversion
-    #missing-variable-declarations
-    #covered-switch-default
-    #unreachable-code-return
-    #padded
+    reserved-id-macro
+    newline-eof
+    unreachable-code-break
+    shorten-64-to-32
+    cast-qual
+    cast-align
+    sign-conversion
+    missing-variable-declarations
+    covered-switch-default
+    unreachable-code-return
+    padded
     #documentation
     vla
     # language-extension-token
+    sizeof-array-div
 )
 
 FOREACH (warn ${DISABLE_WARNINGS})
