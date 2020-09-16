@@ -52,67 +52,43 @@ LIST (INSERT PROJECT_LINK_LIBRARIES 0
 # which tests to build
 SET (TESTS hca_sha hca_aes soft_sha scl_soft_sha soft_bignum scl_aes all)
 
-# build a test application for each test family
-FOREACH (test ${TESTS})
+SET (testapp test-${COMPONENT})
+ADD_EXECUTABLE (${testapp}
+  test-scl-metal.c
+)
 
-  # build application named after the test kind
-  STRING (REPLACE "_" "-" testname ${test})
-  SET (testapp test-${COMPONENT}-${testname})
-  ADD_EXECUTABLE (${testapp}
-    test-scl-metal.c
-  )
+# add a map file
+SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${testapp}.map")
+SET_PROPERTY (TARGET ${testapp}
+              APPEND
+              PROPERTY LINK_FLAGS "${LDPREFIX}--Map ${LDPREFIX}${mapfile}")
 
-  # add a map file
-  SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${testapp}.map")
-  SET_PROPERTY (TARGET ${testapp}
-                APPEND
-                PROPERTY LINK_FLAGS "${LDPREFIX}--Map ${LDPREFIX}${mapfile}")
+# define the link options
+TARGET_LINK_LIBRARIES (${testapp}
+                       # ${LDPREFIX}--warn-common
+                       ${LDPREFIX}--gc-sections
+                       ${LDPREFIX}--no-whole-archive
+                       ${LDPREFIX}--warn-once
+                       ${LDPREFIX}-static
+                       --allow-multiple-definition
+                       -T ${CMAKE_SOURCE_DIR}/bsp/${XBSP}/ld/metal.ld
+                       ${LINK_C_RUNTIME}
+                       ${LDPREFIX}${LDSTARTGROUP}
+                       ${LINK_SYSTEM_LIBS}
+                       ${PROJECT_LINK_LIBRARIES}
+                       ${LDPREFIX}${LDENDGROUP})
 
-  IF (test STREQUAL "all")
-    FOREACH (test_ ${TESTS})
-      IF (NOT test_ STREQUAL test)
-        STRING (TOUPPER ${test_} utest)
-        SET_PROPERTY (TARGET ${testapp}
-                      APPEND
-                      PROPERTY COMPILE_DEFINITIONS TEST_${utest})
-      ENDIF ()
-    ENDFOREACH ()
-  ELSE ()
-    # select which tests function are used
-    STRING (TOUPPER ${test} utest)
-    SET_PROPERTY (TARGET ${testapp}
-                  APPEND
-                  PROPERTY COMPILE_DEFINITIONS TEST_${utest})
-  ENDIF()
-
-  # define the link options
-  TARGET_LINK_LIBRARIES (${testapp}
-                         # ${LDPREFIX}--warn-common
-                         ${LDPREFIX}--gc-sections
-                         ${LDPREFIX}--no-whole-archive
-                         ${LDPREFIX}--warn-once
-                         ${LDPREFIX}-static
-                         --allow-multiple-definition
-                         -T ${CMAKE_SOURCE_DIR}/bsp/${XBSP}/ld/metal.ld
-                         ${LINK_C_RUNTIME}
-                         ${LDPREFIX}${LDSTARTGROUP}
-                         ${LINK_SYSTEM_LIBS}
-                         ${PROJECT_LINK_LIBRARIES}
-                         ${LDPREFIX}${LDENDGROUP})
-
-  # disassemble the ELF file
-  SET (xdisassemble
-       ${gnuxobjdump} -dS)
-  #SET (xdisassemble
-  #     ${xobjdump} -disassemble -g -line-numbers -source)
-  SET (app ${testapp}${CMAKE_EXECUTABLE_SUFFIX})
-  ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
-                      COMMAND ${xdisassemble}
-                        ${app} 2> /dev/null > ${testapp}.S
-                      COMMENT "Disassembling ELF file" VERBATIM)
-  # get size info about the ELF file
-  ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
-                      COMMAND ${xsize}
-                        ${app})
-# each test application
-ENDFOREACH ()
+# disassemble the ELF file
+SET (xdisassemble
+     ${gnuxobjdump} -dS)
+#SET (xdisassemble
+#     ${xobjdump} -disassemble -g -line-numbers -source)
+SET (app ${testapp}${CMAKE_EXECUTABLE_SUFFIX})
+ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
+                    COMMAND ${xdisassemble}
+                      ${app} 2> /dev/null > ${testapp}.S
+                    COMMENT "Disassembling ELF file" VERBATIM)
+# get size info about the ELF file
+ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
+                    COMMAND ${xsize}
+                      ${app})
