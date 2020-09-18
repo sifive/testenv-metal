@@ -1,0 +1,15 @@
+# FROM alpine:3.12
+FROM iroazh/freedom-dev:a3.12
+
+LABEL description="Light development environment"
+LABEL maintainer="Emmanuel Blot <emmanuel.blot@sifive.com>"
+
+ENV CLANG10PATH=/usr/local/clang10
+ENV BU235PATH=/usr/local/riscv-elf-binutils
+ENV PATH=$PATH:${CLANG10PATH}/bin:${BU235PATH}/bin
+
+RUN echo "COPYING"
+COPY build.sh /build.sh
+
+WORKDIR /
+

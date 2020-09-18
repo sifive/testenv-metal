@@ -1,6 +1,20 @@
 #!/bin/sh
 
-ARGS=$*
+SCRIPT_DIR=$(dirname $0)
+NAME=`basename $PWD`
+DEVENV="iroazh/freedom-dev:a3.12"
+echo "Using Docker environment \"${DEVENV}\""
+
+cmd="$1"
+if [ -n "$cmd" -a -f "${SCRIPT_DIR}/${cmd}.sh" ]; then
+    shift
+    ARGS="sh /tmp/${NAME}/${SCRIPT_DIR}/${cmd}.sh $*"
+else
+    ARGS="$*"
+fi
+
+echo ARGS: $ARGS
+#ls "${SCRIPT_DIR}/${cmd}.sh"
 
 DIR=`dirname $0`
 VOLUMES=`${DIR}/dockvol.sh`
@@ -11,13 +25,8 @@ for volume in ${VOLUMES}; do
     OPTS="${OPTS} --volumes-from ${volume}"
 done
 
-DEVENV="iroazh/freedom-dev:a3.12"
-
 IMGPATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 IMGPATH=${IMGPATH}:/usr/local/clang10/bin:/usr/local/riscv-elf-binutils/bin
-
-echo "Using Docker environment \"${DEVENV}\""
-NAME=`basename $PWD`
 
 # Development (transparent) mode"
 # - build with user id so that output files belongs to the effective user
@@ -33,7 +42,7 @@ docker run \
     --mount type=bind,source=${PWD},target=/tmp/${NAME} \
     ${DOCKOPTS} \
     --workdir=/tmp/${NAME} ${DEVENV} \
-    ${*}
+    ${ARGS}
 DOCKER_RC=$?
 
 exit ${DOCKER_RC}
