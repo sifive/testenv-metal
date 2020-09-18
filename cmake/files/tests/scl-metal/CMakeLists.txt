@@ -1,20 +1,24 @@
-# application name radix based on directory's name
-GET_FILENAME_COMPONENT (COMPONENT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+#------------------------------------------------------------------------------
+# SiFive cryptographic library unit tests
+#------------------------------------------------------------------------------
+
+directory_name (component)
 
 # where to find unity header file
 INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
                      ${CMAKE_SOURCE_DIR}/unity/extras/fixture/src
                      ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
 
-# build a library with all the tests
-ADD_LIBRARY (${COMPONENT}
-  test-scl-metal.c
+# build a static library with all the tests
+#  this enables running the static analyzer on all the test files, w/o to try
+#  to produce an executable
+ADD_LIBRARY (${component}
   tests/api/aes/hardware/test_hca_aes_128.c
   tests/api/aes/hardware/test_hca_aes_192.c
   tests/api/aes/hardware/test_hca_aes_256.c
-  tests/api/asymmetric/ecc/software/test_soft_ecc.c
-  tests/api/asymmetric/ecc/software/test_soft_ecdsa.c
-  tests/api/bignumbers/software/test_soft_bignumbers.c
+  #tests/api/asymmetric/ecc/software/test_soft_ecc.c
+  #tests/api/asymmetric/ecc/software/test_soft_ecdsa.c
+  #tests/api/bignumbers/software/test_soft_bignumbers.c
   tests/api/sha/hardware/test_hca_sha_224.c
   tests/api/sha/hardware/test_hca_sha_256.c
   tests/api/sha/hardware/test_hca_sha_384.c
@@ -27,7 +31,7 @@ ADD_LIBRARY (${COMPONENT}
   tests/scl/aes/test_scl_aes_128.c
   tests/scl/aes/test_scl_aes_192.c
   tests/scl/aes/test_scl_aes_256.c
-  tests/scl/asymmetric/ecc/test_soft_ecdsa.c
+  #tests/scl/asymmetric/ecc/test_soft_ecdsa.c
   tests/scl/sha/test_scl_sha_224.c
   tests/scl/sha/test_scl_sha_256.c
   tests/scl/sha/test_scl_sha_384.c
@@ -35,60 +39,25 @@ ADD_LIBRARY (${COMPONENT}
   tests/test_runners/test_hca_aes_runner.c
   tests/test_runners/test_hca_sha_runner.c
   tests/test_runners/test_scl_aes_runner.c
-  tests/test_runners/test_scl_ecdsa_runner.c
+  # tests/test_runners/test_scl_ecdsa_runner.c
   tests/test_runners/test_scl_sha_runner.c
-  tests/test_runners/test_soft_bignumbers_runner.c
-  tests/test_runners/test_soft_ecc_runner.c
-  tests/test_runners/test_soft_ecdsa_runner.c
+  # tests/test_runners/test_soft_bignumbers_runner.c
+  # tests/test_runners/test_soft_ecc_runner.c
+  # tests/test_runners/test_soft_ecdsa_runner.c
   tests/test_runners/test_soft_sha_runner.c
   tests/test_runners/test_utils_runner.c
 )
 
-# libraries
-LIST (INSERT PROJECT_LINK_LIBRARIES 0
-      c clang_rt.builtins-riscv${XLEN} metal metal-gloss scl unity
-      ${COMPONENT})
+IF (NOT DEFINED STATIC_ANALYSIS)
+  SET (app test-${component})
 
-# which tests to build
-SET (TESTS hca_sha hca_aes soft_sha scl_soft_sha soft_bignum scl_aes all)
+  ADD_EXECUTABLE (${app}
+    test-scl-metal.c
+  )
 
-SET (testapp test-${COMPONENT})
-ADD_EXECUTABLE (${testapp}
-  test-scl-metal.c
-)
+  link_application (${app} metal.ld
+                    metal metal-gloss scl unity ${component})
 
-# add a map file
-SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${testapp}.map")
-SET_PROPERTY (TARGET ${testapp}
-              APPEND
-              PROPERTY LINK_FLAGS "${LDPREFIX}--Map ${LDPREFIX}${mapfile}")
-
-# define the link options
-TARGET_LINK_LIBRARIES (${testapp}
-                       # ${LDPREFIX}--warn-common
-                       ${LDPREFIX}--gc-sections
-                       ${LDPREFIX}--no-whole-archive
-                       ${LDPREFIX}--warn-once
-                       ${LDPREFIX}-static
-                       --allow-multiple-definition
-                       -T ${CMAKE_SOURCE_DIR}/bsp/${XBSP}/ld/metal.ld
-                       ${LINK_C_RUNTIME}
-                       ${LDPREFIX}${LDSTARTGROUP}
-                       ${LINK_SYSTEM_LIBS}
-                       ${PROJECT_LINK_LIBRARIES}
-                       ${LDPREFIX}${LDENDGROUP})
-
-# disassemble the ELF file
-SET (xdisassemble
-     ${gnuxobjdump} -dS)
-#SET (xdisassemble
-#     ${xobjdump} -disassemble -g -line-numbers -source)
-SET (app ${testapp}${CMAKE_EXECUTABLE_SUFFIX})
-ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
-                    COMMAND ${xdisassemble}
-                      ${app} 2> /dev/null > ${testapp}.S
-                    COMMENT "Disassembling ELF file" VERBATIM)
-# get size info about the ELF file
-ADD_CUSTOM_COMMAND (TARGET ${testapp} POST_BUILD
-                    COMMAND ${xsize}
-                      ${app})
+  create_map_file(${app})
+  post_gen_app(${app} ASM SIZE)
+ENDIF ()

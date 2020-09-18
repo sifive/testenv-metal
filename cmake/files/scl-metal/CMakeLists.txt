@@ -1,33 +1,18 @@
+#------------------------------------------------------------------------------
+# SiFive cryptographic library
+#------------------------------------------------------------------------------
+
 # Only for SCL, there would be too many warning for the whole Metal
-ADD_DEFINITIONS ("-Weverything")
-
-IF (DEFINED STATIC_ANALYSIS)
-  ADD_DEFINITIONS ("--analyze -Xanalyzer -analyzer-config "
-                   "-Xanalyzer -enable-checker=nullability.NullableDereferenced")
-ENDIF ()
-
-# Comment warnings in this list to get the associated error messages
-LIST (APPEND DISABLE_WARNINGS
-    reserved-id-macro
-    newline-eof
-    unreachable-code-break
-    shorten-64-to-32
-    cast-qual
-    cast-align
-    sign-conversion
-    missing-variable-declarations
-    covered-switch-default
-    unreachable-code-return
-    padded
-    #documentation
-    vla
-    # language-extension-token
-    sizeof-array-div
+enable_warnings_except (
+    reserved-id-macro  # __METAL macros, etc.
+    covered-switch-default  # sanity feature
+    padded  # structure do not need to be size-optimized
+    vla  # by design, SCL uses the stack to store (many) intermediate results
+    sizeof-array-div # to be fixed
+    # cast-align  # to be checked
 )
 
-FOREACH (warn ${DISABLE_WARNINGS})
-  ADD_DEFINITIONS ("-Wno-${warn}")
-ENDFOREACH ()
+enable_static_analysis()
 
 ADD_LIBRARY (scl
   src/api/hardware/hca_utils.c
@@ -39,16 +24,16 @@ ADD_LIBRARY (scl
   src/api/hardware/v0.5/hash/hca_sha512.c
   src/api/hardware/v0.5/hash/hca_sha_miscellaneous.c
   src/api/hardware/v0.5/random/hca_trng.c
-  src/api/software/asymmetric/ecc/soft_ecc.c
-  src/api/software/asymmetric/ecc/soft_ecdsa.c
-  src/api/software/bignumbers/soft_bignumbers.c
+  #src/api/software/asymmetric/ecc/soft_ecc.c
+  #src/api/software/asymmetric/ecc/soft_ecdsa.c
+  #src/api/software/bignumbers/soft_bignumbers.c
   src/api/software/hash/soft_sha.c
   src/api/software/hash/soft_sha224.c
   src/api/software/hash/soft_sha256.c
   src/api/software/hash/soft_sha384.c
   src/api/software/hash/soft_sha512.c
   src/api/utils.c
-  src/asymmetric/ecc/scl_ecdsa.c
+  #src/asymmetric/ecc/scl_ecdsa.c
   src/blockcipher/aes/scl_aes_cbc.c
   src/blockcipher/aes/scl_aes_ccm.c
   src/blockcipher/aes/scl_aes_cfb.c

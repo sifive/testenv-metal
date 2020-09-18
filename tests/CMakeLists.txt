@@ -1,5 +1,5 @@
-find_subprojects(subprojects)
+#------------------------------------------------------------------------------
+# Freedom-metal unit tests
+#------------------------------------------------------------------------------
 
-FOREACH (prj ${subprojects})
-  ADD_SUBDIRECTORY (${prj} ${prj})
-ENDFOREACH ()
+recurse_subprojects ()

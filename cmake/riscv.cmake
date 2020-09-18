@@ -6,9 +6,15 @@ CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
 SET (CMAKE_SYSTEM_NAME metal)
 
-FIND_PROGRAM (xclang clang)
+FIND_PROGRAM (xclang clang REQUIRED)
+IF (NOT xclang)
+  # 'REQUIRED' is a recent add-on to FIND_PROGRAM...
+  MESSAGE (FATAL_ERROR "Unable to locate clang compiler")
+ENDIF ()
+
 EXECUTE_PROCESS (COMMAND ${xclang} -print-target-triple
                  OUTPUT_VARIABLE CLANG_TRIPLE)
+
 STRING (REGEX MATCH "riscv64-.*-elf" RISCV_ELF ${CLANG_TRIPLE})
 IF (NOT RISCV_ELF)
   MESSAGE (FATAL_ERROR "${xclang} cannot build RISCV-ELF binaries")

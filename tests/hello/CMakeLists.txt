@@ -1,44 +1,18 @@
-GET_FILENAME_COMPONENT (COMPONENT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+#------------------------------------------------------------------------------
+# Simplest application to check an app can start and emit debug strings
+#------------------------------------------------------------------------------
 
-ADD_EXECUTABLE (${COMPONENT}
-                src/hello.c)
+IF (NOT DEFINED STATIC_ANALYSIS)
+  directory_name (COMPONENT)
+  SET (app test-${COMPONENT})
 
-LIST (INSERT PROJECT_LINK_LIBRARIES 0
-      c clang_rt.builtins-riscv${XLEN} metal metal-gloss)
+  ADD_EXECUTABLE (${app}
+    src/hello.c
+  )
 
-SET (mapfile "${CMAKE_CURRENT_BINARY_DIR}/${COMPONENT}.map")
-GET_TARGET_PROPERTY (_link_flags ${COMPONENT}
-                     LINK_FLAGS)
-IF (NOT _link_flags)
-  SET (_link_flags)
+  link_application (${app} metal.ld
+                    metal metal-gloss)
+
+  create_map_file(${app})
+  post_gen_app(${app} ASM SIZE)
 ENDIF ()
-SET_TARGET_PROPERTIES (${COMPONENT} PROPERTIES LINK_FLAGS
-  "${_link_flags} ${LDPREFIX}--Map ${LDPREFIX}${mapfile}")
-
-TARGET_LINK_LIBRARIES (${COMPONENT}
-                       # ${LDPREFIX}--warn-common
-                       ${LDPREFIX}--gc-sections
-                       ${LDPREFIX}--no-whole-archive
-                       ${LDPREFIX}--warn-once
-                       ${LDPREFIX}-static
-                       --allow-multiple-definition
-                       -T ${CMAKE_SOURCE_DIR}/bsp/${XBSP}/ld/metal.ld
-                       ${LINK_C_RUNTIME}
-                       ${LDPREFIX}${LDSTARTGROUP}
-                       ${LINK_SYSTEM_LIBS}
-                       ${PROJECT_LINK_LIBRARIES}
-                       ${LDPREFIX}${LDENDGROUP})
-
-#SET (xdisassemble
-#     ${gnuxobjdump} -dS)
-SET (xdisassemble
-     ${xobjdump} -disassemble -g -line-numbers -source)
-
-SET (app ${COMPONENT}${CMAKE_EXECUTABLE_SUFFIX})
-ADD_CUSTOM_COMMAND (TARGET ${COMPONENT} POST_BUILD
-                    COMMAND ${xdisassemble}
-                      ${app} 2> /dev/null > ${COMPONENT}.S
-                    COMMENT "Disassembling ELF file" VERBATIM)
-ADD_CUSTOM_COMMAND (TARGET ${COMPONENT} POST_BUILD
-                    COMMAND ${xsize}
-                      ${app})
