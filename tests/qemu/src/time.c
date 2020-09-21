@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 #include "metal/machine.h"
 #include "metal/io.h"
 #include "unity_fixture.h"
@@ -72,7 +73,6 @@ static void
 _timer_irq_handler(int id, void * opaque) {
     struct context * ctx = (struct context *)opaque;
     uint64_t tick = metal_cpu_get_mtime(ctx->ct_cpu);
-    PRINTF("%lx -> %p", tick, ctx->ct_cpu);
     metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     if ( ! ctx->ct_first_tick ) {
         ctx->ct_first_tick = tick;
@@ -183,7 +183,7 @@ _time_irq_sequence(unsigned int hart_id)
 
     uint64_t tick;
     tick = metal_cpu_get_mtime(ctx->ct_cpu);
-    PRINTF("Tick: %lx", tick);
+    PRINTF("Tick: %" PRIx64, tick);
 
     metal_cpu_set_mtimecmp(ctx->ct_cpu, tick+LF_CLOCK_PERIOD);
     metal_interrupt_enable(ctx->ct_tmr_intr, ctx->ct_tmr_id);
@@ -210,7 +210,8 @@ _time_irq_sequence(unsigned int hart_id)
     TEST_ASSERT_MESSAGE(ctx->ct_tick_count, "No tick registered");
     delay = tick - ctx->ct_first_tick;
     period = delay/ctx->ct_tick_count;
-    PRINTF("End wait loop %lu %lu ms", period, 1000*period/TIME_BASE);
+    PRINTF("End wait loop %" PRIu64 " %" PRIu64 " ms",
+           period, 1000*period/TIME_BASE);
 }
 
 static void
