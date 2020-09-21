@@ -33,8 +33,6 @@ IMGPATH=${IMGPATH}:/usr/local/clang10/bin:/usr/local/riscv-elf-binutils/bin
 DOCKOPTS="--user $(id -u):$(id -g)"
 
 docker run \
-    --tty \
-    --interactive \
     --rm \
     --name ${NAME} \
     ${OPTS} \
