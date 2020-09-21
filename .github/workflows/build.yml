@@ -10,4 +10,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build project from Docker container
-      run: docker/bin/build.sh qemu-sifive_e_rv64
+      run: docker/bin/dock.sh scripts/build.sh qemu-sifive_e_rv64
