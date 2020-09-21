@@ -336,15 +336,23 @@ MACRO (deploy_cmakefiles)
   SET (_CMAKE_FILE_DIR ${CMAKE_SOURCE_DIR}/files)
   FILE (GLOB_RECURSE cmakefiles
         RELATIVE ${CMAKE_SOURCE_DIR}/cmake/files
-        # CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/cmake/files/*.txt)
   FOREACH (cmakefile ${cmakefiles})
     GET_FILENAME_COMPONENT (cmakedir ${cmakefile} DIRECTORY)
-    # MESSAGE (STATUS "CMAKE ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
-    #          ${CMAKE_SOURCE_DIR}/${cmakedir}")
-    IF (NOT EXISTS ${CMAKE_SOURCE_DIR}/${cmakefile})
-      FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
-            DESTINATION ${CMAKE_SOURCE_DIR}/${cmakedir})
+    IF (EXISTS ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile})
+      FILE (TIMESTAMP ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile} src_ts)
+      FILE (TIMESTAMP ${CMAKE_SOURCE_DIR}/${cmakefile} dest_ts)
+      IF (src_ts STRGREATER dest_ts)
+        MESSAGE (STATUS "Override ${CMAKE_SOURCE_DIR}/${cmakedir}")
+        FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
+              DESTINATION ${CMAKE_SOURCE_DIR}/${cmakedir})
+      ENDIF ()
+    ELSE ()
+      IF (NOT EXISTS ${CMAKE_SOURCE_DIR}/${cmakefile})
+        MESSAGE (STATUS "Create ${CMAKE_SOURCE_DIR}/${cmakedir}")
+        FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
+              DESTINATION ${CMAKE_SOURCE_DIR}/${cmakedir})
+      ENDIF ()
     ENDIF ()
   ENDFOREACH ()
 ENDMACRO ()
