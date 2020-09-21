@@ -2,6 +2,7 @@
 # SiFive cryptographic library unit tests
 #------------------------------------------------------------------------------
 
+# name the library from the current directory
 directory_name (component)
 
 # where to find unity header file
@@ -59,5 +60,6 @@ IF (NOT DEFINED STATIC_ANALYSIS)
                     metal metal-gloss scl unity ${component})
 
   create_map_file(${app})
+  # generate artifacts: de-assembled binary and report the binary size info
   post_gen_app(${app} ASM SIZE)
 ENDIF ()

@@ -8,8 +8,8 @@ enable_warnings_except (
     covered-switch-default  # sanity feature
     padded  # structure do not need to be size-optimized
     vla  # by design, SCL uses the stack to store (many) intermediate results
-    sizeof-array-div # to be fixed
-    # cast-align  # to be checked
+    cast-align  # clang seems not able to always check the actual alignment
+    sizeof-array-div # this one could be fixed to increase readibility
 )
 
 enable_static_analysis()
