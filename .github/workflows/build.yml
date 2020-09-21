@@ -11,11 +11,9 @@ jobs:
     - uses: actions/checkout@v2
       with:
           submodules: true
-    - name: Checkout the proper submodule commits
+    - name: Checkout the proper submodule versions
       run: git submodule update --recursive &&
             git submodule status &&
-            find scl-metal -type f &&
-            find tests/scl-metal -type f
     - name: Load Docker toolchain containers
       run: docker/bin/dock.sh /bin/true
     - name: Build project from Docker container

@@ -27,7 +27,7 @@ ADD_LIBRARY (${component}
   tests/scl/aes/test_scl_aes_128.c
   tests/scl/aes/test_scl_aes_192.c
   tests/scl/aes/test_scl_aes_256.c
-  tests/scl/asymmetric/ecc/test_soft_ecdsa.c
+  tests/scl/asymmetric/ecc/test_scl_ecdsa.c
   tests/scl/sha/test_scl_sha_224.c
   tests/scl/sha/test_scl_sha_256.c
   tests/scl/sha/test_scl_sha_384.c
