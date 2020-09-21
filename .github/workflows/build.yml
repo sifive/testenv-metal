@@ -1,0 +1,13 @@
+name: Build RISC-V softmmu
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build project from Docker container
+      run: docker/bin/build.sh qemu-sifive_e_rv64
