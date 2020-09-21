@@ -49,6 +49,11 @@ ADD_LIBRARY (${component}
   tests/test_runners/test_utils_runner.c
 )
 
+# need to be fixed
+SET_PROPERTY (SOURCE tests/api/bignumbers/software/test_soft_bignumbers.c
+              APPEND
+              PROPERTY COMPILE_FLAGS "-Wno-sizeof-array-div")
+
 IF (NOT DEFINED STATIC_ANALYSIS)
   SET (app test-${component})
 
