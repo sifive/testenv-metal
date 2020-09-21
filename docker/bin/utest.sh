@@ -63,7 +63,7 @@ while [ $# -gt 0 ]; do
             ;;
         *.elf)
             test -f $1 || die "UT $1 does not exist"
-            UNIT_TESTS="${UNIT_TESTS} ${arg}"
+            UNIT_TESTS="${UNIT_TESTS} $1"
             ;;
         *)  if [ -d $1 ]; then
                 for ut in $(find $1 -type f -name "*.elf"); do
