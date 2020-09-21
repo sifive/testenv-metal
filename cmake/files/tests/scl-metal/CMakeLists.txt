@@ -16,9 +16,9 @@ ADD_LIBRARY (${component}
   tests/api/aes/hardware/test_hca_aes_128.c
   tests/api/aes/hardware/test_hca_aes_192.c
   tests/api/aes/hardware/test_hca_aes_256.c
-  #tests/api/asymmetric/ecc/software/test_soft_ecc.c
-  #tests/api/asymmetric/ecc/software/test_soft_ecdsa.c
-  #tests/api/bignumbers/software/test_soft_bignumbers.c
+  tests/api/asymmetric/ecc/software/test_soft_ecc.c
+  tests/api/asymmetric/ecc/software/test_soft_ecdsa.c
+  tests/api/bignumbers/software/test_soft_bignumbers.c
   tests/api/sha/hardware/test_hca_sha_224.c
   tests/api/sha/hardware/test_hca_sha_256.c
   tests/api/sha/hardware/test_hca_sha_384.c
@@ -31,7 +31,7 @@ ADD_LIBRARY (${component}
   tests/scl/aes/test_scl_aes_128.c
   tests/scl/aes/test_scl_aes_192.c
   tests/scl/aes/test_scl_aes_256.c
-  #tests/scl/asymmetric/ecc/test_soft_ecdsa.c
+  tests/scl/asymmetric/ecc/test_soft_ecdsa.c
   tests/scl/sha/test_scl_sha_224.c
   tests/scl/sha/test_scl_sha_256.c
   tests/scl/sha/test_scl_sha_384.c
@@ -39,11 +39,11 @@ ADD_LIBRARY (${component}
   tests/test_runners/test_hca_aes_runner.c
   tests/test_runners/test_hca_sha_runner.c
   tests/test_runners/test_scl_aes_runner.c
-  # tests/test_runners/test_scl_ecdsa_runner.c
+  tests/test_runners/test_scl_ecdsa_runner.c
   tests/test_runners/test_scl_sha_runner.c
-  # tests/test_runners/test_soft_bignumbers_runner.c
-  # tests/test_runners/test_soft_ecc_runner.c
-  # tests/test_runners/test_soft_ecdsa_runner.c
+  tests/test_runners/test_soft_bignumbers_runner.c
+  tests/test_runners/test_soft_ecc_runner.c
+  tests/test_runners/test_soft_ecdsa_runner.c
   tests/test_runners/test_soft_sha_runner.c
   tests/test_runners/test_utils_runner.c
 )
