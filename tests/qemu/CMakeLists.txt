@@ -1,5 +1,6 @@
 #------------------------------------------------------------------------------
-# SiFive cryptographic library unit tests
+# HCA tests for QEMU VM
+# the following features are not yet exercized in regular scl-metal-tests
 #------------------------------------------------------------------------------
 
 directory_name (component)

@@ -6,9 +6,20 @@ CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
 SET (CMAKE_SYSTEM_NAME metal)
 
-FIND_PROGRAM (xclang clang REQUIRED)
+IF (NOT DEFINED XLEN)
+  MESSAGE (FATAL_ERROR "XLEN should be defined")
+ENDIF ()
+
+IF ( XLEN EQUAL 64 )
+  SET (XMODEL medany)
+ELSEIF ( XLEN EQUAL 32 )
+  SET (XMODEL medlow)
+ELSE ()
+  MESSAGE (FATAL_ERROR "XLEN ${XLEN} not supported")
+ENDIF ()
+
+FIND_PROGRAM (xclang clang)
 IF (NOT xclang)
-  # 'REQUIRED' is a recent add-on to FIND_PROGRAM...
   MESSAGE (FATAL_ERROR "Unable to locate clang compiler")
 ENDIF ()
 
@@ -23,11 +34,6 @@ STRING (REGEX REPLACE "(riscv64).*-(unknown-elf)\n?" "\\1-\\2"
         XTOOLCHAIN_TRIPLE ${CLANG_TRIPLE})
 
 STRING (REPLACE "64" "${XLEN}" XTARGET ${XTOOLCHAIN_TRIPLE})
-IF ( XLEN EQUAL 64 )
-  SET (XMODEL medany)
-ELSE ()
-  SET (XMODEL medlow)
-ENDIF ()
 
 FIND_PROGRAM (ctidy NAMES clang-tidy)
 FIND_PROGRAM (xar llvm-ar)
@@ -88,10 +94,3 @@ FOREACH (xtool xar;xranlib;xobjdump;xsize;xnm;xobjcopy;xstrip)
       "Unable to locate a complete ${XTOOLCHAIN} C/C++ toolchain: ${xtool}")
   ENDIF ()
 ENDFOREACH()
-
-# GET_FILENAME_COMPONENT (XTOOLCHAIN_BIN ${xclang} DIRECTORY)
-# GET_FILENAME_COMPONENT (XTOOLCHAIN_ROOT ${XTOOLCHAIN_BIN} DIRECTORY)
-#
-# EXECUTE_PROCESS (COMMAND ${xclang} -print-resource-dir
-#                  OUTPUT_VARIABLE XTOOLCHAIN_RESOURCE)
-# STRING (STRIP ${XTOOLCHAIN_RESOURCE} XTOOLCHAIN_RESOURCE)
