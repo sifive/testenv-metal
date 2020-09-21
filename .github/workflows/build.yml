@@ -16,13 +16,15 @@ jobs:
       with:
         repository: sifive/scl-metal
         path: scl
-        ref: v2
+        # need to check how to use existing info...
+        ref: t28_integration
     - name: Clone test-scl-metal submodule
       uses: actions/checkout@v2
       with:
         repository: sifive/test-scl-metal
         path: tests/scl-metal
-        ref: v2
+        # fixme
+        ref: ecdsa_dev
         ssh-key: ${{ secrets.SUBMODULE_SSH_KEY }}
         persist-credentials: false
     - name: Build project from Docker container
