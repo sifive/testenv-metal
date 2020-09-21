@@ -191,7 +191,7 @@ ENDMACRO ()
 # Conditionally enable clang static analyzer
 #-----------------------------------------------------------------------------
 MACRO (enable_static_analysis)
-  IF (DEFINED STATIC_ANALYSIS)
+  IF ( STATIC_ANALYSIS )
     ADD_DEFINITIONS (
       "--analyze -Xanalyzer -analyzer-config "
       "-Xanalyzer -enable-checker=nullability.NullableDereferenced")
