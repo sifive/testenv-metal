@@ -1,7 +1,7 @@
-INCLUDE_DIRECTORIES (src extras/fixture/src extras/memory/src)
-
-ADD_LIBRARY (unity STATIC
-  src/unity.c
-  extras/fixture/src/unity_fixture.c
-  extras/memory/src/unity_memory.c
-)
+IF ( ENABLE_UNITY )
+  ADD_LIBRARY (unity
+    src/unity.c
+    extras/fixture/src/unity_fixture.c
+    extras/memory/src/unity_memory.c
+  )
+ENDIF ()

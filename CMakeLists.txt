@@ -28,9 +28,13 @@ deploy_cmakefiles ()
 # The project to build
 PROJECT (hca C ASM)
 
-INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/bsp/${XBSP}/include
-                     ${CMAKE_SOURCE_DIR}/metal/include
-                     ${CMAKE_SOURCE_DIR}/scl-metal/include)
+# build and use SiFive metal
+enable_metal ()
+
+# build Unity test framework
+enable_unity ()
+
+INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/scl-metal/include)
 
 # Search directories with CMakeFiles.txt files, and load them
 recurse_subprojects ()

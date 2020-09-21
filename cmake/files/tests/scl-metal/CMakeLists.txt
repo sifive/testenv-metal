@@ -5,11 +5,6 @@
 # name the library from the current directory
 directory_name (component)
 
-# where to find unity header file
-INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
-                     ${CMAKE_SOURCE_DIR}/unity/extras/fixture/src
-                     ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
-
 # build a static library with all the tests
 #  this enables running the static analyzer on all the test files, w/o to try
 #  to produce an executable
@@ -61,8 +56,7 @@ IF (NOT DEFINED STATIC_ANALYSIS)
     test-scl-metal.c
   )
 
-  link_application (${app} metal.ld
-                    metal metal-gloss scl unity ${component})
+  link_application (${app} metal.ld scl ${component})
 
   create_map_file(${app})
   # generate artifacts: de-assembled binary and report the binary size info

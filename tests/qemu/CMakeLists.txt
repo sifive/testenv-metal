@@ -23,8 +23,7 @@ IF (NOT DEFINED STATIC_ANALYSIS)
      src/time.c
      src/trng.c
   )
-  link_application (${app} metal.ld
-                    metal metal-gloss scl unity)
+  link_application (${app} metal.ld scl)
 
   create_map_file(${app})
   post_gen_app(${app} ASM SIZE)

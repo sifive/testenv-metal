@@ -147,6 +147,7 @@ MACRO (load_bsp_properties)
   IF (NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/bsp/${XBSP})
     MESSAGE (FATAL_ERROR "Unsupported BSP ${XBSP}")
   ENDIF ()
+  INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/bsp/${XBSP}/include)
   SET (XISA imac)
   STRING (REGEX REPLACE "^(qemu-.*-)([es])([0-9]+).*" "\\2" XSERIES ${XBSP})
   IF (XSERIES STREQUAL "e")
@@ -199,14 +200,44 @@ MACRO (enable_static_analysis)
 ENDMACRO ()
 
 #-----------------------------------------------------------------------------
+# Build and use SiFive metal framework
+#-----------------------------------------------------------------------------
+MACRO (enable_metal)
+  SET (ENABLE_METAL 1)
+  SET (METAL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/metal)
+  INCLUDE_DIRECTORIES (${METAL_SOURCE_DIR}/include)
+ENDMACRO ()
+
+#-----------------------------------------------------------------------------
+# Build and use Unity unit test framework
+#-----------------------------------------------------------------------------
+MACRO (enable_unity)
+  SET (ENABLE_UNITY 1)
+  SET (UNITY_SOURCE_DIR ${CMAKE_SOURCE_DIR}/unity)
+  INCLUDE_DIRECTORIES (${UNITY_SOURCE_DIR}/src
+                       ${UNITY_SOURCE_DIR}/extras/fixture/src
+                       ${UNITY_SOURCE_DIR}/extras/memory/src)
+  IF ( XLEN EQUAL 32 )
+    # Unity test framework: enable 64-bit types on 32-bit platform
+    ADD_DEFINITIONS (-DUNITY_SUPPORT_64)
+  ENDIF ()
+ENDMACRO ()
+
+#-----------------------------------------------------------------------------
 # Apply default link options to a final application
 #  :app: the application component
 #  :ld_script: the filename of the linker script
 #-----------------------------------------------------------------------------
 MACRO (link_application app ldscript)
   # libraries
-  LIST (INSERT PROJECT_LINK_LIBRARIES 0
-        c clang_rt.builtins-riscv${XLEN} ${ARGN})
+  LIST (INSERT PROJECT_LINK_LIBRARIES 0 c clang_rt.builtins-riscv${XLEN})
+  IF ( ENABLE_METAL )
+    LIST (APPEND PROJECT_LINK_LIBRARIES metal metal-gloss)
+  ENDIF ()
+  LIST (APPEND PROJECT_LINK_LIBRARIES ${ARGN})
+  IF ( ENABLE_UNITY )
+    LIST (APPEND PROJECT_LINK_LIBRARIES unity)
+  ENDIF ()
   # define the link options
   TARGET_LINK_LIBRARIES (${app}
                          # ${LDPREFIX}--warn-common

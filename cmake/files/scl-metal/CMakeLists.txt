@@ -12,7 +12,7 @@ enable_warnings_except (
     sizeof-array-div # this one could be fixed to increase readibility
 )
 
-enable_static_analysis()
+enable_static_analysis ()
 
 ADD_LIBRARY (scl
   src/api/hardware/hca_utils.c
@@ -45,3 +45,8 @@ ADD_LIBRARY (scl
   src/scl_init.c
   src/scl_utils.c
 )
+
+# need to be fixed
+SET_PROPERTY (SOURCE src/api/hardware/v0.5/blockcipher/aes/hca_aes.c
+              APPEND
+              PROPERTY COMPILE_FLAGS "-Wno-shorten-64-to-32")
