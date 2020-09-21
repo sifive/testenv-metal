@@ -9,7 +9,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-      submodules: true
+      with:
+          submodules: true
     - name: Load Docker toolchain containers
       run: docker/bin/dock.sh /bin/true
     - name: Build project from Docker container
