@@ -11,8 +11,19 @@ jobs:
     - uses: actions/checkout@v2
     - name: Load Docker toolchain containers
       run: docker/bin/dock.sh /bin/true
-    - name: Checkout submodules
-      run: git submodule init &&
-           git submodule update
+    - name: Clone scl-metal submodule
+      uses: actions/checkout@v2
+      with:
+        repository: sifive/scl-metal
+        path: scl
+        ref: v2
+    - name: Clone test-scl-metal submodule
+      uses: actions/checkout@v2
+      with:
+        repository: sifive/test-scl-metal
+        path: tests/scl-metal
+        ref: v2
+        ssh-key: ${{ secrets.SUBMODULE_SSH_KEY }}
+        persist-credentials: false
     - name: Build project from Docker container
       run: docker/bin/dock.sh scripts/build.sh qemu-sifive_e_rv64
