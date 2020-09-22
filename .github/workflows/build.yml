@@ -17,4 +17,11 @@ jobs:
     - name: Load Docker toolchain containers
       run: docker/bin/dock.sh /bin/true
     - name: Build project from Docker container
-      run: docker/bin/dock.sh scripts/build.sh qemu-sifive_e_rv64
+      run: docker/bin/dock.sh scripts/build.sh
+                qemu-sifive_e_rv64 DEBUG
+    - name: Build project from Docker container
+      run: docker/bin/dock.sh scripts/build.sh
+                qemu-sifive_e_rv64 RELEASE
+    - name: Build project from Docker container
+      run: docker/bin/dock.sh scripts/build.sh
+                qemu-sifive_e_rv64 STATIC_ANALYSIS

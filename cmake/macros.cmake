@@ -342,8 +342,6 @@ MACRO (deploy_cmakefiles)
     IF (EXISTS ${CMAKE_SOURCE_DIR}/${cmakefile})
       FILE (SHA256 ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile} hsrc)
       FILE (SHA256 ${CMAKE_SOURCE_DIR}/${cmakefile} hdest)
-      MESSAGE (STATUS "src: ${hsrc}  cmake/files/${cmakefile}")
-      MESSAGE (STATUS "dst: ${hdest} ${cmakedir}")
       IF (NOT hsrc STREQUAL hdest)
         MESSAGE (STATUS "Override ${CMAKE_SOURCE_DIR}/${cmakefile}")
         FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}

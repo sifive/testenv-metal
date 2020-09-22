@@ -13,9 +13,6 @@ else
     ARGS="$*"
 fi
 
-echo ARGS: $ARGS
-#ls "${SCRIPT_DIR}/${cmd}.sh"
-
 DIR=`dirname $0`
 VOLUMES=`${DIR}/dockvol.sh`
 [ $? -eq 0 ] || exit 1
