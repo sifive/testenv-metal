@@ -342,6 +342,8 @@ MACRO (deploy_cmakefiles)
     IF (EXISTS ${CMAKE_SOURCE_DIR}/${cmakefile})
       FILE (TIMESTAMP ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile} src_ts)
       FILE (TIMESTAMP ${CMAKE_SOURCE_DIR}/${cmakefile} dest_ts)
+      MESSAGE (STATUS "src: ${src_ts}  cmake/files/${cmakefile}")
+      MESSAGE (STATUS "dst: ${dest_ts} ${cmakefile}")
       IF (src_ts STRGREATER dest_ts)
         MESSAGE (STATUS "Override ${CMAKE_SOURCE_DIR}/${cmakefile}")
         FILE (COPY ${CMAKE_SOURCE_DIR}/cmake/files/${cmakefile}
