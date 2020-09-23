@@ -15,12 +15,12 @@ jobs:
       run: git submodule update --recursive &&
              git submodule status
     - name: Load Docker toolchain containers
-      run: docker/bin/dock.sh /bin/true
-    - name: Build RV64, Debug mode
-      run: docker/bin/dock.sh scripts/build.sh
-                qemu-sifive_e_rv64 DEBUG
-    - name: Test RV64, Debug mode
-      run: docker/bin/dock.sh scripts/utest.sh
+      run: docker/bin/dock.sh iroazh/freedom-dev:a3.12-v1.0 /bin/true
+    - name: Build RV64 target
+      run: docker/bin/dock.sh iroazh/freedom-dev:a3.12-v1.0 scripts/build.sh
+                qemu-sifive_e_rv64 debug
+    - name: Test RV64 target
+      run: docker/bin/dock.sh iroazh/freedom-test:a3.12-v1.0 scripts/utest.sh
                 -d bsp/qemu-sifive_e_rv64/dts/qemu.dts
                 -q /usr/local/qemu-fdt/bin
                 build/qemu-sifive_e_rv64/debug
