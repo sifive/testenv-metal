@@ -8,12 +8,38 @@ die() {
 
 SCRIPT_DIR=$(dirname $0)
 NAME=`basename $PWD`
-IMGENV="$1"
-test -n "${IMGENV}" || die "Missing Docker environment"
-IMGID=$(docker images -q "${IMGENV}")
-test -n "${IMGID}" || echo "Docker environment ${IMGENV} not available locally"
+CONF="$1"
+CONFPATH="$(dirname $0)/../conf/${CONF}.conf"
+test -f "${CONFPATH}" || die "Invalid Docker configuration"
 
-echo "Using Docker environment \"${IMGENV}\""
+volumes() {
+    VOLUMES=""
+    for cnr in $*; do
+        name=`echo $cnr | cut -d@ -f1`
+        path=`echo $cnr | cut -d@ -f2`
+        localname=`echo ${name} | tr ':' '_' | cut -d/ -f2`
+        volume="${localname}-vol"
+        if [ ! $(docker ps -q -a -f name=${volume}) ]; then
+            echo "Instanciating missing volume $volume" >&2
+            docker create -v ${path} --name ${volume} ${name} \
+                /bin/true > /dev/null
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi
+        fi
+        if [ -n "${VOLUMES}" ]; then
+            VOLUMES="${VOLUMES} ${volume}"
+        else
+            VOLUMES="${volume}"
+        fi
+    done
+
+    echo "${VOLUMES}"
+}
+
+. "${CONFPATH}"
+
+echo "Using Docker environment \"${BASE}\""
 shift
 
 cmd="$1"
@@ -24,8 +50,7 @@ else
     ARGS="$*"
 fi
 
-DIR=`dirname $0`
-VOLUMES=`${DIR}/dockvol.sh`
+VOLUMES=$(volumes ${CONTAINERS})
 [ $? -eq 0 ] || exit 1
 
 OPTS=""
@@ -47,7 +72,7 @@ docker run \
     --env PATH=${IMGPATH} \
     --mount type=bind,source=${PWD},target=/tmp/${NAME} \
     ${DOCKOPTS} \
-    --workdir=/tmp/${NAME} ${IMGENV} \
+    --workdir=/tmp/${NAME} ${BASE} \
     ${ARGS}
 DOCKER_RC=$?
 
