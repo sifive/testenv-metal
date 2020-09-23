@@ -40,7 +40,7 @@ EOT
 READELF=$(which riscv64-unknown-elf-readelf 2>/dev/null)
 test -n "${READELF}" || die "Unable to locate readelf for RISC-V"
 DTC=$(which dtc 2>/dev/null)
-test -n "${READELF}" || die "Unable to locate dtc"
+test -n "${DTC}" || die "Unable to locate dtc"
 
 DTS=""
 UNIT_TESTS=""
@@ -76,6 +76,7 @@ while [ $# -gt 0 ]; do
 done
 
 test -n "${DTS}" || die "DTS should be specified"
+test -n "${UNIT_TESTS}" || die "No test to execute"
 
 # Be sure to leave on first error
 set -eu
