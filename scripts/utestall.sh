@@ -66,11 +66,11 @@ for testdir in ${TESTDIR}; do
             if [ -d ${testdir}/${dts}/${build} ]; then
                 udts=$(echo "${dts}" | tr [:lower:] [:upper:])
                 ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
-                echo "" >&2
-                echo "[Testing ${udts} in ${ubuild}]" >&2
+                echo ""
+                echo "\033[36m[Testing ${udts} in ${ubuild}]\033[39m"
                 ${SCRIPT_DIR}/utest.sh ${QEMUOPT} -d "bsp/${dts}/dts/qemu.dts" ${testdir}/${dts}/${build}
                 if [ $? -ne 0 ]; then
-                    echo "Test failed (${udts} in ${ubuild})" >&2
+                    echo "\033[31mTest failed (${udts} in ${ubuild})\033[39m" >&2
                     if [ ${ABORT} -gt 0 ]; then
                         exit $?
                     else
@@ -83,6 +83,6 @@ for testdir in ${TESTDIR}; do
 done
 
 if [ ${FAILURE} -ne 0 ]; then
-    echo "At least one test failed" >&2
+    echo "\033[31mAt least one test failed\033[39m" >&2
     exit 1
 fi

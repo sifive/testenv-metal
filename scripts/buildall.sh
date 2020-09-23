@@ -63,10 +63,10 @@ for dts in ${DTS}; do
         udts=$(echo "${dts}" | tr [:lower:] [:upper:])
         ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
         echo "" >&2
-        echo "[Building ${udts} in ${ubuild}]" >&2
+        echo "\033[36m[Building ${udts} in ${ubuild}]\033[39m"
         ${SCRIPT_DIR}/build.sh ${dts} ${build}
         if [ $? -ne 0 ]; then
-            echo "Build failed (${udts} in ${ubuild})" >&2
+            echo "\033[31mBuild failed (${udts} in ${ubuild})\033[39m" >&2
             if [ ${ABORT} -gt 0 ]; then
                 exit $?
             else
@@ -77,6 +77,6 @@ for dts in ${DTS}; do
 done
 
 if [ ${FAILURE} -ne 0 ]; then
-    echo "At least one build failed" >&2
+    echo "\033[31mAt least one build failed\033[39m" >&2
     exit 1
 fi
