@@ -1,24 +1,17 @@
-name: Build RISC-V softmmu
+name: Build and test SCL-metal
 
 on: [push]
 
 jobs:
-  build:
+  build_n_test:
     runs-on: ubuntu-latest
-    strategy:
-        matrix:
-            dts: [qemu-sifive_e_rv64, qemu-sifive_e_rv32]
-            build: [debug, release]
-        fail-fast: false
-        max-parallel: 1
+    env:
+        targets: [qemu-sifive_e_rv64, qemu-sifive_e_rv32]
 
     steps:
       - uses: actions/checkout@v2
         with:
             submodules: true
-
-      - uses: satackey/action-docker-layer-caching@v0.0.8
-        continue-on-error: true
 
       - name: Checkout the proper submodule versions
         run: git submodule update --recursive &&
@@ -28,29 +21,9 @@ jobs:
         run: docker/bin/dock.sh build /bin/true &&
              docker/bin/dock.sh utest /bin/true
 
-      - name: Build target ${{ matrix.dts }} ${{ matrix.build }}
-        run: docker/bin/dock.sh build scripts/build.sh
-                  ${{ matrix.dts }} ${{ matrix.build }}
+      - name: Build targets
+        run: docker/bin/dock.sh build scripts/buildallsh -s ${{ matrix.targets }}
 
-      - name: Test target ${{ matrix.dts }} ${{ matrix.build }}
-        run: docker/bin/dock.sh utest scripts/utest.sh
-                  -d bsp/${{ matrix.dts }}/dts/qemu.dts
-                  -q /usr/local/qemu-fdt/bin
-                  build/${{ matrix.dts }}/${{ matrix.build }}
-
-
-                #- name: Build RV64, Release mode
-    #  run: docker/bin/dock.sh scripts/build.sh
-    #            qemu-sifive_e_rv64 RELEASE
-    #- name: Static analysis (RV64)
-    #  run: docker/bin/dock.sh scripts/build.sh
-    #            qemu-sifive_e_rv64 STATIC_ANALYSIS
-    #- name: Build RV32, Debug mode
-    #  run: docker/bin/dock.sh scripts/build.sh
-    #            qemu-sifive_e_rv32 DEBUG
-    #- name: Build RV32, Release mode
-    #  run: docker/bin/dock.sh scripts/build.sh
-    #            qemu-sifive_e_rv32 RELEASE
-    #- name: Static analysis (RV32)
-    #  run: docker/bin/dock.sh scripts/build.sh
-    #            qemu-sifive_e_rv32 STATIC_ANALYSIS
+      - name: Test target
+        run: docker/bin/dock.sh utest scripts/utestall.sh
+                  -q /usr/local/qemu-fdt/bin build
