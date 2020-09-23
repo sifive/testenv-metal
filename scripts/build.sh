@@ -24,8 +24,8 @@ BUILD="DEBUG"
 SA_DIR=""
 for arg in $*; do
     case $arg in
-        *DEBUG|*RELEASE)
-            BUILD=$2
+        *DEBUG|*RELEASE|*debug|*release)
+            BUILD=$(echo "${arg}" | tr [:upper:] [:lower:])
             ;;
         STATIC_ANALYSIS)
             CMAKE_OPTS="${CMAKE_OPTS} -DSTATIC_ANALYSIS=1"
