@@ -13,16 +13,16 @@ jobs:
         with:
             submodules: true
 
-      - name: Checkout the proper submodule versions
-        run: git submodule update --recursive &&
+      - name: Checkout SCL and Unity submodules
+        run: git submodule update --init --recursive &&
                git submodule status
 
       - name: Fetch all Docker images
         run: docker/bin/dock.sh build /bin/true &&
              docker/bin/dock.sh utest /bin/true
 
-      - name: Build targets
+      - name: Build all targets
         run: docker/bin/dock.sh build scripts/buildall.sh -s $TARGETS
 
-      - name: Test targets
+      - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build

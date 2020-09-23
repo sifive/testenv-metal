@@ -1,6 +1,8 @@
 # Freedom Metal
 
-Quick and dirty project to build w/ LLVM & CMake/Ninja
+![Status](https://github.com/<owner>/<repo>/workflows/build_test/badge.svg)
+
+PoC to build w/ LLVM & CMake/Ninja
 
 ## Installation
 
