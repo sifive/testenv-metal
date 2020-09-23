@@ -59,7 +59,7 @@ while [ $# -gt 0 ]; do
         -q)
             shift
             QEMUPATH="$1"
-            test -d "${QEMUPATH}" || die "Invalid QEMU directory ${QEMUPOATH}"
+            test -d "${QEMUPATH}" || die "Invalid QEMU directory ${QEMUPATH}"
             ;;
         *.elf)
             test -f $1 || die "UT $1 does not exist"

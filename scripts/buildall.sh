@@ -62,7 +62,8 @@ for dts in ${DTS}; do
     for build in ${BUILDS}; do
         udts=$(echo "${dts}" | tr [:lower:] [:upper:])
         ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
-        echo "[Building ${udts} in ${ubuild}]"
+        echo "" >&2
+        echo "[Building ${udts} in ${ubuild}]" >&2
         ${SCRIPT_DIR}/build.sh ${dts} ${build}
         if [ $? -ne 0 ]; then
             echo "Build failed (${udts} in ${ubuild})" >&2

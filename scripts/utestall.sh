@@ -39,8 +39,9 @@ for arg in $*; do
             ;;
         -q)
             shift
+            QEMUPATH="$1"
+            test -d "${QEMUPATH}" || die "Invalid QEMU directory ${QEMUPATH}"
             QEMUOPT="-q $1"
-            test -d "${QEMUPATH}" || die "Invalid QEMU directory ${QEMUPOATH}"
             ;;
         -h)
             usage
@@ -58,14 +59,15 @@ test -n "${TESTDIR}" || die "No test direcory specified"
 
 FAILURE=0
 for testdir in ${TESTDIR}; do
-    dtsdirs=$(cd ${testdir} && find . -type d -depth 1)
+    dtsdirs=$(cd ${testdir} && find . -type d -maxdepth 1)
     for dts in ${dtsdirs}; do
         dts=$(echo "${dts}" | cut -c3-)
         for build in ${BUILDS}; do
             if [ -d ${testdir}/${dts}/${build} ]; then
                 udts=$(echo "${dts}" | tr [:lower:] [:upper:])
                 ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
-                echo "[Testing ${udts} in ${ubuild}]"
+                echo "" >&2
+                echo "[Testing ${udts} in ${ubuild}]" >&2
                 ${SCRIPT_DIR}/utest.sh ${QEMUOPT} -d "bsp/${dts}/dts/qemu.dts" ${testdir}/${dts}/${build}
                 if [ $? -ne 0 ]; then
                     echo "Test failed (${udts} in ${ubuild})" >&2
