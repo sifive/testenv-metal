@@ -3,8 +3,8 @@ name: Build RISC-V softmmu
 on: [push]
 
 jobs:
-    runs-on: ubuntu-latest
   prepare:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
