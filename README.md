@@ -1,6 +1,6 @@
 # Freedom Metal
 
-![Status](https://github.com/<owner>/<repo>/workflows/build_test/badge.svg)
+![Status](https://github.com/sifive-eblot/freedom-metal/workflows/SCL-metal/badge.svg)
 
 PoC to build w/ LLVM & CMake/Ninja
 

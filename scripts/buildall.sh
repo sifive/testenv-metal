@@ -11,9 +11,7 @@ SCRIPT_DIR=$(dirname $0)
 DTS=""
 BUILDS="debug release"
 
-echo "TERM is $TERM"
-export TERM=xterm
-echo "TERM is $TERM"
+export TERM=ansi
 
 # Die with an error message
 die() {
