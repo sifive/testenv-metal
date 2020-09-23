@@ -6,7 +6,7 @@ jobs:
   build_n_test:
     runs-on: ubuntu-latest
     env:
-        targets: [qemu-sifive_e_rv64, qemu-sifive_e_rv32]
+        targets: qemu-sifive_e_rv64 qemu-sifive_e_rv32
 
     steps:
       - uses: actions/checkout@v2
