@@ -14,7 +14,7 @@ jobs:
                git submodule status
       - name: Load Docker toolchain containers
         run: docker/bin/dock.sh docker/conf/build.conf /bin/true &&
-             docker/bin/dock.sh docker/conf/utest.conf /bin/true &&
+             docker/bin/dock.sh docker/conf/utest.conf /bin/true
 
   build:
     runs-on: ubuntu-latest
