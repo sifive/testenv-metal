@@ -76,6 +76,4 @@ docker run \
     ${ARGS}
 DOCKER_RC=$?
 
-echo "Docker exit status: ${DOCKER_RC}" >&2
-
 exit ${DOCKER_RC}

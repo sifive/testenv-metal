@@ -11,6 +11,12 @@ SCRIPT_DIR=$(dirname $0)
 TESTDIR=""
 BUILDS="debug release"
 
+# Die with an error message
+die() {
+    echo "$*" >&2
+    exit 1
+}
+
 usage() {
     NAME=`basename $0`
     cat <<EOT
@@ -48,7 +54,7 @@ for arg in $*; do
     esac
 done
 
-test -n "${TESTDIR}" || usage
+test -n "${TESTDIR}" || die "No test direcory specified"
 
 FAILURE=0
 for testdir in ${TESTDIR}; do

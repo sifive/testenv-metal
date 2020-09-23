@@ -6,7 +6,7 @@ jobs:
   build_n_test:
     runs-on: ubuntu-latest
     env:
-        targets: qemu-sifive_e_rv64 qemu-sifive_e_rv32
+        TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
 
     steps:
       - uses: actions/checkout@v2
@@ -22,7 +22,7 @@ jobs:
              docker/bin/dock.sh utest /bin/true
 
       - name: Build targets
-        run: docker/bin/dock.sh build scripts/buildall.sh -s ${{ matrix.targets }}
+        run: docker/bin/dock.sh build scripts/buildall.sh -s $TARGETS
 
       - name: Test target
         run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build

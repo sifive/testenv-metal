@@ -11,6 +11,12 @@ SCRIPT_DIR=$(dirname $0)
 DTS=""
 BUILDS="debug release"
 
+# Die with an error message
+die() {
+    echo "$*" >&2
+    exit 1
+}
+
 usage() {
     NAME=`basename $0`
     cat <<EOT
@@ -49,7 +55,7 @@ if [ $SA -gt 0 ]; then
     BUILDS="${BUILDS} static_analysis"
 fi
 
-test -n "${DTS}" || usage
+test -n "${DTS}" || die "No target specified"
 
 FAILURE=0
 for dts in ${DTS}; do
