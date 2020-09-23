@@ -22,8 +22,7 @@ jobs:
              docker/bin/dock.sh utest /bin/true
 
       - name: Build targets
-        run: docker/bin/dock.sh build scripts/buildallsh -s ${{ matrix.targets }}
+        run: docker/bin/dock.sh build scripts/buildall.sh -s ${{ matrix.targets }}
 
       - name: Test target
-        run: docker/bin/dock.sh utest scripts/utestall.sh
-                  -q /usr/local/qemu-fdt/bin build
+        run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build
