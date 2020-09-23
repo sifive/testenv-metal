@@ -11,4 +11,4 @@ RUN [ "82ce06e7c2b6a688dd0aa8f0aaa20f44850b1e692cf6c59bf7eebdc28440abea" = \
     mv llvm-project-10.0.1 llvm && rm llvm-project-10.0.1.tar.xz
 WORKDIR /
 
-# docker build -f clang-v10.0.1.docker -t clang:v10.0.1 .
+# docker build -f clang-v10.0.1.dockerfile -t clang:v10.0.1 .

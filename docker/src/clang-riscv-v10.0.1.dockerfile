@@ -22,5 +22,5 @@ WORKDIR /
 #   target application, saving image storage footprint
 # This dockerfile is dedicated to build the second, enlightened one.
 
-# docker build -f clang-riscv-v10.0.1.docker -t clang-riscv:a3.12-v10.0.1 .
+# docker build -f clang-riscv-v10.0.1.dockerfile -t clang-riscv:a3.12-v10.0.1 .
 # docker tag clang-riscv:a3.12-v10.0.1 ${DOCKERHUB_USER}/clang-riscv:a3.12-v10.0.1

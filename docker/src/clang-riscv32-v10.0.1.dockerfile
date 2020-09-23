@@ -30,7 +30,7 @@ COPY --from=builder ${CLANG10PATH}/${xtarget} \
      ${CLANG10PATH}/${xtarget}
 WORKDIR /
 
-# docker build -f clang-riscv32-v10.0.1.docker -t clang-riscv32:a3.12-v10.0.1 .
+# docker build -f clang-riscv32-v10.0.1.dockerfile -t clang-riscv32:a3.12-v10.0.1 .
 # docker tag clang-riscv32:a3.12-v10.0.1 iroazh/clang-riscv32:a3.12-v10.0.1
 
 

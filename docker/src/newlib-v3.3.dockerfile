@@ -11,4 +11,4 @@ RUN curl -LO ftp://sourceware.org/pub/newlib/newlib-3.3.0.tar.gz && \
      mv newlib-3.3.0 newlib
 WORKDIR /
 
-# docker build -f host/docker/src/newlib-v3.docker -t newlib:v3.1.0 .
+# docker build -f host/docker/src/newlib-v3.dockerfile -t newlib:v3.1.0 .
