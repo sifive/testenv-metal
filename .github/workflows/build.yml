@@ -13,8 +13,8 @@ jobs:
         run: git submodule update --recursive &&
                git submodule status
       - name: Load Docker toolchain containers
-        run: docker/bin/dock.sh docker/conf/build.conf /bin/true &&
-             docker/bin/dock.sh docker/conf/utest.conf /bin/true
+        run: docker/bin/dock.sh build /bin/true &&
+             docker/bin/dock.sh utest /bin/true
 
   build:
     runs-on: ubuntu-latest
@@ -29,10 +29,10 @@ jobs:
 
     steps:
       - name: Build target
-        run: docker/bin/dock.sh docker/conf/build.conf scripts/build.sh
+        run: docker/bin/dock.sh build scripts/build.sh
                   ${{ matrix.dts }} ${{ matrix.build }}
       - name: Test target
-        run: docker/bin/dock.sh docker/conf/utest.conf scripts/utest.sh
+        run: docker/bin/dock.sh utest scripts/utest.sh
                   -d bsp/${{ matrix.dts }}/dts/qemu.dts
                   -q /usr/local/qemu-fdt/bin
                   build/${{ matrix.dts }}/${{ matrix.build }}
