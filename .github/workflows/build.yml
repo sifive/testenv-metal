@@ -3,28 +3,42 @@ name: Build RISC-V softmmu
 on: [push]
 
 jobs:
+    runs-on: ubuntu-latest
+  prepare:
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: true
+      - name: Checkout the proper submodule versions
+        run: git submodule update --recursive &&
+               git submodule status
+      - name: Load Docker toolchain containers
+        run: docker/bin/dock.sh docker/conf/build.conf /bin/true &&
+             docker/bin/dock.sh docker/conf/utest.conf /bin/true &&
+
   build:
     runs-on: ubuntu-latest
-    # runs-on: self-hosted
+    needs: prepare
+    fail-fast: false
+    continue-on-error: true
+    strategy:
+        matrix:
+            dts: [qemu-sifive_e_rv64]
+            build: [debug]
+        max-parallel: 1
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-          submodules: true
-    - name: Checkout the proper submodule versions
-      run: git submodule update --recursive &&
-             git submodule status
-    - name: Load Docker toolchain containers
-      run: docker/bin/dock.sh iroazh/freedom-dev:a3.12-v1.0 /bin/true
-    - name: Build RV64 target
-      run: docker/bin/dock.sh iroazh/freedom-dev:a3.12-v1.0 scripts/build.sh
-                qemu-sifive_e_rv64 debug
-    - name: Test RV64 target
-      run: docker/bin/dock.sh iroazh/freedom-test:a3.12-v1.0 scripts/utest.sh
-                -d bsp/qemu-sifive_e_rv64/dts/qemu.dts
-                -q /usr/local/qemu-fdt/bin
-                build/qemu-sifive_e_rv64/debug
-    #- name: Build RV64, Release mode
+      - name: Build target
+        run: docker/bin/dock.sh docker/conf/build.conf scripts/build.sh
+                  ${{ matrix.dts }} ${{ matrix.build }}
+      - name: Test target
+        run: docker/bin/dock.sh docker/conf/utest.conf scripts/utest.sh
+                  -d bsp/${{ matrix.dts }}/dts/qemu.dts
+                  -q /usr/local/qemu-fdt/bin
+                  build/${{ matrix.dts }}/${{ matrix.build }}
+
+
+                #- name: Build RV64, Release mode
     #  run: docker/bin/dock.sh scripts/build.sh
     #            qemu-sifive_e_rv64 RELEASE
     #- name: Static analysis (RV64)
