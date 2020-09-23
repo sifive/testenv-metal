@@ -19,12 +19,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: prepare
-    fail-fast: false
     continue-on-error: true
     strategy:
         matrix:
             dts: [qemu-sifive_e_rv64]
             build: [debug]
+        fail-fast: false
         max-parallel: 1
 
     steps:
