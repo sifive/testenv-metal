@@ -1,4 +1,4 @@
-name: Build and test SCL-metal
+name: SCL-metal
 
 on: [push]
 
