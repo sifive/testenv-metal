@@ -54,10 +54,12 @@ test -n "${DTS}" || usage
 FAILURE=0
 for dts in ${DTS}; do
     for build in ${BUILDS}; do
-        echo "[Building ${dts} in ${build}]"
+        udts=$(echo "${dts}" | tr [:lower:] [:upper:])
+        ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
+        echo "[Building ${udts} in ${ubuild}]"
         ${SCRIPT_DIR}/build.sh ${dts} ${build}
         if [ $? -ne 0 ]; then
-            echo "Build failed (${dts} in ${build})" >&2
+            echo "Build failed (${udts} in ${ubuild})" >&2
             if [ ${ABORT} -gt 0 ]; then
                 exit $?
             else
