@@ -19,6 +19,9 @@ test -n "${XBSP:=$1}" || die "XBSP should be specified"
 
 CMAKE_OPTS="-DXBSP=${XBSP}"
 NINJA_OPTS=""
+SUBDIR=""
+BUILD="DEBUG"
+SA_DIR=""
 for arg in $*; do
     case $arg in
         *DEBUG|*RELEASE)
@@ -26,18 +29,20 @@ for arg in $*; do
             ;;
         STATIC_ANALYSIS)
             CMAKE_OPTS="${CMAKE_OPTS} -DSTATIC_ANALYSIS=1"
+            SA_DIR="sa_"
             ;;
         -v|VERBOSE)
             NINJA_OPTS="${NINJA_OPTS} -v"
             ;;
     esac
 done
-CMAKE_OPTS="${CMAKE_OPTS} -DCMAKE_BUILD_TYPE=${BUILD:-DEBUG}"
+CMAKE_OPTS="${CMAKE_OPTS} -DCMAKE_BUILD_TYPE=${BUILD}"
+SUBDIR=$(echo "${SA_DIR}${BUILD}" | tr [:upper:] [:lower:])
 
 set -eu
 
-rm -rf build/${XBSP}
-mkdir -p build/${XBSP}
-cd build/${XBSP}
-cmake -G Ninja ../.. ${CMAKE_OPTS}
+rm -rf build/${XBSP}/${SUBDIR}
+mkdir -p build/${XBSP}/${SUBDIR}
+cd build/${XBSP}/${SUBDIR}
+cmake -G Ninja ../../.. ${CMAKE_OPTS}
 ninja ${NINJA_OPTS}

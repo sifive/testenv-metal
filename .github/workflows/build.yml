@@ -13,24 +13,27 @@ jobs:
           submodules: true
     - name: Checkout the proper submodule versions
       run: git submodule update --recursive &&
-            git submodule status
+             git submodule status
     - name: Load Docker toolchain containers
       run: docker/bin/dock.sh /bin/true
     - name: Build RV64, Debug mode
       run: docker/bin/dock.sh scripts/build.sh
                 qemu-sifive_e_rv64 DEBUG
-    - name: Build RV64, Release mode
-      run: docker/bin/dock.sh scripts/build.sh
-                qemu-sifive_e_rv64 RELEASE
-    - name: Static analysis (RV64)
-      run: docker/bin/dock.sh scripts/build.sh
-                qemu-sifive_e_rv64 STATIC_ANALYSIS
-    - name: Build RV32, Debug mode
-      run: docker/bin/dock.sh scripts/build.sh
-                qemu-sifive_e_rv32 DEBUG
-    - name: Build RV32, Release mode
-      run: docker/bin/dock.sh scripts/build.sh
-                qemu-sifive_e_rv32 RELEASE
-    - name: Static analysis (RV32)
-      run: docker/bin/dock.sh scripts/build.sh
-                qemu-sifive_e_rv32 STATIC_ANALYSIS
+    - name: Test RV64, Debug mode
+      run: docker/bin/dock.sh scripts/utest.sh
+                build/qemu-sifive_e_rv64/debug
+    #- name: Build RV64, Release mode
+    #  run: docker/bin/dock.sh scripts/build.sh
+    #            qemu-sifive_e_rv64 RELEASE
+    #- name: Static analysis (RV64)
+    #  run: docker/bin/dock.sh scripts/build.sh
+    #            qemu-sifive_e_rv64 STATIC_ANALYSIS
+    #- name: Build RV32, Debug mode
+    #  run: docker/bin/dock.sh scripts/build.sh
+    #            qemu-sifive_e_rv32 DEBUG
+    #- name: Build RV32, Release mode
+    #  run: docker/bin/dock.sh scripts/build.sh
+    #            qemu-sifive_e_rv32 RELEASE
+    #- name: Static analysis (RV32)
+    #  run: docker/bin/dock.sh scripts/build.sh
+    #            qemu-sifive_e_rv32 STATIC_ANALYSIS
