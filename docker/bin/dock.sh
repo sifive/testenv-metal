@@ -1,9 +1,20 @@
 #!/bin/sh
 
+# Die with an error message
+die() {
+    echo "$*" >&2
+    exit 1
+}
+
 SCRIPT_DIR=$(dirname $0)
 NAME=`basename $PWD`
-DEVENV="iroazh/freedom-dev:a3.12"
-echo "Using Docker environment \"${DEVENV}\""
+IMGENV="$1"
+test -n "${IMGENV}" || die "Missing Docker environment"
+IMGID=$(docker images -q "${IMGENV}")
+test -n "${IMGID}" || echo "Docker environment ${IMGENV} not available locally"
+
+echo "Using Docker environment \"${IMGENV}\""
+shift
 
 cmd="$1"
 if [ -n "$cmd" -a -f "${SCRIPT_DIR}/${cmd}.sh" ]; then
@@ -36,7 +47,7 @@ docker run \
     --env PATH=${IMGPATH} \
     --mount type=bind,source=${PWD},target=/tmp/${NAME} \
     ${DOCKOPTS} \
-    --workdir=/tmp/${NAME} ${DEVENV} \
+    --workdir=/tmp/${NAME} ${IMGENV} \
     ${ARGS}
 DOCKER_RC=$?
 
