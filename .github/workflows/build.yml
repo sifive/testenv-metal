@@ -21,6 +21,8 @@ jobs:
                 qemu-sifive_e_rv64 DEBUG
     - name: Test RV64, Debug mode
       run: docker/bin/dock.sh scripts/utest.sh
+                -d bsp/qemu-sifive_e_rv64/dts/qemu.dts
+                -q /usr/local/qemu-fdt/bin
                 build/qemu-sifive_e_rv64/debug
     #- name: Build RV64, Release mode
     #  run: docker/bin/dock.sh scripts/build.sh
