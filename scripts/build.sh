@@ -10,7 +10,20 @@
 #------------------------------------------------------------------------------
 
 SCRIPT_DIR=$(dirname $0)
-# . ${SCRIPT_DIR}/funcs.sh
+. ${SCRIPT_DIR}/funcs.sh
+
+usage () {
+    NAME=`basename $0`
+    cat <<EOT
+$NAME [-h] [-v] [-q] [debug|release|static_analysis] <bsp>
+
+ bsp: the name of a BSP (see bsp/ directory)
+
+ -h:  print this help
+ -q:  quiet (do not report build steps)
+ -v:  verbose (report all toolchain commands)
+EOT
+}
 
 CMAKE_OPTS=""
 NINJA_OPTS=""
@@ -22,6 +35,9 @@ QUIET=0
 XBSP=""
 for arg in $*; do
     case $arg in
+        -h)
+            usage
+            ;;
         -q)
             QUIET=1
             ;;
@@ -32,7 +48,7 @@ for arg in $*; do
         *DEBUG|*RELEASE|*debug|*release)
             BUILD=$(echo "${arg}" | tr [:upper:] [:lower:])
             ;;
-        STATIC_ANALYSIS)
+        STATIC_ANALYSIS|static_analysis)
             CMAKE_OPTS="${CMAKE_OPTS} -DSTATIC_ANALYSIS=1"
             SA_DIR="sa_"
             ;;
@@ -58,6 +74,16 @@ cmake -G Ninja ../../.. ${CMAKE_OPTS}
 if [ ${QUIET} -eq 0 ]; then
     ninja ${NINJA_OPTS}
 else
-    # silent build mode
-    ninja ${NINJA_OPTS} >/dev/null
+    # silent build mode, discard Ninja output
+    # as Ninja redirect toolchain stderr to stdout, need to filter out
+    # NINJA_STATUS prolog to get the compiler warnings and errors
+    ninja ${NINJA_OPTS} | egrep -v '^\[' | \
+        while read -r line; do
+            if (echo "${line}" | grep -q 'warning:'); then
+                warning -n "WARNING: "
+            elif (echo "${line}" | grep -q 'error:'); then
+                error -n "ERROR: "
+            fi
+            echo "${line}"
+    done
 fi
