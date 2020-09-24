@@ -9,14 +9,12 @@ jobs:
         TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
 
     steps:
-      - uses: actions/checkout@v2
-        with:
-            submodules: true
+      #- uses: actions/checkout@v2
+      #  with:
+      #      submodules: true
 
       - name: Set selected color
-        run: echo '::set-env name=SELECTED_COLOR::green'
-      - name: Set selected color
-        run: echo Test color
+        run: echo '::set-env name=SELECTED_COLOR::green'; echo "Test Color"
       - name: Get color
         run: echo 'The selected color is' $SELECTED_COLOR
 
