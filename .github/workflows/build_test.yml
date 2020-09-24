@@ -21,7 +21,7 @@ jobs:
       - name: Shell color ouput
         run: echo -ne "\033[31mBuild failed\033[0m"
       - name: Docker color ouput
-        run:  docker run --rm -ti alpine:3.12  echo -ne "\033[Docker failed\033[0m"
+        run:  docker run --rm alpine:3.12 echo -ne "\033[Docker failed\033[0m"
 
 
         # run: echo 'The selected color is' $SELECTED_COLOR
