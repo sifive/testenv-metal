@@ -13,13 +13,17 @@ jobs:
       #  with:
       #      submodules: true
 
-      - name: Test color output
+      - name: Python color output
         run: |
           print('\u001b[31mHello Red\u001b[0m')
           print('\u001b[32mHello Green\u001b[0m')
         shell: python3 {0}
-      - name: Get color
-        run: echo "\033[31mBuild failed\033[0m"
+      - name: Shell color ouput
+        run: echo -ne "\033[31mBuild failed\033[0m"
+      - name: Docker color ouput
+        run:  docker run --rm -ti alpine:3.12  echo -ne "\033[Docker failed\033[0m"
+
+
         # run: echo 'The selected color is' $SELECTED_COLOR
 
         # - name: Checkout SCL and Unity submodules
