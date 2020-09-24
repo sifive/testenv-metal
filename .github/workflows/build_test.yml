@@ -9,36 +9,22 @@ jobs:
         TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
 
     steps:
-      #- uses: actions/checkout@v2
-      #  with:
-      #      submodules: true
+      - uses: actions/checkout@v2
+        with:
+            submodules: true
 
-      - name: Python color output
-        run: |
-          print('\u001b[31mHello Red\u001b[0m')
-          print('\u001b[32mHello Green\u001b[0m')
-        shell: python3 {0}
-      - name: Shell color ouput
-        run: echo -ne "\033[31mBuild failed\033[0m"
-      - name: Docker color ouput
-        run:  docker run --rm alpine:3.12 echo -ne "\033[31mBuild failed\033[0m"
+            - name: Checkout SCL and Unity submodules
+        run: git submodule update --init --recursive &&
+               git submodule status
 
+      - name: Fetch all Docker images
+        run: docker/bin/dock.sh build /bin/true &&
+             docker/bin/dock.sh utest /bin/true
 
-        # run: echo 'The selected color is' $SELECTED_COLOR
+      - name: Build all targets
+        run:  echo '::set-env name=SELECTED_COLOR::ansi-red' &&
+              docker/bin/dock.sh build scripts/buildall.sh -g -s $TARGETS &&
+              echo '::set-env name=SELECTED_COLOR::ansi-white'
 
-        # - name: Checkout SCL and Unity submodules
-      #   run: git submodule update --init --recursive &&
-      #          git submodule status
-# 
-      # - name: Fetch all Docker images
-      #   run: docker/bin/dock.sh build /bin/true &&
-      #        docker/bin/dock.sh utest /bin/true
-# 
-      # - name: Build all targets
-      #   run:  echo '::set-env name=SELECTED_COLOR::ansi-red' &&
-      #         docker/bin/dock.sh build scripts/buildall.sh -s $TARGETS &&
-      #         echo '::set-env name=SELECTED_COLOR::ansi-white'
-# 
-      # - name: Test all targets
-      #   run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build
-# 
+      - name: Test all targets
+        run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build

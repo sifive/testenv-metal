@@ -22,17 +22,23 @@ NINJA_OPTS=""
 SUBDIR=""
 BUILD="DEBUG"
 SA_DIR=""
+GHA=0
+QUIET=0
 for arg in $*; do
     case $arg in
+        -q)
+            QUIET=1
+            ;;
+        -v|VERBOSE)
+            NINJA_OPTS="${NINJA_OPTS} -v"
+            QUIET=0
+            ;;
         *DEBUG|*RELEASE|*debug|*release)
             BUILD=$(echo "${arg}" | tr [:upper:] [:lower:])
             ;;
         STATIC_ANALYSIS)
             CMAKE_OPTS="${CMAKE_OPTS} -DSTATIC_ANALYSIS=1"
             SA_DIR="sa_"
-            ;;
-        -v|VERBOSE)
-            NINJA_OPTS="${NINJA_OPTS} -v"
             ;;
     esac
 done
@@ -45,4 +51,9 @@ rm -rf build/${XBSP}/${SUBDIR}
 mkdir -p build/${XBSP}/${SUBDIR}
 cd build/${XBSP}/${SUBDIR}
 cmake -G Ninja ../../.. ${CMAKE_OPTS}
-ninja ${NINJA_OPTS}
+if [ ${QUIET} -eq 0 ]; then
+    ninja ${NINJA_OPTS}
+else
+    # silent build mode
+    ninja ${NINJA_OPTS} >/dev/null
+fi

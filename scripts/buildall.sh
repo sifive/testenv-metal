@@ -21,16 +21,16 @@ die() {
 
 info () {
     # echo "echo "::set-env name=action_state::yellow""
-    echo '::set-env name=SELECTED_COLOR::cyan'
+    echo -ne "\033[36m"
     echo $*
-    echo '::set-env name=SELECTED_COLOR::white'
+    echo -ne "\033[0m"
 }
 
 error () {
     # echo "echo "::set-env name=action_state::yellow""
-    echo '::set-env name=SELECTED_COLOR::red' >&2
+    echo -ne "\033[31m" >&2
     echo $* >&2
-    echo '::set-env name=SELECTED_COLOR::white' >&2
+    echo -ne "\033[0m" >&2
 }
 
 usage() {
@@ -42,23 +42,28 @@ $NAME [-h] [-a] [-s] [dts] ...
 
  -h:  print this help
  -a:  abort on first failed build (default: resume)
+ -q:  quiet (do not report build steps)
  -s:  run static analyzer in addition to regular builds
 EOT
 }
 
 SA=0
 ABORT=0
+OPTS=""
 for arg in $*; do
     case ${arg} in
-        -s)
-            SA=1
-            ;;
         -a)
             ABORT=1
+            ;;
+        -q)
+            OPTS="${OPTS} -q"
             ;;
         -h)
             usage
             exit 0
+            ;;
+        -s)
+            SA=1
             ;;
         -*)
             ;;
@@ -78,8 +83,8 @@ for dts in ${DTS}; do
     for build in ${BUILDS}; do
         udts=$(echo "${dts}" | tr [:lower:] [:upper:])
         ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
-        info "Building ${udts} in ${ubuild}]"
-        ${SCRIPT_DIR}/build.sh ${dts} ${build}
+        info "Building [${udts} in ${ubuild}]"
+        ${SCRIPT_DIR}/build.sh ${OPTS} ${dts} ${build}
         if [ $? -ne 0 ]; then
             error "Build failed (${udts} in ${ubuild})"
             if [ ${ABORT} -gt 0 ]; then
