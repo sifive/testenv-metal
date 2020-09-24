@@ -10,30 +10,30 @@ info () {
 }
 
 warning () {
-    echo -ne "\033[33;1m" >&2
+    echo -ne "\033[33;1m"
     if [ "$1" = "-n" ]; then
         shift
-        echo -n "$*" >&2
+        echo -n "$*"
     else
-        echo "$*" >&2
+        echo "$*"
     fi
-    echo -ne "\033[0m" >&2
+    echo -ne "\033[0m"
 }
 
 error () {
-    echo -ne "\033[31;1m" >&2
+    echo -ne "\033[31;1m"
     if [ "$1" = "-n" ]; then
         shift
-        echo -n "$*" >&2
+        echo -n "$*"
     else
-        echo "$*" >&2
+        echo "$*"
     fi
-    echo -ne "\033[0m" >&2
+    echo -ne "\033[0m"
 }
 
 # Die with an error message
 die() {
-    error $*
+    error $* >&2
     exit 1
 }
 
