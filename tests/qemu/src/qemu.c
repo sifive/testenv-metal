@@ -55,10 +55,10 @@ static void
 _ut_run(void)
 {
     UnityFixture.Verbose = 1;
-    UnityFixture.GroupFilter = "dma";
-    //UnityFixture.NameFilter = "short_msg6";
+    // UnityFixture.GroupFilter = "dma_sha256_poll";
+    // UnityFixture.NameFilter = "short_msg1_64";
 
-    RUN_TEST_GROUP(time_irq);
+    // RUN_TEST_GROUP(time_irq);
     RUN_TEST_GROUP(trng);
     RUN_TEST_GROUP(dma_sha256_poll);
     RUN_TEST_GROUP(dma_sha256_irq);

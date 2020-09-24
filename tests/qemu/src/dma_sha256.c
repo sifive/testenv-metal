@@ -429,50 +429,54 @@ _test_sha_dma_poll(const uint8_t * refh, const uint8_t * buf, size_t buflen)
         _sha_push(desc.sd_prolog.bd_base, desc.sd_prolog.bd_length);
     }
 
-    // DMA config
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
-        (uintptr_t)desc.sd_main.bd_base;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = 0u;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_main.bd_count;
+    if ( desc.sd_main.bd_count ) {
+        // DMA config
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
+            (uintptr_t)desc.sd_main.bd_base;
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_DEST) = 0u;
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_main.bd_count;
 
-    // DMA start
-    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
-                  HCA_REGISTER_DMA_CR_START_OFFSET,
-                  HCA_REGISTER_DMA_CR_START_MASK);
+        // DMA start
+        _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
+                      HCA_REGISTER_DMA_CR_START_OFFSET,
+                      HCA_REGISTER_DMA_CR_START_MASK);
 
-    size_t dma_loop = 0;
-    while( _hca_dma_is_busy() ) {
-        // busy loop
-        dma_loop += 1;
+        size_t dma_loop = 0;
+        while( _hca_dma_is_busy() ) {
+            // busy loop
+            dma_loop += 1;
+        }
+
+        if ( buflen > 4096u ) {
+            // whenever the buffer is greater than the VM chunk size, we expect
+            // the guest code to be re-scheduled before the VM DMA completion
+            TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
+                10u, dma_loop, "VM may have freeze guest code execution");
+        }
     }
 
-    while ( _hca_sha_is_busy() ) {
+     while ( _hca_sha_is_busy() ) {
         // busy loop
-    }
+     }
 
-    if ( buflen > 4096u ) {
-        // whenever the buffer is greater than the VM chunk size, we expect
-        // the guest code to be re-scheduled before the VM DMA completion
-        TEST_ASSERT_GREATER_THAN_size_t_MESSAGE(
-            10u, dma_loop, "VM may have freeze guest code execution");
-    }
+    if ( desc.sd_finish.bd_count ) {
+        // DMA source & size
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
+            (uintptr_t)desc.sd_finish.bd_base;
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_finish.bd_count;
 
-    // DMA source & size
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_SRC) =
-        (uintptr_t)desc.sd_finish.bd_base;
-    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_DMA_LEN) = desc.sd_finish.bd_count;
+        // DMA start
+        _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
+                       HCA_REGISTER_DMA_CR_START_OFFSET,
+                       HCA_REGISTER_DMA_CR_START_MASK);
 
-    // DMA start
-    _hca_updreg32(METAL_SIFIVE_HCA_DMA_CR, 1,
-                   HCA_REGISTER_DMA_CR_START_OFFSET,
-                   HCA_REGISTER_DMA_CR_START_MASK);
+        while(_hca_dma_is_busy()) {
+            // busy loop
+        }
 
-    while(_hca_dma_is_busy()) {
-        // busy loop
-    }
-
-    while ( _hca_sha_is_busy() ) {
-        // busy loop
+        while ( _hca_sha_is_busy() ) {
+            // busy loop
+        }
     }
 
     if ( desc.sd_epilog.bd_length ) {
