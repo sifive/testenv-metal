@@ -25,4 +25,4 @@ jobs:
         run:  docker/bin/dock.sh build scripts/buildall.sh -q -s $TARGETS
 
       - name: Test all targets
-        run: docker/bin/dock.sh utest scripts/utestall.sh -e /usr/local/qemu-fdt/bin build
+        run: docker/bin/dock.sh utest scripts/utestall.sh build
