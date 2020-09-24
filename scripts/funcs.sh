@@ -1,6 +1,6 @@
 info () {
     echo -ne "\033[36m"
-    echo $*
+    echo "$*"
     echo -ne "\033[0m"
 }
 

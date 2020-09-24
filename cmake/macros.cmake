@@ -221,6 +221,8 @@ MACRO (enable_unity)
     # Unity test framework: enable 64-bit types on 32-bit platform
     ADD_DEFINITIONS (-DUNITY_SUPPORT_64)
   ENDIF ()
+  # Use ANSI color escape codes
+  ADD_DEFINITIONS (-DUNITY_OUTPUT_COLOR)
 ENDMACRO ()
 
 #-----------------------------------------------------------------------------
