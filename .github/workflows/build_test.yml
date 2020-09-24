@@ -16,7 +16,7 @@ jobs:
       - name: Set selected color
         run: echo '::set-env name=SELECTED_COLOR::green'
       - name: Set selected color
-        run: echo Test color'
+        run: echo Test color
       - name: Get color
         run: echo 'The selected color is' $SELECTED_COLOR
 
