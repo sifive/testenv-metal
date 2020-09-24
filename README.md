@@ -111,3 +111,13 @@ maintained out-of-tree and copied into the existing directories when CMake is in
 ease maintenance and integration. `CMakeFiles.txt` files should not be committed into the
 sub-module repositories.
 
+## Miscellaneous
+
+### Docker
+
+Docker images are built on top of Alpine Linux, as it is the smallest distribution, and enables to
+build the smallest image files.
+
+### Shell scripts
+
+All shell scripts should be POSIX-compliant, *i.e.* should not use bash-isms.
