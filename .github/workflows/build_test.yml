@@ -13,7 +13,7 @@ jobs:
         with:
             submodules: true
 
-            - name: Checkout SCL and Unity submodules
+      - name: Checkout SCL and Unity submodules
         run: git submodule update --init --recursive &&
                git submodule status
 
@@ -23,7 +23,7 @@ jobs:
 
       - name: Build all targets
         run:  echo '::set-env name=SELECTED_COLOR::ansi-red' &&
-              docker/bin/dock.sh build scripts/buildall.sh -g -s $TARGETS &&
+              docker/bin/dock.sh build scripts/buildall.sh -q -s $TARGETS &&
               echo '::set-env name=SELECTED_COLOR::ansi-white'
 
       - name: Test all targets
