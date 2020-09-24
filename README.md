@@ -72,5 +72,42 @@ image, or can be rebuilt to run it natively on any host.
 
 ## CI/CD/CT
 
-A GitHub Actions [script](.github/workflows/build_test.yaml) is used to build and run unit tests
+A GitHub Actions [script](.github/workflows/build_test.yml) is used to build and run unit tests
 for several QEMU virtual targets.
+
+## Directory tree structure
+
+```text
+.
+├── CMakeLists.txt   # Top level CMake file to build the project
+├── bsp              # BSP directory, with DTS file and BSP-specific header files
+├── cmake            # CMake configuration and macros
+│   ├── Platform     #   RISC-V platform definition
+│   ├── files        #   CMakeFiles.txt copied to the existing metal and scl-metal directories*
+│   ├── macros.cmake #   Useful CMake macros to help buildint the project
+│   └── riscv.cmake  #   RISV-C toolchain configuration
+├── docker           # All docker files
+│   ├── bin          #   Docker script to run build and test scripts from Docker containers
+│   ├── conf         #   Docker configuration, define versionned image for each tasks
+│   └── src          #   Dockerfiles to build the images, the toolchains, ...
+├── metal            # freedom-metal framework
+├── scl-metal        # scl-metal submodule
+├── scripts          # Useful scripts to automate tasks
+│   ├── build.sh     # Script to build the project for a single BSP
+│   ├── buildall.sh  # Script to build all the BSPs in all possible configurations
+│   ├── funcs.sh     # Common functions used by other scripts
+│   ├── utest.sh     # Script to execute the unit test of a single BSP
+│   └── utestall.sh  # Script to execute all built unit tests
+├── tests            # Unit test files (SCL-metal tests and QEMU tests)
+│   ├── hello        # Simplest test to check an application may be executed
+│   ├── qemu         # HCA tests which are not yet part of SCL
+│   └── scl-metal    # test-scl-metal submodule
+└── unity            # Unit test framework
+```
+
+`*`: as this project is forked from the official `freedom-metal` and `scl-metal` repositories,
+which do not yet use CMake (nor Ninja) to build binaries, a couple of `CMakeFiles.txt` files are
+maintained out-of-tree and copied into the existing directories when CMake is invoked. It should
+ease maintenance and integration. `CMakeFiles.txt` files should not be committed into the
+sub-module repositories.
+
