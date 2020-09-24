@@ -8,6 +8,13 @@ die() {
 
 SCRIPT_DIR=$(dirname $0)
 NAME=`basename $PWD`
+OPTS=""
+
+if [ "$1" = "-t" ]; then
+    OPTS="-ti"
+    shift
+fi
+
 CONF="$1"
 CONFPATH="$(dirname $0)/../conf/${CONF}.conf"
 test -f "${CONFPATH}" || die "Invalid Docker configuration"
@@ -53,13 +60,13 @@ fi
 VOLUMES=$(volumes ${CONTAINERS})
 [ $? -eq 0 ] || exit 1
 
-OPTS=""
 for volume in ${VOLUMES}; do
     OPTS="${OPTS} --volumes-from ${volume}"
 done
 
 IMGPATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 IMGPATH=${IMGPATH}:/usr/local/clang10/bin:/usr/local/riscv-elf-binutils/bin
+IMGPATH=${IMGPATH}:/usr/local/qemu-fdt/bin
 
 # Development (transparent) mode"
 # - build with user id so that output files belongs to the effective user

@@ -82,7 +82,7 @@ for ut in ${UNIT_TESTS}; do
     if [ -z "${RV}" ]; then
         RV=$(${READELF} -h ${ut} | grep Class | cut -d: -f2 | sed 's/^ *ELF//')
         if [ -z "$QEMUPATH" ]; then
-            QEMU="qemu-system-riscv${RV}"
+            QEMU="$(which qemu-system-riscv${RV})"
         else
             QEMU="${QEMUPATH}/qemu-system-riscv${RV}"
         fi
