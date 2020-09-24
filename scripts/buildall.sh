@@ -19,6 +19,20 @@ die() {
     exit 1
 }
 
+info () {
+    # echo "echo "::set-env name=action_state::yellow""
+    echo '::set-env name=SELECTED_COLOR::cyan'
+    echo $*
+    echo '::set-env name=SELECTED_COLOR::white'
+}
+
+error () {
+    # echo "echo "::set-env name=action_state::yellow""
+    echo '::set-env name=SELECTED_COLOR::red' >&2
+    echo $* >&2
+    echo '::set-env name=SELECTED_COLOR::white' >&2
+}
+
 usage() {
     NAME=`basename $0`
     cat <<EOT
@@ -64,11 +78,10 @@ for dts in ${DTS}; do
     for build in ${BUILDS}; do
         udts=$(echo "${dts}" | tr [:lower:] [:upper:])
         ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
-        echo "" >&2
-        echo "\033[36m[Building ${udts} in ${ubuild}]\033[39m"
+        info "Building ${udts} in ${ubuild}]"
         ${SCRIPT_DIR}/build.sh ${dts} ${build}
         if [ $? -ne 0 ]; then
-            echo "\033[31mBuild failed (${udts} in ${ubuild})\033[39m" >&2
+            error "Build failed (${udts} in ${ubuild})"
             if [ ${ABORT} -gt 0 ]; then
                 exit $?
             else
@@ -79,6 +92,6 @@ for dts in ${DTS}; do
 done
 
 if [ ${FAILURE} -ne 0 ]; then
-    echo "\033[31mAt least one build failed\033[39m" >&2
+    error "At least one build failed"
     exit 1
 fi
