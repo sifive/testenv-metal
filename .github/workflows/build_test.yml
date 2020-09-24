@@ -13,18 +13,26 @@ jobs:
         with:
             submodules: true
 
-      - name: Checkout SCL and Unity submodules
-        run: git submodule update --init --recursive &&
-               git submodule status
+      - name: Set selected color
+        run: echo '::set-env name=SELECTED_COLOR::green'
+      - name: Set selected color
+        run: echo Test color'
+      - name: Get color
+        run: echo 'The selected color is' $SELECTED_COLOR
 
-      - name: Fetch all Docker images
-        run: docker/bin/dock.sh build /bin/true &&
-             docker/bin/dock.sh utest /bin/true
-
-      - name: Build all targets
-        run:  echo '::set-env name=SELECTED_COLOR::ansi-red' &&
-              docker/bin/dock.sh build scripts/buildall.sh -s $TARGETS &&
-              echo '::set-env name=SELECTED_COLOR::ansi-white'
-
-      - name: Test all targets
-        run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build
+        # - name: Checkout SCL and Unity submodules
+      #   run: git submodule update --init --recursive &&
+      #          git submodule status
+# 
+      # - name: Fetch all Docker images
+      #   run: docker/bin/dock.sh build /bin/true &&
+      #        docker/bin/dock.sh utest /bin/true
+# 
+      # - name: Build all targets
+      #   run:  echo '::set-env name=SELECTED_COLOR::ansi-red' &&
+      #         docker/bin/dock.sh build scripts/buildall.sh -s $TARGETS &&
+      #         echo '::set-env name=SELECTED_COLOR::ansi-white'
+# 
+      # - name: Test all targets
+      #   run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build
+# 
