@@ -19,7 +19,8 @@ jobs:
           print('\u001b[32mHello Green\u001b[0m')
         shell: python3 {0}
       - name: Get color
-        run: echo 'The selected color is' $SELECTED_COLOR
+        run: echo "\033[31mBuild failed\033[0m"
+        # run: echo 'The selected color is' $SELECTED_COLOR
 
         # - name: Checkout SCL and Unity submodules
       #   run: git submodule update --init --recursive &&
