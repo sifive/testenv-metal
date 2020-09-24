@@ -10,17 +10,8 @@
 #------------------------------------------------------------------------------
 
 TMPDIR=""
-
-# Die with an error message
-die() {
-    echo "$*" >&2
-    exit 1
-}
-
-# Print the absolute path
-abspath() {
-    echo "$(cd "$(dirname "$1")"; pwd)/$(basename "$1")"
-}
+SCRIPT_DIR=$(dirname $0)
+. ${SCRIPT_DIR}/funcs.sh
 
 # Cleanup function on exit
 cleanup() {
@@ -56,7 +47,7 @@ while [ $# -gt 0 ]; do
             DTS="$1"
             test -f "${DTS}" || die "Unable to find DTS ${DTS}"
             ;;
-        -q)
+        -e)
             shift
             QEMUPATH="$1"
             test -d "${QEMUPATH}" || die "Invalid QEMU directory ${QEMUPATH}"
@@ -97,6 +88,9 @@ for ut in ${UNIT_TESTS}; do
         fi
         test -x ${QEMU} || die "Unable to locate QEMU for RV${RV}"
     fi
-    echo "> Running UT $(basename ${ut})"
+    info "* running UT [$(basename ${ut})]"
     ${QEMU} -machine sifive_fdt -dtb ${TMPDIR}/qemu.dtb -nographic -kernel ${ut}
+    if [ $? -ne 0 ]; then
+        error "UT failed ($(basename ${ut}))"
+    fi
 done

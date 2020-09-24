@@ -22,9 +22,7 @@ jobs:
              docker/bin/dock.sh utest /bin/true
 
       - name: Build all targets
-        run:  echo '::set-env name=SELECTED_COLOR::ansi-red' &&
-              docker/bin/dock.sh build scripts/buildall.sh -q -s $TARGETS &&
-              echo '::set-env name=SELECTED_COLOR::ansi-white'
+        run:  docker/bin/dock.sh build scripts/buildall.sh -q -s $TARGETS
 
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -q /usr/local/qemu-fdt/bin build

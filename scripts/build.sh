@@ -9,21 +9,17 @@
 #  * ninja
 #------------------------------------------------------------------------------
 
-# Die with an error message
-die() {
-    echo "$*" >&2
-    exit 1
-}
+SCRIPT_DIR=$(dirname $0)
+# . ${SCRIPT_DIR}/funcs.sh
 
-test -n "${XBSP:=$1}" || die "XBSP should be specified"
-
-CMAKE_OPTS="-DXBSP=${XBSP}"
+CMAKE_OPTS=""
 NINJA_OPTS=""
 SUBDIR=""
 BUILD="DEBUG"
 SA_DIR=""
 GHA=0
 QUIET=0
+XBSP=""
 for arg in $*; do
     case $arg in
         -q)
@@ -40,9 +36,17 @@ for arg in $*; do
             CMAKE_OPTS="${CMAKE_OPTS} -DSTATIC_ANALYSIS=1"
             SA_DIR="sa_"
             ;;
+        -*)
+            ;;
+        *)
+            if [ -z "${XBSP}" ]; then
+                XBSP="$arg"
+            fi
     esac
 done
-CMAKE_OPTS="${CMAKE_OPTS} -DCMAKE_BUILD_TYPE=${BUILD}"
+test -n "${XBSP}" || die "XBSP should be specified"
+
+CMAKE_OPTS="${CMAKE_OPTS} -DXBSP=${XBSP} -DCMAKE_BUILD_TYPE=${BUILD}"
 SUBDIR=$(echo "${SA_DIR}${BUILD}" | tr [:upper:] [:lower:])
 
 set -eu

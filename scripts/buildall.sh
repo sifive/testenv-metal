@@ -11,32 +11,12 @@ SCRIPT_DIR=$(dirname $0)
 DTS=""
 BUILDS="debug release"
 
-export TERM=ansi
-
-# Die with an error message
-die() {
-    echo "$*" >&2
-    exit 1
-}
-
-info () {
-    # echo "echo "::set-env name=action_state::yellow""
-    echo -ne "\033[36m"
-    echo $*
-    echo -ne "\033[0m"
-}
-
-error () {
-    # echo "echo "::set-env name=action_state::yellow""
-    echo -ne "\033[31m" >&2
-    echo $* >&2
-    echo -ne "\033[0m" >&2
-}
+. ${SCRIPT_DIR}/funcs.sh
 
 usage() {
     NAME=`basename $0`
     cat <<EOT
-$NAME [-h] [-a] [-s] [dts] ...
+$NAME [-h] [-a] [-q] [-s] [dts] ...
 
  dts: the name of a dts file (w/o path or extension)
 
