@@ -1,6 +1,15 @@
 name: SCL-metal
 
-on: [push]
+on:
+    push:
+        # trigger on self repo commit
+
+    workflow_dispatch:
+        # trigger via REST API (when SCL repo commit)
+        inputs:
+            scl_ref:
+                description: SCL reference to check out
+                required: true
 
 jobs:
   build_n_test:
@@ -13,9 +22,16 @@ jobs:
         with:
             submodules: true
 
+      - name: Check how events works
+        run:  echo "SCL-ref is ${{ github.event.inputs.scl_ref }}";
+              echo "GH refs ${GITHUB_SHA}, ${GITHUB_REF}";
+              false
+
       - name: Checkout SCL and Unity submodules
-        run: git submodule update --init --recursive &&
-               git submodule status
+        run: git submodule update --init --recursive
+
+      - name: Checkout SCL and Unity submodules
+        run:  git submodule status
 
       - name: Fetch all Docker images
         run: docker/bin/dock.sh build /bin/true &&
