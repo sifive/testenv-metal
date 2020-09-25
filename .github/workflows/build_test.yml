@@ -16,6 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
         TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
+        BUILD_TOTAL: 0
+        BUILD_FAILURES: 0
+        UTEST_TOTAL: 0
+        UTEST_FAILURES: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -50,3 +54,8 @@ jobs:
 
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh build
+
+      - name: Overall status
+        run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
+              echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
+              test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
