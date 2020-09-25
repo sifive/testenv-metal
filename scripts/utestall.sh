@@ -94,6 +94,7 @@ if [ ${FAILURES} -ne 0 ]; then
 fi
 
 if [ ${GHA} -ne 0 ]; then
+    echo ""
     echo "::set-env name=UTEST_TOTAL::${TOTAL}"
     echo "::set-env name=UTEST_FAILURES::${FAILURES}"
     echo ""
