@@ -57,7 +57,10 @@ FAILURE=0
 for testdir in ${TESTDIR}; do
     dtsdirs=$(cd ${testdir} && find . -type d -maxdepth 1)
     for dts in ${dtsdirs}; do
-        dts=$(echo "${dts}" | cut -c3-)
+        dts=$(echo "${dts}" | cut -c3-)  # skip leading ./
+        if [ -z "${dts}" ]; then
+            continue
+        fi
         for build in ${BUILDS}; do
             if [ -d ${testdir}/${dts}/${build} ]; then
                 udts=$(echo "${dts}" | tr [:lower:] [:upper:])
