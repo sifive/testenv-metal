@@ -16,27 +16,29 @@ BUILDS="debug release"
 usage() {
     NAME=`basename $0`
     cat <<EOT
-$NAME [-h] [-a] [-q] [-s] [dts] ...
+$NAME [-h] [-a] [-g] [-s] [dts] ...
 
  dts: the name of a dts file (w/o path or extension)
 
  -h:  print this help
  -a:  abort on first failed build (default: resume)
- -q:  quiet (do not report build steps)
+ -g:  github mode (filter compiler output, emit results as env. var.)
  -s:  run static analyzer in addition to regular builds
 EOT
 }
 
 SA=0
 ABORT=0
+GHA=0
 OPTS=""
 for arg in $*; do
     case ${arg} in
         -a)
             ABORT=1
             ;;
-        -q)
-            OPTS="${OPTS} -q"
+        -g)
+            GHA=1
+            OPTS="${OPTS} -g"
             ;;
         -h)
             usage
@@ -78,11 +80,11 @@ for dts in ${DTS}; do
     done
 done
 
-echo "GitHub variables"
-echo "::set-env name=BUILD_TOTAL::${TOTAL}"
-echo "::set-env name=BUILD_FAILURES::${FAILURES}"
-set | grep "GITHUB"
-
 if [ ${FAILURES} -ne 0 ]; then
     warning "WARNING: ${FAILURES} build failed"
+fi
+
+if [ ${GHA} -ne 0 ]; then
+    echo "::set-env name=BUILD_TOTAL::${TOTAL}"
+    echo "::set-env name=BUILD_FAILURES::${FAILURES}"
 fi

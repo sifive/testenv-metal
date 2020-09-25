@@ -16,17 +16,19 @@ BUILDS="debug release"
 usage() {
     NAME=`basename $0`
     cat <<EOT
-$NAME [-h] [-a] [-s] [-e qemu_dir] <test_dir> ...
+$NAME [-h] [-a] [-g] [-e qemu_dir] <test_dir> ...
 
  test_dir: top level directory to see for tests
 
  -h:  print this help
  -a:  abort on first failed build (default: resume)
  -e:  the directory which contains qemu
+ -g:  github mode (emit results as env. var.)
 EOT
 }
 
 ABORT=0
+GHA=0
 QEMUOPT=""
 for arg in $*; do
     case ${arg} in
@@ -38,6 +40,9 @@ for arg in $*; do
             QEMUPATH="$1"
             test -d "${QEMUPATH}" || die "Invalid QEMU directory ${QEMUPATH}"
             QEMUOPT="-e $1"
+            ;;
+        -g)
+            GHA=1
             ;;
         -h)
             usage
@@ -53,7 +58,7 @@ done
 
 test -n "${TESTDIR}" || die "No test direcory specified"
 
-FAILURE=0
+FAILURES=0
 TOTAL=0
 for testdir in ${TESTDIR}; do
     dtsdirs=$(cd ${testdir} && find . -type d -maxdepth 1)
@@ -87,5 +92,7 @@ if [ ${FAILURE} -ne 0 ]; then
     warning "${FAILURES} test sesssions failed"
 fi
 
-echo "::set-env name=UTEST_TOTAL::${TOTAL}"
-echo "::set-env name=UTEST_FAILURES::${FAILURES}"
+if [ ${GHA} -ne 0 ]; then
+    echo "::set-env name=UTEST_TOTAL::${TOTAL}"
+    echo "::set-env name=UTEST_FAILURES::${FAILURES}"
+fi

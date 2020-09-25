@@ -15,12 +15,12 @@ SCRIPT_DIR=$(dirname $0)
 usage () {
     NAME=`basename $0`
     cat <<EOT
-$NAME [-h] [-v] [-q] [debug|release|static_analysis] <bsp>
+$NAME [-h] [-v] [-g] [debug|release|static_analysis] <bsp>
 
  bsp: the name of a BSP (see bsp/ directory)
 
  -h:  print this help
- -q:  quiet (do not report build steps)
+ -g:  github mode (filter compiler output)
  -v:  verbose (report all toolchain commands)
 EOT
 }
@@ -43,19 +43,17 @@ SUBDIR=""
 BUILD="DEBUG"
 SA_DIR=""
 GHA=0
-QUIET=0
 XBSP=""
 for arg in $*; do
     case $arg in
         -h)
             usage
             ;;
-        -q)
-            QUIET=1
+        -g)
+            GHA=1
             ;;
         -v|VERBOSE)
             NINJA_OPTS="${NINJA_OPTS} -v"
-            QUIET=0
             ;;
         *DEBUG|*RELEASE|*debug|*release)
             BUILD=$(echo "${arg}" | tr [:upper:] [:lower:])
@@ -83,7 +81,7 @@ rm -rf build/${XBSP}/${SUBDIR}
 mkdir -p build/${XBSP}/${SUBDIR}
 cd build/${XBSP}/${SUBDIR}
 cmake -G Ninja ../../.. ${CMAKE_OPTS}
-if [ ${QUIET} -eq 0 ]; then
+if [ ${GHA} -eq 0 ]; then
     ninja ${NINJA_OPTS}
 else
     # silent build mode, discard Ninja output
