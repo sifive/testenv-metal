@@ -2,16 +2,13 @@
 # SiFive cryptographic library unit tests
 #------------------------------------------------------------------------------
 
-# name the library from the current directory
-directory_name (component)
-
 # remove this once Unity RUN_* macros use proper do { ... } while (0) idiom
 ADD_DEFINITIONS (-Wno-extra-semi-stmt)
 
 # build a static library with all the tests
 #  this enables running the static analyzer on all the test files, w/o to try
 #  to produce an executable
-ADD_LIBRARY (${component}
+ADD_LIBRARY (scl-tests
   src/api/aes/hardware/test_hca_aes_128.c
   src/api/aes/hardware/test_hca_aes_192.c
   src/api/aes/hardware/test_hca_aes_256.c
@@ -53,13 +50,13 @@ SET_PROPERTY (SOURCE tests/api/bignumbers/software/test_soft_bignumbers.c
               PROPERTY COMPILE_FLAGS "-Wno-sizeof-array-div")
 
 IF (NOT DEFINED STATIC_ANALYSIS)
-  SET (app test-${component})
+  SET (app test-scl-metal)
 
   ADD_EXECUTABLE (${app}
     src/test-scl-metal.c
   )
 
-  link_application (${app} metal.ld scl ${component})
+  link_application (${app} metal.ld scl scl-tests)
 
   create_map_file(${app})
   # generate artifacts: de-assembled binary and report the binary size info
