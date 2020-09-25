@@ -10,6 +10,7 @@ on:
             scl_ref:
                 description: SCL reference to check out
                 required: true
+                default: "some default value"
 
 jobs:
   build_n_test:
@@ -20,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-            submodules: true
+            submodules: false
 
       - name: Check how events works
         run:  echo "SCL-ref is ${{ github.event.inputs.scl_ref }}";
