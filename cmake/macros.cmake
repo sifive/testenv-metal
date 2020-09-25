@@ -216,6 +216,8 @@ MACRO (enable_unity)
   INCLUDE_DIRECTORIES (${UNITY_SOURCE_DIR}/src
                        ${UNITY_SOURCE_DIR}/extras/fixture/src
                        ${UNITY_SOURCE_DIR}/extras/memory/src)
+  # Do not use extras
+  ADD_DEFINITIONS (-DUNITY_FIXTURE_NO_EXTRAS)
   IF ( XLEN EQUAL 32 )
     # Unity test framework: enable 64-bit types on 32-bit platform
     ADD_DEFINITIONS (-DUNITY_SUPPORT_64)
