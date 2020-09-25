@@ -58,25 +58,29 @@ fi
 
 test -n "${DTS}" || die "No target specified"
 
-FAILURE=0
+FAILURES=0
+TOTAL=0
 for dts in ${DTS}; do
     for build in ${BUILDS}; do
         udts=$(echo "${dts}" | tr [:lower:] [:upper:])
         ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
         info "Building [${udts} in ${ubuild}]"
+        TOTAL="$(expr ${TOTAL} + 1)"
         ${SCRIPT_DIR}/build.sh ${OPTS} ${dts} ${build}
         if [ $? -ne 0 ]; then
             error "Build failed (${udts} in ${ubuild})"
             if [ ${ABORT} -gt 0 ]; then
                 exit $?
             else
-                FAILURE=1
+                FAILURES="$(expr ${FAILURES} + 1)"
             fi
         fi
     done
 done
 
-if [ ${FAILURE} -ne 0 ]; then
-    error "At least one build failed"
-    exit 1
+if [ ${FAILURES} -ne 0 ]; then
+    warning "WARNING: ${FAILURES} build failed"
 fi
+
+echo "::set-env name=BUILD_TOTAL::${TOTAL}"
+echo "::set-env name=BUILD_FAILURES::${FAILURES}"

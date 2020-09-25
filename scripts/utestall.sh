@@ -54,6 +54,7 @@ done
 test -n "${TESTDIR}" || die "No test direcory specified"
 
 FAILURE=0
+TOTAL=0
 for testdir in ${TESTDIR}; do
     dtsdirs=$(cd ${testdir} && find . -type d -maxdepth 1)
     for dts in ${dtsdirs}; do
@@ -66,13 +67,14 @@ for testdir in ${TESTDIR}; do
                 udts=$(echo "${dts}" | tr [:lower:] [:upper:])
                 ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
                 info "Testing ${udts} in ${ubuild}"
+                TOTAL="$(expr ${TOTAL} + 1)"
                 ${SCRIPT_DIR}/utest.sh ${QEMUOPT} -d "bsp/${dts}/dts/qemu.dts" ${testdir}/${dts}/${build}
                 if [ $? -ne 0 ]; then
                     error "Test failed (${udts} in ${ubuild})"
                     if [ ${ABORT} -gt 0 ]; then
                         exit $?
                     else
-                        FAILURE=1
+                        FAILURES=$(expr ${FAILURES} + 1)
                     fi
                 fi
             fi
@@ -81,6 +83,8 @@ for testdir in ${TESTDIR}; do
 done
 
 if [ ${FAILURE} -ne 0 ]; then
-    error "At least one test failed"
-    exit 1
+    warning "${FAILURES} test sesssions failed"
 fi
+
+echo "::set-env name=UTEST_TOTAL::${TOTAL}"
+echo "::set-env name=UTEST_FAILURES::${FAILURES}"
