@@ -45,3 +45,6 @@ ADD_LIBRARY (scl
   src/scl_init.c
   src/scl_utils.c
 )
+
+# Search directories with CMakeFiles.txt files, and load them
+include_subprojects ()

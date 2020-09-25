@@ -2,4 +2,4 @@
 # Freedom-metal unit tests
 #------------------------------------------------------------------------------
 
-recurse_subprojects ()
+include_subprojects ()

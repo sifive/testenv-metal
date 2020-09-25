@@ -118,7 +118,7 @@ ENDMACRO ()
 #------------------------------------------------------------------------------
 # Load all subprojects below the current directory
 #------------------------------------------------------------------------------
-MACRO (recurse_subprojects)
+MACRO (include_subprojects)
   find_subprojects (subprojects)
   FOREACH (prj ${subprojects})
     ADD_SUBDIRECTORY (${prj} ${prj})

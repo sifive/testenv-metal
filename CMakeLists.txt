@@ -37,4 +37,4 @@ enable_unity ()
 INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/scl-metal/include)
 
 # Search directories with CMakeFiles.txt files, and load them
-recurse_subprojects ()
+include_subprojects ()

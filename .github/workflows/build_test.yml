@@ -31,7 +31,7 @@ jobs:
       - name: Checkout SCL and Unity submodules
         run: git submodule update --init
 
-      - name: Change SCL branch
+      - name: Select SCL revision to test
         # event-initiated request contains scl_ref, while it is not defined
         # for a push-initiated request
         run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
