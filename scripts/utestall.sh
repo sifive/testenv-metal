@@ -89,11 +89,12 @@ for testdir in ${TESTDIR}; do
     done
 done
 
-if [ ${FAILURE} -ne 0 ]; then
+if [ ${FAILURES} -ne 0 ]; then
     warning "${FAILURES} test sesssions failed"
 fi
 
 if [ ${GHA} -ne 0 ]; then
     echo "::set-env name=UTEST_TOTAL::${TOTAL}"
     echo "::set-env name=UTEST_FAILURES::${FAILURES}"
+    echo ""
 fi

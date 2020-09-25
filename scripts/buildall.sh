@@ -87,4 +87,5 @@ fi
 if [ ${GHA} -ne 0 ]; then
     echo "::set-env name=BUILD_TOTAL::${TOTAL}"
     echo "::set-env name=BUILD_FAILURES::${FAILURES}"
+    echo ""
 fi
