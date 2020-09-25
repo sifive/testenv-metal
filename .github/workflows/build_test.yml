@@ -50,13 +50,12 @@ jobs:
              docker/bin/dock.sh utest /bin/true
 
       - name: Build all targets
-        run:  docker/bin/dock.sh build scripts/buildall.sh -q -s $TARGETS
+        run:  docker/bin/dock.sh build scripts/buildall.sh -g -s $TARGETS
 
       - name: Test all targets
-        run: docker/bin/dock.sh utest scripts/utestall.sh build
+        run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
-      - name: Overall status
+      - name: Report overall status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
               echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
-              true
-              # test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
+              test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
