@@ -30,8 +30,8 @@ EOT
 ABORT=0
 GHA=0
 QEMUOPT=""
-for arg in $*; do
-    case ${arg} in
+while [ $# -gt 0 ]; do
+    case "$1" in
         -a)
             ABORT=1
             ;;
@@ -51,9 +51,10 @@ for arg in $*; do
         -*)
             ;;
         *)
-            TESTDIR="${TESTDIR} ${arg}"
+            TESTDIR="${TESTDIR} ${1}"
             ;;
     esac
+    shift
 done
 
 test -n "${TESTDIR}" || die "No test direcory specified"
