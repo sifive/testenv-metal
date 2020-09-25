@@ -67,7 +67,11 @@ while [ $# -gt 0 ]; do
 done
 
 test -n "${DTS}" || die "DTS should be specified"
-test -n "${UNIT_TESTS}" || die "No test to execute"
+if  [ -z "${UNIT_TESTS}" ]; then
+    warning "* no test to execute"
+    echo ""
+    exit 0
+fi
 
 # Be sure to leave on first error
 set -eu
@@ -92,5 +96,7 @@ for ut in ${UNIT_TESTS}; do
     ${QEMU} -machine sifive_fdt -dtb ${TMPDIR}/qemu.dtb -nographic -kernel ${ut}
     if [ $? -ne 0 ]; then
         error "UT failed ($(basename ${ut}))"
+    else
+        echo ""
     fi
 done
