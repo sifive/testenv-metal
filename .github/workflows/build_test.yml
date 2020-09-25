@@ -12,7 +12,7 @@ on:
                 required: true
                 # for some reason, it does not work with a default value;
                 # w/o it, the variable is never set.
-                default: ""
+                default: "none"
 
 jobs:
   build_n_test:
@@ -33,7 +33,7 @@ jobs:
         run: git submodule update --init
 
       - name: Change SCL branch # event-initiated request
-        run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
+        run: if [ "none" != "${{ github.event.inputs.scl_ref }}" ]; then
              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
              else true; fi
 
