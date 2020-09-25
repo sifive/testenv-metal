@@ -10,7 +10,9 @@ on:
             scl_ref:
                 description: SCL reference to check out
                 required: true
-                # default: ""
+                # for some reason, it does not work with a default value;
+                # w/o it, the variable is never set.
+                default: ""
 
 jobs:
   build_n_test:
@@ -24,15 +26,16 @@ jobs:
             submodules: false
 
       - name: Check how events works
-        run:  echo "SCL-ref is '${{ github.event.inputs.scl_ref }}''";
+        run:  echo "SCL-ref is '${{ github.event.inputs.scl_ref }}'";
               echo "GH refs ${GITHUB_SHA}, ${GITHUB_REF}"
 
       - name: Checkout SCL and Unity submodules
         run: git submodule update --init
 
       - name: Change SCL branch # event-initiated request
-        run: test -n "${{ github.event.inputs.scl_ref }}" &&
+        run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
+             else true; fi
 
       - name: Checkout SCL and Unity submodules
         run:  git submodule status; false
