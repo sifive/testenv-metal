@@ -10,9 +10,14 @@ if [ -z "${FWE_TOKEN}" ]; then
     exit 1
 fi
 
+if [ -z "${SCL_REF}" ]; then
+    echo "Missing SCL ref" >&2
+    exit 1
+fi
+
 curl -XPOST -v \
      -u "${GH_USER}:${FWE_TOKEN}" \
      -H "Accept: application/vnd.github.everest-preview+json" \
      -H "Content-Type: application/json" \
      ${URL} \
-     --data '{"ref": "gh_remote_event", "inputs": {"scl_ref": "master"}}'
+     --data '{"ref": "gh_remote_event", "inputs": {"scl_ref": "${SCL_REF}"}}'
