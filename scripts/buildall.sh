@@ -78,9 +78,11 @@ for dts in ${DTS}; do
     done
 done
 
+echo "GitHub variables"
+echo "::set-env name=BUILD_TOTAL::${TOTAL}"
+echo "::set-env name=BUILD_FAILURES::${FAILURES}"
+set | grep "GITHUB"
+
 if [ ${FAILURES} -ne 0 ]; then
     warning "WARNING: ${FAILURES} build failed"
 fi
-
-echo "::set-env name=BUILD_TOTAL::${TOTAL}"
-echo "::set-env name=BUILD_FAILURES::${FAILURES}"

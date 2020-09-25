@@ -25,6 +25,18 @@ $NAME [-h] [-v] [-q] [debug|release|static_analysis] <bsp>
 EOT
 }
 
+filter_issues () {
+   egrep -v '^\[' | \
+        while read -r line; do
+            if (echo "${line}" | grep -q 'warning:'); then
+                warning -n "WARNING: "
+            elif (echo "${line}" | grep -q 'error:'); then
+                error -n "ERROR: "
+            fi
+            echo "${line}"
+        done
+}
+
 CMAKE_OPTS=""
 NINJA_OPTS=""
 SUBDIR=""
@@ -75,15 +87,11 @@ if [ ${QUIET} -eq 0 ]; then
     ninja ${NINJA_OPTS}
 else
     # silent build mode, discard Ninja output
-    # as Ninja redirect toolchain stderr to stdout, need to filter out
+    # as Ninja redirects toolchain stderr to stdout, need to filter out
     # NINJA_STATUS prolog to get the compiler warnings and errors
-    ninja ${NINJA_OPTS} | egrep -v '^\[' | \
-        while read -r line; do
-            if (echo "${line}" | grep -q 'warning:'); then
-                warning -n "WARNING: "
-            elif (echo "${line}" | grep -q 'error:'); then
-                error -n "ERROR: "
-            fi
-            echo "${line}"
-    done
+
+    # now use POSIX shell black magic to preserve Ninja exit status while
+    # filtering its standard output
+    { { { { ninja ${NINJA_OPTS}; echo $? >&3; } | filter_issues >&4; } 3>&1; } \
+        | (read xs; exit $xs); } 4>&1
 fi

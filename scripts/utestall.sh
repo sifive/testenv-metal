@@ -68,7 +68,8 @@ for testdir in ${TESTDIR}; do
                 ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
                 info "Testing ${udts} in ${ubuild}"
                 TOTAL="$(expr ${TOTAL} + 1)"
-                ${SCRIPT_DIR}/utest.sh ${QEMUOPT} -d "bsp/${dts}/dts/qemu.dts" ${testdir}/${dts}/${build}
+                ${SCRIPT_DIR}/utest.sh ${QEMUOPT} -d "bsp/${dts}/dts/qemu.dts"\
+                    ${testdir}/${dts}/${build}
                 if [ $? -ne 0 ]; then
                     error "Test failed (${udts} in ${ubuild})"
                     if [ ${ABORT} -gt 0 ]; then
