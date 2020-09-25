@@ -20,4 +20,4 @@ curl -XPOST -v \
      -H "Accept: application/vnd.github.everest-preview+json" \
      -H "Content-Type: application/json" \
      ${URL} \
-     --data '{"ref": "gh_remote_event", "inputs": {"scl_ref": "${SCL_REF}"}}'
+     --data '{"ref": "gh_remote_event", "inputs": {"sclref": "${SCL_REF}"}}'
