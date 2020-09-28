@@ -182,8 +182,17 @@ MACRO (enable_warnings_except warnings)
   # -Weverything is strongly discouraged, but here it easier to enable
   # all warnings and disable the onces that are not relevant
   ADD_DEFINITIONS ("-Weverything")
+  SET (EXCEPT_BUILD "_")
+  STRING (TOUPPER "${CMAKE_BUILD_TYPE}" UBUILD)
   FOREACH (warn ${ARGV})
-    ADD_DEFINITIONS ("-Wno-${warn}")
+    STRING (REGEX MATCH "^EXCEPT_([A-Z_]+)$" on_build ${warn})
+    IF ( NOT on_build STREQUAL "" )
+      STRING (REGEX REPLACE "^EXCEPT_" "" EXCEPT_BUILD ${warn})
+    ELSE ()
+      IF ( NOT "${UBUILD}" STREQUAL "${EXCEPT_BUILD}" )
+        ADD_DEFINITIONS ("-Wno-${warn}")
+      ENDIF ()
+    ENDIF ()
   ENDFOREACH ()
 ENDMACRO ()
 

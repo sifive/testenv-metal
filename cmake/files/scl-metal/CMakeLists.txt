@@ -9,6 +9,7 @@ enable_warnings_except (
     padded  # structure do not need to be size-optimized
     vla  # by design, SCL uses the stack to store (many) intermediate results
     cast-align  # clang seems not able to always check the actual alignment
+    EXCEPT_DEBUG # the following warnings are disabled in all builds but DEBUG
     sizeof-array-div # this one could be fixed to increase readibility
 )
 
