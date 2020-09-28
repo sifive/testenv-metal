@@ -15,8 +15,8 @@ SCRIPT_DIR=$(dirname $0)
 
 # Cleanup function on exit
 cleanup() {
-    if [ -n "${TMPDIR}" -a -d ${TMPDIR} ]; then
-        rm -rf TMPDIR
+    if [ -n "${TMPDIR}" -a -d "${TMPDIR}" ]; then
+        rm -r "${TMPDIR}"
     fi
 }
 
