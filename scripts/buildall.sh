@@ -10,19 +10,28 @@
 SCRIPT_DIR=$(dirname $0)
 DTS=""
 BUILDS="debug release"
+REPORTLOG=""
 
 . ${SCRIPT_DIR}/funcs.sh
+
+# Cleanup function on exit
+cleanup() {
+    if [ -n "${REPORTLOG}" -a -f "${REPORTLOG}" ]; then
+        rm "${REPORTLOG}"
+    fi
+}
 
 usage() {
     NAME=`basename $0`
     cat <<EOT
-$NAME [-h] [-a] [-g] [-s] [dts] ...
+$NAME [-h] [-a] [-g] [-r] [-s] [dts] ...
 
  dts: the name of a dts file (w/o path or extension)
 
  -h:  print this help
  -a:  abort on first failed build (default: resume)
  -g:  github mode (filter compiler output, emit results as env. var.)
+ -r:  create a summary report
  -s:  run static analyzer in addition to regular builds
 EOT
 }
@@ -31,8 +40,8 @@ SA=0
 ABORT=0
 GHA=0
 OPTS=""
-for arg in $*; do
-    case ${arg} in
+while [ $# -gt 0 ]; do
+    case "$1" in
         -a)
             ABORT=1
             ;;
@@ -44,15 +53,23 @@ for arg in $*; do
             usage
             exit 0
             ;;
+        -r)
+            shift
+            REPORTLOG=$(mktemp)
+            trap cleanup EXIT
+            echo "REPORTLOG ${REPORTLOG}"
+            OPTS="${OPTS} -r ${REPORTLOG}"
+            ;;
         -s)
             SA=1
             ;;
         -*)
             ;;
         *)
-            DTS="${DTS} ${arg}"
+            DTS="${DTS} ${1}"
             ;;
     esac
+    shift
 done
 if [ $SA -gt 0 ]; then
     BUILDS="${BUILDS} static_analysis"
@@ -84,9 +101,39 @@ if [ ${FAILURES} -ne 0 ]; then
     warning "WARNING: ${FAILURES} build failed"
 fi
 
+WARNCOUNT=0
+ERRCOUNT=0
+if [ -n "${REPORTLOG}" ]; then
+    sort -u "${REPORTLOG}" > "${REPORTLOG}.tmp"
+    mv "${REPORTLOG}.tmp" "${REPORTLOG}"
+    if [ -s "${REPORTLOG}" ]; then
+        echo ""
+        warning "Warnings:"
+        IFS=$'\n'; cat "${REPORTLOG}" | grep " warning:" | \
+            for issue in $(sed -e 's/^.*\[\(.*\)\]/\1/' | \
+                                sed -e 's/-Werror,//g' | \
+                                sort | uniq -c); do
+                warning " ${warn}"
+                count="$(echo "${warn}" | cut -d- -f1 | tr -d [:space:])"
+                if [ -n "${count}" ]; then
+                    WARNCOUNT=$(expr ${WARNCOUNT} + ${count})
+                fi
+            done
+        warning " ${WARNCOUNT} total"
+        ERRCOUNT=$(cat "${REPORTLOG}" | grep " error:" | \
+                   wc -l | tr -d [:space:])
+        if [ ${ERRCOUNT} -gt 0 ]; then
+            echo ""
+            error "Errors: ${ERRCOUNT} total"
+        fi
+    fi
+fi
+
 if [ ${GHA} -ne 0 ]; then
     echo ""
     echo "::set-env name=BUILD_TOTAL::${TOTAL}"
     echo "::set-env name=BUILD_FAILURES::${FAILURES}"
+    echo "::set-env name=BUILD_WARNINGS::${WARNCOUNT}"
+    echo "::set-env name=BUILD_ERRORS::${ERRCOUNT}"
     echo ""
 fi

@@ -18,6 +18,8 @@ jobs:
         TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
         BUILD_TOTAL: 0
         BUILD_FAILURES: 0
+        BUILD_WARNINGS: 0
+        BUILD_ERRORS: 0
         UTEST_TOTAL: 0
         UTEST_FAILURES: 0
 
@@ -57,5 +59,7 @@ jobs:
 
       - name: Report overall status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
+              echo "Build error count ${BUILD_ERRORS}";
+              echo "Build warning count ${BUILD_WARNINGS}";
               echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
               test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
