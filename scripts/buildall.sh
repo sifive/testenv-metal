@@ -54,7 +54,6 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         -r)
-            shift
             REPORTLOG=$(mktemp)
             trap cleanup EXIT
             OPTS="${OPTS} -r ${REPORTLOG}"
