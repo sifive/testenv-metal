@@ -27,17 +27,24 @@ EOT
 }
 
 filter_issues () {
+    if [ -n "${SA_DIR}" ]; then
+        # static analyser does not report a warning source, so fake one to
+        # report the warning kind
+        epilog=" [-Wstatic_analysis]"
+    else
+        epilog=""
+    fi
     egrep -v '^\[' | \
         while read -r line; do
             if (echo "${line}" | grep -q 'warning:'); then
                 warning -n "WARNING: "
                 if [ -n "${REPORTLOG}" ]; then
-                    echo ${line} >> "${REPORTLOG}";
+                    echo "${line}${epilog}" >> "${REPORTLOG}";
                 fi
             elif (echo "${line}" | grep -q 'error:'); then
                 error -n "ERROR: "
                 if [ -n "${REPORTLOG}" ]; then
-                    echo ${line} >> "${REPORTLOG}";
+                    echo "${line}" >> "${REPORTLOG}";
                 fi
             fi
             echo "${line}"
