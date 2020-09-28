@@ -5,7 +5,7 @@ on:
         # trigger on self repo commit
 
     workflow_dispatch:
-        # trigger via REST API (when SCL repo commit)
+        # trigger via REST API (on SCL repo pull request for example)
         inputs:
             scl_ref:
                 description: SCL reference to check out
