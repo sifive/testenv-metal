@@ -1,8 +1,6 @@
-# Freedom Metal
+# Test environment to build SCL metal and exercise SCL metal with several HW configurations
 
 ![Status](https://github.com/sifive-eblot/freedom-metal/workflows/SCL-metal/badge.svg)
-
-PoC to build freedom-metal and scl-metal w/ LLVM & CMake/Ninja
 
 ## Installation
 
@@ -26,6 +24,12 @@ Subsequent runs should start immediately as the container material is preserved 
 
 ## Building
 
+For now, freedom-metal and scl-metal are build with
+
+* LLVM/clang v10
+* CMake
+* Ninja
+
 1. One or more BSPs should be selected. The supported BSPs can listed as
     ````sh
     ls -1 bsp/
@@ -33,7 +37,7 @@ Subsequent runs should start immediately as the container material is preserved 
 
 2. Build RV32 and RV64 QEMU BSPs
     ````sh
-    docker/bin/dock.sh build scripts/buildall.sh qemu-sifive_e_rv32 qemu-sifive_e_rv64
+    docker/bin/dock.sh build scripts/buildall.shm-g -r qemu-sifive_e_rv32 qemu-sifive_e_rv64
     ````
 
     Alternatively, it is possible to build for a single build type and a single target, as in:
@@ -50,7 +54,10 @@ Subsequent runs should start immediately as the container material is preserved 
 
 ## Testing
 
-QEMU is used to run unit tests.
+[Unity](https://github.com/ThrowTheSwitch/Unity) test framework is used for running unit test
+sessions.
+
+[QEMU](https://www.qemu.org) is used to run unit tests.
 
 A special QEMU for RISC-V targets is required: one that support the `sifive_fdt` generic targets
 that instantiates the whole virtual machine from a DTB file. It is available through a Docker
