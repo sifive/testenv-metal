@@ -1,34 +1,50 @@
+if [ "$(uname -s)" = "Darwin" ]; then
+_xecho () {
+    if [ "$1" = "-n" -o  "$1" = "-ne" ]; then
+        shift
+        EOL=""
+    else
+        EOL="\n"
+    fi
+    printf -- "$*${EOL}"
+}
+else
+_xecho () {
+    echo $*
+}
+fi
+
 info () {
-    echo -ne "\033[36m"
+    _xecho -ne "\033[36m"
     if [ "$1" = "-n" ]; then
         shift
-        echo -n "$*"
+        _xecho -n "$*"
     else
-        echo "$*"
+        _xecho "$*"
     fi
-    echo -ne "\033[0m"
+    _xecho -ne "\033[0m"
 }
 
 warning () {
-    echo -ne "\033[33;1m"
+    _xecho -ne "\033[33;1m"
     if [ "$1" = "-n" ]; then
         shift
-        echo -n "$*"
+        _xecho -n "$*"
     else
-        echo "$*"
+        _xecho "$*"
     fi
-    echo -ne "\033[0m"
+    _xecho -ne "\033[0m"
 }
 
 error () {
-    echo -ne "\033[31;1m"
+    _xecho -ne "\033[31;1m"
     if [ "$1" = "-n" ]; then
         shift
-        echo -n "$*"
+        _xecho -n "$*"
     else
-        echo "$*"
+        _xecho "$*"
     fi
-    echo -ne "\033[0m"
+    _xecho -ne "\033[0m"
 }
 
 # Die with an error message
