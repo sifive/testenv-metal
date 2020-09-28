@@ -52,7 +52,7 @@ jobs:
              docker/bin/dock.sh utest /bin/true
 
       - name: Build all targets
-        run:  docker/bin/dock.sh build scripts/buildall.sh -g -s $TARGETS
+        run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
 
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
