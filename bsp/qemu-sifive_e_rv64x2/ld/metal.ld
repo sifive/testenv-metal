@@ -24,6 +24,7 @@ PHDRS
     ram PT_LOAD;
     itim_init PT_LOAD;
     text PT_LOAD;
+    lim_init PT_LOAD;
 }
 
 SECTIONS
@@ -39,7 +40,7 @@ SECTIONS
      * initializes the stack pointers for each hart at the right offset from
      * the _sp symbol.
      */
-    __stack_size = DEFINED(__stack_size) ? __stack_size : 0x1000;
+    __stack_size = DEFINED(__stack_size) ? __stack_size : 0x2000;
     PROVIDE(__stack_size = __stack_size);
 
     /* The size of the heap can be overriden at build-time by adding the
@@ -161,7 +162,6 @@ SECTIONS
         *(.srodata.cst4)
         *(.srodata.cst2)
         *(.srodata .srodata.*)
-
     } >rom :rom
 
     /* ITIM SECTION
@@ -182,10 +182,28 @@ SECTIONS
     PROVIDE( metal_segment_itim_target_start = ADDR(.itim) );
     PROVIDE( metal_segment_itim_target_end = ADDR(.itim) + SIZEOF(.itim) );
 
+    /* LIM SECTION
+     *
+     * The following sections contain data which is copied from read-only
+     * memory into a loosely integrated memory (LIM), which is shared with L2
+     * cache, during pre-main program initialization.
+     *
+     * Generally, the data copied into the LIM should be performance-critical
+     * functions which benefit from low instruction-fetch latency.
+     */
+
+    .lim : ALIGN(8) {
+        *(.lim .lim.*)
+    } >ram AT>rom :lim_init
+
+    PROVIDE( metal_segment_lim_source_start = LOADADDR(.lim) );
+    PROVIDE( metal_segment_lim_target_start = ADDR(.lim) );
+    PROVIDE( metal_segment_lim_target_end = ADDR(.lim) + SIZEOF(.lim) );
+
     /* TEXT SECTION
      *
      * The following section contains the code of the program, excluding
-     * everything that's been allocated into the ITIM already
+     * everything that's been allocated into the ITIM/LIM already
      */
 
     .text : {
