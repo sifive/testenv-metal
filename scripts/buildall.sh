@@ -57,7 +57,6 @@ while [ $# -gt 0 ]; do
             shift
             REPORTLOG=$(mktemp)
             trap cleanup EXIT
-            echo "REPORTLOG ${REPORTLOG}"
             OPTS="${OPTS} -r ${REPORTLOG}"
             ;;
         -s)
@@ -83,6 +82,7 @@ for dts in ${DTS}; do
     for build in ${BUILDS}; do
         udts=$(echo "${dts}" | tr [:lower:] [:upper:])
         ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
+        echo ""
         info "Building [${udts} in ${ubuild}]"
         TOTAL="$(expr ${TOTAL} + 1)"
         ${SCRIPT_DIR}/build.sh ${OPTS} ${dts} ${build}
@@ -104,13 +104,15 @@ fi
 WARNCOUNT=0
 ERRCOUNT=0
 if [ -n "${REPORTLOG}" ]; then
-    sort -u "${REPORTLOG}" > "${REPORTLOG}.tmp"
+    # Discard all ANSI escape sequences
+    cat "${REPORTLOG}" | sed 's/\x1b\[[0-9;]*m//g' | \
+        sort -u > "${REPORTLOG}.tmp"
     mv "${REPORTLOG}.tmp" "${REPORTLOG}"
     if [ -s "${REPORTLOG}" ]; then
         echo ""
         warning "Warnings:"
         IFS=$'\n'; cat "${REPORTLOG}" | grep " warning:" | \
-            for issue in $(sed -e 's/^.*\[\(.*\)\]/\1/' | \
+            for warn in $(sed -e 's/^.*\[\(.*\)\]/\1/' | \
                                 sed -e 's/-Werror,//g' | \
                                 sort | uniq -c); do
                 warning " ${warn}"
@@ -118,7 +120,15 @@ if [ -n "${REPORTLOG}" ]; then
                 if [ -n "${count}" ]; then
                     WARNCOUNT=$(expr ${WARNCOUNT} + ${count})
                 fi
+                # for some reason (subshell?) global WARNCOUNT is not updated
+                # in Alpine shell whereas it is on other shells; use a temp.
+                # file to store the result
+                echo "${WARNCOUNT}" > .warncount
             done
+        if [ -f .warncount ]; then
+            WARNCOUNT="$(cat .warncount)"
+            rm -f .warncount
+        fi
         warning " ${WARNCOUNT} total"
         ERRCOUNT=$(cat "${REPORTLOG}" | grep " error:" | \
                    wc -l | tr -d [:space:])
