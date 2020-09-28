@@ -1,0 +1,65 @@
+name: SCL-metal
+
+on:
+    push:
+        # trigger on self repo commit
+
+    workflow_dispatch:
+        # trigger via REST API (when SCL repo commit)
+        inputs:
+            scl_ref:
+                description: SCL reference to check out
+                required: true
+
+jobs:
+  build_n_test:
+    runs-on: ubuntu-latest
+    env:
+        TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
+        BUILD_TOTAL: 0
+        BUILD_FAILURES: 0
+        BUILD_WARNINGS: 0
+        BUILD_ERRORS: 0
+        UTEST_TOTAL: 0
+        UTEST_FAILURES: 0
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            # submodule version depends on how this workflow is triggered,
+            # see below
+            submodules: false
+
+      - name: Check how events works
+        run:  echo "SCL-ref is ${{ github.event.inputs.scl_ref }}";
+              echo "GH refs ${GITHUB_SHA}, ${GITHUB_REF}"
+
+      - name: Checkout SCL and Unity submodules
+        run: git submodule update --init
+
+      - name: Select SCL revision to test
+        # event-initiated request contains scl_ref, while it is not defined
+        # for a push-initiated request
+        run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
+             (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
+             else true; fi
+
+      - name: Report submodule status
+        run:  git submodule status
+
+      - name: Fetch all Docker images
+        run: docker/bin/dock.sh build /bin/true &&
+             docker/bin/dock.sh utest /bin/true
+
+      - name: Build all targets
+        run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
+
+      - name: Test all targets
+        run: docker/bin/dock.sh utest scripts/utestall.sh -g build
+
+      - name: Report overall status
+        run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
+              echo "Build error count ${BUILD_ERRORS}";
+              echo "Build warning count ${BUILD_WARNINGS}";
+              echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
+              test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0

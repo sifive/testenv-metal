@@ -33,4 +33,8 @@
 [._]sw[a-p]
 # ctags
 tags
-
+build*/
+GPATH
+GRTAGS
+GTAGS
+tests/scl-metal/CMakeLists.txt
