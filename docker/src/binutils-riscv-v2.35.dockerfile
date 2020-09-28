@@ -4,8 +4,8 @@ LABEL maintainer="Emmanuel Blot <emmanuel.blot@sifive.com>"
 RUN apk update
 RUN apk add build-base gmp-dev mpfr-dev file curl
 WORKDIR /toolchain
-RUN curl -LO https://ftp.gnu.org/gnu/binutils/binutils-2.35.1.tar.xz && \
-    [ "3ced91db9bf01182b7e420eab68039f2083aed0a214c0424e257eae3ddee8607" = \
+RUN curl -LO https://ftp.gnu.org/gnu/binutils/binutils-2.35.1.tar.xz
+RUN [ "3ced91db9bf01182b7e420eab68039f2083aed0a214c0424e257eae3ddee8607" = \
       "$(sha256sum binutils-2.35.1.tar.xz | cut -d' ' -f1)" ] && \
       tar xvf binutils-2.35.1.tar.xz
 RUN mkdir /toolchain/build
