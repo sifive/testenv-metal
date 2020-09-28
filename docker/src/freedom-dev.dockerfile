@@ -4,9 +4,9 @@
 #-------------------------------------------------------------------------------
 FROM alpine:3.12
 
-ENV CLANG10PATH=/usr/local/clang10
+ENV CLANG11PATH=/usr/local/clang11
 ENV BU235PATH=/usr/local/riscv-elf-binutils
-ENV PATH=$PATH:${CLANG10PATH}/bin:${BU235PATH}/bin
+ENV PATH=$PATH:${CLANG11PATH}/bin:${BU235PATH}/bin
 
 WORKDIR /
 

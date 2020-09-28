@@ -22,7 +22,7 @@ MACRO (define_xsysroot)
       SET (XSYSROOT /usr/local/opt/riscv${XLEN}-newlib)
     ELSEIF (CMAKE_HOST_SYSTEM_NAME STREQUAL Linux)
       # Assume a Docker build
-      SET (XSYSROOT /usr/local/clang10)
+      SET (XSYSROOT /usr/local/clang11)
     ELSE ()
       MESSAGE (FATAL_ERROR "Unknown host ${CMAKE_HOST_SYSTEM_NAME}")
     ENDIF ()

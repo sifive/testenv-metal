@@ -11,12 +11,12 @@ xcxxdefs="-D_LIBUNWIND_IS_BAREMETAL=1 -D_GNU_SOURCE=1 -D_POSIX_TIMERS=1"
 xcxxdefs="${xcxxdefs} -D_LIBCPP_HAS_NO_LIBRARY_ALIGNED_ALLOCATION"
 xcxxnothread="-D_LIBCPP_HAS_NO_THREADS=1"
 
-export CC_FOR_TARGET="${CLANG10PATH}/bin/clang"
-export AR_FOR_TARGET="${CLANG10PATH}/bin/llvm-ar"
-export NM_FOR_TARGET="${CLANG10PATH}/bin/llvm-nm"
-export RANLIB_FOR_TARGET="${CLANG10PATH}/bin/llvm-ranlib"
-export READELF_FOR_TARGET="${CLANG10PATH}/bin/llvm-readelf"
-export AS_FOR_TARGET="${CLANG10PATH}/bin/clang"
+export CC_FOR_TARGET="${CLANG11PATH}/bin/clang"
+export AR_FOR_TARGET="${CLANG11PATH}/bin/llvm-ar"
+export NM_FOR_TARGET="${CLANG11PATH}/bin/llvm-nm"
+export RANLIB_FOR_TARGET="${CLANG11PATH}/bin/llvm-ranlib"
+export READELF_FOR_TARGET="${CLANG11PATH}/bin/llvm-readelf"
+export AS_FOR_TARGET="${CLANG11PATH}/bin/clang"
 
 for abi in i ia iac im imac iaf iafd imf imfd imafc imafdc; do
     if [ echo "${abi}" | grep -q "d" ]; then
