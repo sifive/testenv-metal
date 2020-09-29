@@ -129,7 +129,7 @@ jobs:
       - name: Global status
         run:  BUILD_FAILURES=$(cat build_failures);
               UTEST_FAILURES=$(cat utest_failures);
-              echo "Build failures: ${BUILD_FAILURES}, Unit test failures: ${UTEST_FAILURES}";
+              echo "Build failures ${BUILD_FAILURES}, Utest failures ${UTEST_FAILURES}";
               test -s build_failures &&
               test -s utest_failures &&
               test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
