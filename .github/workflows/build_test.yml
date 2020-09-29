@@ -134,8 +134,8 @@ jobs:
         run:  BUILD_FAILURES=$(cat build_failures);
               UTEST_ABORTS=$(cat utest_failures | cut -d'|' -f1);
               UTEST_FAILURES=$(cat utest_failures | cut -d'|' -f2);
-              echo "Build failures ${BUILD_FAILURES}"
-              echo "Utest aborts ${UTEST_ABORTS}, failures ${UTEST_FAILURES}";
+              echo "Build failures ${BUILD_FAILURES}";
+              echo "Utest failures ${UTEST_FAILURES}, aborts ${UTEST_ABORTS}";
               test -s build_failures &&
               test -s utest_failures &&
               test ${BUILD_FAILURES} -eq 0 &&
