@@ -84,6 +84,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
             name: utests
+            path: build
 
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
