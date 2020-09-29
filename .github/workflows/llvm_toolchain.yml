@@ -1,0 +1,54 @@
+name: Build LLVM RISC-V toolchain for Alpine Docker Container
+
+on: [workflow_dispatch] # manual dispatch only for now
+
+env:
+    ALPINE_VERSION: a3.12
+    BINUTILS_MAJVER: v2
+    BINUTILS_VERSION: v2.35.1
+    LLVM_MAJVER: v11
+    LLVM_VERSION: v11.0.0-rc3
+
+jobs:
+    build-alpine-docker:
+        name: Build toolchain
+        runs-on: self-hosted  #, ubuntu-latest
+        steps:
+
+            - name: Build a docker image with LLVM project source
+              run: docker build -f clang-${LLVM_MAJVER}.dockerfile -t clang:${LLVM_VERSION} .
+
+            - name: Build a docker image with newlib source
+              run: docker build -f newlib-v3.3.dockerfile -t newlib:v3.3.0 .
+
+            - name: Build binutils for RISC-V
+              run: docker build -f binutils-riscv-${BINUTILS_MAJVER}.dockerfile -t binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} .
+
+            - name: Build LLVM toolchain for RISC-V
+              run: docker build -f llvm-riscv-${LLVM_MAJVER}.dockerfile -t llvm-riscv:${ALPINE_VERSION}-${LLVM_VERSION} .
+
+            - name: Package LLVM toolchain for RISC-V
+              run: docker build -f clang-riscv-${LLVM_MAJVER}.dockerfile -t clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} .
+
+            - name: Package C newlib and compiler tuntime for RISC-V 64 bit targets
+              run: docker build -f clang-riscv64-${LLVM_MAJVER}.dockerfile -t clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} .
+
+            - name: Package C newlib and compiler tuntime for RISC-V 32 bit targets
+              run: docker build -f clang-riscv32-${LLVM_MAJVER}.dockerfile -t clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} .
+
+            - name: Tag Docker images
+              run: docker tag binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
+                   docker tag clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} &&
+                   docker tag clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} &&
+                   docker tag clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
+
+            - name: Login to DockerHub Registry
+              run: echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+            - name: Push the images to Docker hub
+              run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
+                   docker push ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} &&
+                   docker push ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION}  &&
+                   docker push  ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
+
+            - name: Logout from to DockerHub Registry
+              run: docker logout
