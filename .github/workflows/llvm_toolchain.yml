@@ -8,6 +8,8 @@ env:
     BINUTILS_VERSION: v2.35.1
     LLVM_MAJVER: v11
     LLVM_VERSION: v11.0.0-rc3
+    NEWLIB_MAJVER: v3
+    NEWLIB_VERSION: v3.3.0
 
 jobs:
     build-alpine-docker:
@@ -19,7 +21,7 @@ jobs:
               run: docker build -f clang-${LLVM_MAJVER}.dockerfile -t clang:${LLVM_VERSION} .
 
             - name: Build a docker image with newlib source
-              run: docker build -f newlib-v3.3.dockerfile -t newlib:v3.3.0 .
+              run: docker build -f newlib-${NEWLIB_MAJVER}.dockerfile -t newlib:${NEWLIB_VERSION} .
 
             - name: Build binutils for RISC-V
               run: docker build -f binutils-riscv-${BINUTILS_MAJVER}.dockerfile -t binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} .
