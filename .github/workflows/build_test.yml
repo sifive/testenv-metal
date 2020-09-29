@@ -1,26 +1,31 @@
 name: SCL-metal
 
 on:
-    push:
-        # trigger on self repo commit
+  push:
+      # trigger on self repo commit
 
-    workflow_dispatch:
-        # trigger via REST API (on SCL repo pull request for example)
-        inputs:
-            scl_ref:
-                description: SCL reference to check out
-                required: true
+  workflow_dispatch:
+      # trigger via REST API (on SCL repo pull request for example)
+      inputs:
+          scl_ref:
+              description: SCL reference to check out
+              required: true
 
 jobs:
+
+  env:
+    BUILD_TOTAL: 0
+    BUILD_FAILURES: 0
+    BUILD_WARNINGS: 0
+    BUILD_ERRORS: 0
+    UTEST_TOTAL: 0
+    UTEST_FAILURES: 0
+
   build:
     name: Build Metal & Unit Tests
     runs-on: ubuntu-latest
     env:
         TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
-        BUILD_TOTAL: 0
-        BUILD_FAILURES: 0
-        BUILD_WARNINGS: 0
-        BUILD_ERRORS: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -58,19 +63,16 @@ jobs:
             name: utests
             path: build/**/*.elf
 
-      - name: Report overall status
+      - name: Report build status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
               echo "Build error count ${BUILD_ERRORS}";
               echo "Build warning count ${BUILD_WARNINGS}";
-              test ${BUILD_FAILURES} -eq 0
 
   utest:
+
     name: Run Unit Tests on QEMU
     runs-on: ubuntu-latest
     needs: build
-    env:
-        UTEST_TOTAL: 0
-        UTEST_FAILURES: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -89,6 +91,16 @@ jobs:
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
-      - name: Report overall status
-        run:  echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
-              test ${UTEST_FAILURES} -eq 0
+      - name: Report unit test status
+        run:  echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}"
+
+
+  status:
+
+    name: Overall status
+    runs-on: ubuntu-latest
+    needs: [build, utest]
+
+    steps:
+      - name: Global status
+        run:  test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
