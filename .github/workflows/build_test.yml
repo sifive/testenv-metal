@@ -77,7 +77,10 @@ jobs:
     needs: build
     env:
       UTEST_TOTAL: 0
+      UTEST_ABORTS: 0
+      UTEST_TESTS: 0
       UTEST_FAILURES: 0
+      UTEST_IGNORED: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -97,7 +100,7 @@ jobs:
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
       - name: Store utest status
-        run:  echo "${UTEST_FAILURES}" > utest_failures
+        run:  expr "${UTEST_ABORTS}" + "${UTEST_FAILURES}" > utest_failures
 
       - name: Upload utest status
         uses: actions/upload-artifact@v2
@@ -106,7 +109,8 @@ jobs:
             path: utest_failures
 
       - name: Report unit test status
-        run:  echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}"
+        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}"
+        run:  echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
 
 
   status:

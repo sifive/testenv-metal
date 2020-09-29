@@ -104,7 +104,7 @@ WARNCOUNT=0
 ERRCOUNT=0
 if [ -n "${REPORTLOG}" ]; then
     # Discard all ANSI escape sequences
-    cat "${REPORTLOG}" | sed 's/\x1b\[[0-9;]*m//g' | \
+    cat "${REPORTLOG}" | sed 's/'$(echo "\\033")'\[[0-9;]*m//g' | \
         sort -u > "${REPORTLOG}.tmp"
     mv "${REPORTLOG}.tmp" "${REPORTLOG}"
     if [ -s "${REPORTLOG}" ]; then

@@ -95,12 +95,10 @@ test -n "${XBSP}" || die "XBSP should be specified"
 CMAKE_OPTS="${CMAKE_OPTS} -DXBSP=${XBSP} -DCMAKE_BUILD_TYPE=${BUILD}"
 SUBDIR=$(echo "${SA_DIR}${BUILD}" | tr [:upper:] [:lower:])
 
-set -eu
-
 rm -rf build/${XBSP}/${SUBDIR}
-mkdir -p build/${XBSP}/${SUBDIR}
-cd build/${XBSP}/${SUBDIR}
-cmake -G Ninja ../../.. ${CMAKE_OPTS}
+mkdir -p build/${XBSP}/${SUBDIR} || die "Cannot create build dir"
+cd build/${XBSP}/${SUBDIR} || die "Invalid build dir"
+cmake -G Ninja ../../.. ${CMAKE_OPTS} || die "Unable to run cmake"
 if [ ${GHA} -eq 0 ]; then
     ninja ${NINJA_OPTS}
 else

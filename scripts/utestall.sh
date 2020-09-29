@@ -29,7 +29,7 @@ EOT
 
 ABORT=0
 GHA=0
-QEMUOPT=""
+OPTS=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -a)
@@ -39,7 +39,7 @@ while [ $# -gt 0 ]; do
             shift
             QEMUPATH="$1"
             test -d "${QEMUPATH}" || die "Invalid QEMU directory ${QEMUPATH}"
-            QEMUOPT="-e $1"
+            OPTS="-e $1"
             ;;
         -g)
             GHA=1
@@ -59,8 +59,11 @@ done
 
 test -n "${TESTDIR}" || die "No test direcory specified"
 
-FAILURES=0
 TOTAL=0
+ABORTS=0
+TOTAL_TESTS=0
+TOTAL_FAILURES=0
+TOTAL_IGNORED=0
 for testdir in ${TESTDIR}; do
     dtsdirs=$(cd ${testdir} && find . -type d -maxdepth 1) || \
         die "Unable to find unit tests from ${testdir}"
@@ -75,28 +78,48 @@ for testdir in ${TESTDIR}; do
                 ubuild=$(echo "${build}" | tr [:lower:] [:upper:])
                 info "Testing ${udts} in ${ubuild}"
                 TOTAL="$(expr ${TOTAL} + 1)"
-                ${SCRIPT_DIR}/utest.sh ${QEMUOPT} -d "bsp/${dts}/dts/qemu.dts"\
-                    ${testdir}/${dts}/${build}
+                if [ ${GHA} -ne 0 ]; then
+                    RESULT_LOG="${testdir}/${dts}/${build}/results.log"
+                    RESULT="-r ${RESULT_LOG}"
+                    rm -f "${RESULT_LOG}"
+                else
+                    RESULT=""
+                fi
+                ${SCRIPT_DIR}/utest.sh ${OPTS} -d "bsp/${dts}/dts/qemu.dts"\
+                    ${RESULT} ${testdir}/${dts}/${build}
                 if [ $? -ne 0 ]; then
                     error "Test failed (${udts} in ${ubuild})"
                     if [ ${ABORT} -gt 0 ]; then
                         exit $?
                     else
-                        FAILURES=$(expr ${FAILURES} + 1)
+                        ABORTS=$(expr ${ABORTS} + 1)
                     fi
+                fi
+                if [ ${GHA} -ne 0 -a -s "${RESULT_LOG}" ]; then
+                    results=$(cat "${RESULT_LOG}")
+                    tests=$(echo "${results}" | cut -d: -f1)
+                    failures=$(echo "${results}" | cut -d: -f2)
+                    ignored=$(echo "${results}" | cut -d: -f3)
+                    TOTAL_TESTS="$(expr ${TOTAL_TESTS} + ${tests})"
+                    TOTAL_FAILURES="$(expr ${TOTAL_FAILURES} + ${failures})"
+                    TOTAL_IGNORED="$(expr ${TOTAL_IGNORED} + ${ignored})"
+                    rm -f "${RESULT_LOG}"
                 fi
             fi
         done
     done
 done
 
-if [ ${FAILURES} -ne 0 ]; then
-    warning "${FAILURES} test sesssions failed"
+if [ ${ABORTS} -ne 0 ]; then
+    warning "${ABORTS} test sesssions failed"
 fi
 
 if [ ${GHA} -ne 0 ]; then
     echo ""
     echo "::set-env name=UTEST_TOTAL::${TOTAL}"
-    echo "::set-env name=UTEST_FAILURES::${FAILURES}"
+    echo "::set-env name=UTEST_ABORTS::${ABORTS}"
+    echo "::set-env name=UTEST_TESTS::${TOTAL_TESTS}"
+    echo "::set-env name=UTEST_FAILURES::${TOTAL_FAILURES}"
+    echo "::set-env name=UTEST_IGNORED::${TOTAL_IGNORED}"
     echo ""
 fi
