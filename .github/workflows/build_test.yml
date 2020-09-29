@@ -109,8 +109,8 @@ jobs:
             path: utest_failures
 
       - name: Report unit test status
-        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}"
-        run:  echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
+        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
+              echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
 
 
   status:
@@ -125,6 +125,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
             name: build_result
+
       - name: Download utest result
         uses: actions/download-artifact@v2
         with:
