@@ -1,27 +1,27 @@
 name: SCL-metal
 
 on:
-    push:
-        # trigger on self repo commit
+  push:
+      # trigger on self repo commit
 
-    workflow_dispatch:
-        # trigger via REST API (on SCL repo pull request for example)
-        inputs:
-            scl_ref:
-                description: SCL reference to check out
-                required: true
+  workflow_dispatch:
+      # trigger via REST API (on SCL repo pull request for example)
+      inputs:
+          scl_ref:
+              description: SCL reference to check out
+              required: true
 
 jobs:
-  build_n_test:
+
+  build:
+    name: Build Metal & Unit Tests
     runs-on: ubuntu-latest
     env:
-        TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
-        BUILD_TOTAL: 0
-        BUILD_FAILURES: 0
-        BUILD_WARNINGS: 0
-        BUILD_ERRORS: 0
-        UTEST_TOTAL: 0
-        UTEST_FAILURES: 0
+      TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
+      BUILD_TOTAL: 0
+      BUILD_FAILURES: 0
+      BUILD_WARNINGS: 0
+      BUILD_ERRORS: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -30,10 +30,6 @@ jobs:
             # see below
             submodules: false
 
-      - name: Check how events works
-        run:  echo "SCL-ref is ${{ github.event.inputs.scl_ref }}";
-              echo "GH refs ${GITHUB_SHA}, ${GITHUB_REF}"
-
       - name: Checkout SCL and Unity submodules
         run: git submodule update --init
 
@@ -41,25 +37,123 @@ jobs:
         # event-initiated request contains scl_ref, while it is not defined
         # for a push-initiated request
         run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
+             echo "${GITHUB_EVENT} ${{ github.event.inputs.scl_ref }}";
              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
-             else true; fi
+             else echo "${GITHUB_EVENT}"; fi
 
       - name: Report submodule status
         run:  git submodule status
 
-      - name: Fetch all Docker images
-        run: docker/bin/dock.sh build /bin/true &&
-             docker/bin/dock.sh utest /bin/true
+      - name: Fetch Docker image
+        run: docker/bin/dock.sh build /bin/true
 
       - name: Build all targets
         run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
 
+      - name: Store build status
+        run:  echo "${BUILD_TOTAL}|${BUILD_FAILURES}|${BUILD_ERRORS}|${BUILD_WARNINGS}" > build_status
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v2
+        with:
+            name: utests
+            path: build/**/*.elf
+
+      - name: Upload build status
+        uses: actions/upload-artifact@v2
+        with:
+            name: build_result
+            path: build_status
+
+  utest:
+
+    name: Run Unit Tests on QEMU
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      UTEST_TOTAL: 0
+      UTEST_ABORTS: 0
+      UTEST_TESTS: 0
+      UTEST_FAILURES: 0
+      UTEST_IGNORED: 0
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: false
+
+      - name: Fetch Docker image
+        run: docker/bin/dock.sh utest /bin/true
+
+      - name: Download test artifacts
+        uses: actions/download-artifact@v2
+        with:
+            name: utests
+            path: build
+
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
-      - name: Report overall status
+      - name: Store utest status
+        run: echo "${UTEST_TOTAL}|${UTEST_ABORTS}|${UTEST_TESTS}|${UTEST_FAILURES}|${UTEST_IGNORED}" > utest_status
+
+      - name: Upload utest status
+        uses: actions/upload-artifact@v2
+        with:
+            name: utest_result
+            path: utest_status
+
+  status:
+
+    name: Overall status
+    runs-on: ubuntu-latest
+    needs: [build, utest]
+    env:
+      BUILD_TOTAL: 0
+      BUILD_FAILURES: 0
+      BUILD_WARNINGS: 0
+      BUILD_ERRORS: 0
+      UTEST_TOTAL: 0
+      UTEST_ABORTS: 0
+      UTEST_TESTS: 0
+      UTEST_FAILURES: 0
+      UTEST_IGNORED: 0
+
+    steps:
+
+      - name: Download build result
+        uses: actions/download-artifact@v2
+        with:
+            name: build_result
+
+      - name: Download utest result
+        uses: actions/download-artifact@v2
+        with:
+            name: utest_result
+
+      - name: Load statuses
+        run:  test -s build_status &&
+              test -s utest_status &&
+              echo "::set-env name=BUILD_TOTAL::$(cat build_status | cut -d'|' -f1)" &&
+              echo "::set-env name=BUILD_FAILURES::$(cat build_status | cut -d'|' -f2)" &&
+              echo "::set-env name=BUILD_ERRORS::$(cat build_status | cut -d'|' -f3)" &&
+              echo "::set-env name=BUILD_WARNINGS::$(cat build_status | cut -d'|' -f4)" &&
+              echo "::set-env name=UTEST_TOTAL::$(cat utest_status | cut -d'|' -f1)" &&
+              echo "::set-env name=UTEST_ABORTS::$(cat utest_status | cut -d'|' -f2)" &&
+              echo "::set-env name=UTEST_TESTS::$(cat utest_status | cut -d'|' -f3)" &&
+              echo "::set-env name=UTEST_FAILURES::$(cat utest_status | cut -d'|' -f4)" &&
+              echo "::set-env name=UTEST_IGNORED::$(cat utest_status | cut -d'|' -f5)"
+
+      - name: Report build status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
               echo "Build error count ${BUILD_ERRORS}";
-              echo "Build warning count ${BUILD_WARNINGS}";
-              echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
-              test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
+              echo "Build warning count ${BUILD_WARNINGS}"
+
+      - name: Report unit test status
+        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
+              echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
+
+      - name: Overall result
+        run:  test ${BUILD_FAILURES} -eq 0 &&
+              test ${UTEST_ABORTS} -eq 0 &&
+              test ${UTEST_FAILURES} -eq 0
