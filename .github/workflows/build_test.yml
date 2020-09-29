@@ -100,7 +100,7 @@ jobs:
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
       - name: Store utest status
-        run:  expr "${UTEST_ABORTS}" + "${UTEST_FAILURES}" > utest_failures
+        run:  expr ${UTEST_ABORTS} + ${UTEST_FAILURES} > utest_failures
 
       - name: Upload utest status
         uses: actions/upload-artifact@v2
