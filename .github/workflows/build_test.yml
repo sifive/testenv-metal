@@ -83,6 +83,7 @@ jobs:
         UTEST_TOTAL: 0
         UTEST_FAILURES: 0
 
+    steps:
       - name: Fetch Docker image
         run: docker/bin/dock.sh utest /bin/true
 
