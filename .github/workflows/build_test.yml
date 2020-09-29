@@ -11,15 +11,15 @@ on:
               description: SCL reference to check out
               required: true
 
-jobs:
+env:
+  BUILD_TOTAL: 0
+  BUILD_FAILURES: 0
+  BUILD_WARNINGS: 0
+  BUILD_ERRORS: 0
+  UTEST_TOTAL: 0
+  UTEST_FAILURES: 0
 
-  env:
-    BUILD_TOTAL: 0
-    BUILD_FAILURES: 0
-    BUILD_WARNINGS: 0
-    BUILD_ERRORS: 0
-    UTEST_TOTAL: 0
-    UTEST_FAILURES: 0
+jobs:
 
   build:
     name: Build Metal & Unit Tests
