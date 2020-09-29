@@ -12,7 +12,8 @@ on:
                 required: true
 
 jobs:
-  build_n_test:
+  build:
+    name: Build Metal & Unit Tests
     runs-on: ubuntu-latest
     env:
         TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
@@ -20,8 +21,6 @@ jobs:
         BUILD_FAILURES: 0
         BUILD_WARNINGS: 0
         BUILD_ERRORS: 0
-        UTEST_TOTAL: 0
-        UTEST_FAILURES: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -47,19 +46,59 @@ jobs:
       - name: Report submodule status
         run:  git submodule status
 
-      - name: Fetch all Docker images
-        run: docker/bin/dock.sh build /bin/true &&
-             docker/bin/dock.sh utest /bin/true
+      - name: Fetch Docker image
+        run: docker/bin/dock.sh build /bin/true
 
       - name: Build all targets
         run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
 
-      - name: Test all targets
-        run: docker/bin/dock.sh utest scripts/utestall.sh -g build
+      #- name: Create test artifacts
+      #  run: tar czvf utests.tgz $(find build -name "*.elf")
+      #  
+      #- name: Create BSP artifacts
+      #  run: tar czvf bsps.tgz $(find bsp -name "*.dts")
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v2
+        with:
+            name: utests
+            path: build/**/*.elf
+
+      - name: Upload bsp artifacts
+        uses: actions/upload-artifact@v2
+        with:
+            name: bsps
+            path: bsp/*/dts/qemu.dts
 
       - name: Report overall status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
               echo "Build error count ${BUILD_ERRORS}";
               echo "Build warning count ${BUILD_WARNINGS}";
-              echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
-              test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
+              test ${BUILD_FAILURES} -eq 0
+
+  utest:
+    name: Run Unit Tests on QEMU
+    runs-on: ubuntu-latest
+    env:
+        UTEST_TOTAL: 0
+        UTEST_FAILURES: 0
+
+      - name: Fetch Docker image
+        run: docker/bin/dock.sh utest /bin/true
+
+      - name: Download test artifacts
+        uses: actions/download-artifact@v2
+        with:
+            name: utests
+
+      - name: Download bsp artifacts
+        uses: actions/download-artifact@v2
+        with:
+            name: bsps
+
+      - name: Test all targets
+        run: docker/bin/dock.sh utest scripts/utestall.sh -g build
+
+      - name: Report overall status
+        run:  echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}";
+              test ${UTEST_FAILURES} -eq 0
