@@ -100,7 +100,7 @@ jobs:
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
       - name: Store utest status
-        run:  sh -c "expr ${UTEST_ABORTS} + ${UTEST_FAILURES}" > utest_failures
+        run: echo "${UTEST_ABORTS}|${UTEST_FAILURES}" > utest_failures
 
       - name: Upload utest status
         uses: actions/upload-artifact@v2
@@ -133,8 +133,12 @@ jobs:
 
       - name: Global status
         run:  BUILD_FAILURES=$(cat build_failures);
-              UTEST_FAILURES=$(cat utest_failures);
-              echo "Build failures ${BUILD_FAILURES}, Utest failures ${UTEST_FAILURES}";
+              UTEST_ABORTS=$(cat utest_failures | cut -d'|', -f1);
+              UTEST_FAILURES=$(cat utest_failures | cut -d'|', -f2);
+              echo "Build failures ${BUILD_FAILURES}"
+              echo "Utest aborts ${UTEST_ABORTS}, failures ${UTEST_FAILURES}";
               test -s build_failures &&
               test -s utest_failures &&
-              test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
+              test ${BUILD_FAILURES} -eq 0 &&
+              test ${UTEST_ABORTS} -eq 0 &&
+              test ${UTEST_FAILURES} -eq 0
