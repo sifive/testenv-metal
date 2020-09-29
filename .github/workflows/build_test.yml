@@ -77,7 +77,7 @@ jobs:
         with:
             submodules: false
 
-            - name: Fetch Docker image
+      - name: Fetch Docker image
         run: docker/bin/dock.sh utest /bin/true
 
       - name: Download test artifacts
