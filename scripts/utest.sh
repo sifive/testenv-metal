@@ -114,8 +114,7 @@ for ut in ${UNIT_TESTS}; do
     else
         echo ""
     fi
-    results=$(cat ${TMPDIR}/output.log |
-              sed 's/'$(echo "\\033")'\[[0-9;]*m//g' |
+    results=$(cat ${TMPDIR}/output.log | sed 's/\x1b\[[0-9;]*m//g' |
               egrep "[0-9]+ Tests [0-9]+ Failures [0-9]+ Ignored")
     if [ -n "${results}" ]; then
         tests=$(echo "${results}" | cut -d' ' -f1)
