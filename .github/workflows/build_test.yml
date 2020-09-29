@@ -51,7 +51,7 @@ jobs:
         run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
 
       - name: Store build status
-        run:  echo "${BUILD_FAILURES}" > build_failures
+        run:  echo "${BUILD_TOTAL}|${BUILD_FAILURES}|${BUILD_ERRORS}|${BUILD_WARNINGS}" > build_status
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
@@ -63,12 +63,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
             name: build_result
-            path: build_failures
-
-      - name: Report build status
-        run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
-              echo "Build error count ${BUILD_ERRORS}";
-              echo "Build warning count ${BUILD_WARNINGS}";
+            path: build_status
 
   utest:
 
@@ -100,23 +95,29 @@ jobs:
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
       - name: Store utest status
-        run: echo "${UTEST_ABORTS}|${UTEST_FAILURES}" > utest_failures
+        run: echo "${UTEST_TOTAL}|${UTEST_ABORTS}|${UTEST_TESTS}|${UTEST_FAILURES}|${UTEST_IGNORED}" > utest_status
 
       - name: Upload utest status
         uses: actions/upload-artifact@v2
         with:
             name: utest_result
-            path: utest_failures
-
-      - name: Report unit test status
-        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
-              echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
+            path: utest_status
 
   status:
 
     name: Overall status
     runs-on: ubuntu-latest
     needs: [build, utest]
+    env:
+      BUILD_TOTAL: 0
+      BUILD_FAILURES: 0
+      BUILD_WARNINGS: 0
+      BUILD_ERRORS: 0
+      UTEST_TOTAL: 0
+      UTEST_ABORTS: 0
+      UTEST_TESTS: 0
+      UTEST_FAILURES: 0
+      UTEST_IGNORED: 0
 
     steps:
 
@@ -130,14 +131,29 @@ jobs:
         with:
             name: utest_result
 
-      - name: Global status
-        run:  BUILD_FAILURES=$(cat build_failures);
-              UTEST_ABORTS=$(cat utest_failures | cut -d'|' -f1);
-              UTEST_FAILURES=$(cat utest_failures | cut -d'|' -f2);
-              echo "Build failures ${BUILD_FAILURES}";
-              echo "Utest failures ${UTEST_FAILURES}, aborts ${UTEST_ABORTS}";
-              test -s build_failures &&
-              test -s utest_failures &&
-              test ${BUILD_FAILURES} -eq 0 &&
+      - name: Load statuses
+              test -s build_status &&
+              test -s utest_status &&
+              echo "::set-env name=BUILD_TOTAL::$(cat build_status | cut -d'|' -f1)" &&
+              echo "::set-env name=BUILD_FAILURES::$(cat build_status | cut -d'|' -f2)" &&
+              echo "::set-env name=BUILD_ERRORS::$(cat build_status | cut -d'|' -f3)" &&
+              echo "::set-env name=BUILD_WARNINGS::$(cat build_status | cut -d'|' -f4)" &&
+              echo "::set-env name=UTEST_TOTAL::$(cat utest_status | cut -d'|' -f1)" &&
+              echo "::set-env name=UTEST_ABORTS::$(cat utest_status | cut -d'|' -f2)" &&
+              echo "::set-env name=UTEST_TESTS::$(cat utest_status | cut -d'|' -f3)" &&
+              echo "::set-env name=UTEST_FAILURES::$(cat utest_status | cut -d'|' -f4)" &&
+              echo "::set-env name=UTEST_IGNORED::$(cat utest_status | cut -d'|' -f5)"
+
+      - name: Report build status
+        run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
+              echo "Build error count ${BUILD_ERRORS}";
+              echo "Build warning count ${BUILD_WARNINGS}"
+
+      - name: Report unit test status
+        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
+              echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
+
+      - name: Overall result
+        run:  test ${BUILD_FAILURES} -eq 0 &&
               test ${UTEST_ABORTS} -eq 0 &&
               test ${UTEST_FAILURES} -eq 0
