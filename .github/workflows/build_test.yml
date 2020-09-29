@@ -11,21 +11,17 @@ on:
               description: SCL reference to check out
               required: true
 
-env:
-  BUILD_TOTAL: 0
-  BUILD_FAILURES: 0
-  BUILD_WARNINGS: 0
-  BUILD_ERRORS: 0
-  UTEST_TOTAL: 0
-  UTEST_FAILURES: 0
-
 jobs:
 
   build:
     name: Build Metal & Unit Tests
     runs-on: ubuntu-latest
     env:
-        TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
+      TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
+      BUILD_TOTAL: 0
+      BUILD_FAILURES: 0
+      BUILD_WARNINGS: 0
+      BUILD_ERRORS: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -34,10 +30,6 @@ jobs:
             # see below
             submodules: false
 
-      - name: Check how events works
-        run:  echo "SCL-ref is ${{ github.event.inputs.scl_ref }}";
-              echo "GH refs ${GITHUB_SHA}, ${GITHUB_REF}"
-
       - name: Checkout SCL and Unity submodules
         run: git submodule update --init
 
@@ -45,8 +37,9 @@ jobs:
         # event-initiated request contains scl_ref, while it is not defined
         # for a push-initiated request
         run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
+             echo "${GITHUB_EVENT} ${{ github.event.inputs.scl_ref }}";
              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
-             else true; fi
+             else echo "${GITHUB_EVENT}"; fi
 
       - name: Report submodule status
         run:  git submodule status
@@ -57,11 +50,20 @@ jobs:
       - name: Build all targets
         run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
 
+      - name: Store build status
+        run:  echo "${BUILD_FAILURES}" > build_failures
+
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
         with:
             name: utests
             path: build/**/*.elf
+
+      - name: Upload build status
+        uses: actions/upload-artifact@v2
+        with:
+            name: build_result
+            path: build_failures
 
       - name: Report build status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
@@ -73,6 +75,9 @@ jobs:
     name: Run Unit Tests on QEMU
     runs-on: ubuntu-latest
     needs: build
+    env:
+      UTEST_TOTAL: 0
+      UTEST_FAILURES: 0
 
     steps:
       - uses: actions/checkout@v2
@@ -91,6 +96,15 @@ jobs:
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
 
+      - name: Store utest status
+        run:  echo "${UTEST_FAILURES}" > utest_failures
+
+      - name: Upload utest status
+        uses: actions/upload-artifact@v2
+        with:
+            name: utest_result
+            path: utest_failures
+
       - name: Report unit test status
         run:  echo "Unit test failures ${UTEST_FAILURES}/${UTEST_TOTAL}"
 
@@ -102,5 +116,20 @@ jobs:
     needs: [build, utest]
 
     steps:
+
+      - name: Download build result
+        uses: actions/download-artifact@v2
+        with:
+            name: build_result
+      - name: Download utest result
+        uses: actions/download-artifact@v2
+        with:
+            name: utest_result
+
       - name: Global status
-        run:  test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
+        run:  BUILD_FAILURES=$(cat build_failures);
+              UTEST_FAILURES=$(cat utest_failures);
+              echo "Build failures: ${BUILD_FAILURES}, Unit test failures: ${UTEST_FAILURES}";
+              test -s build_failures &&
+              test -s utest_failures &&
+              test ${BUILD_FAILURES} -eq 0 && test ${UTEST_FAILURES} -eq 0
