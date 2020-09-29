@@ -34,5 +34,5 @@ COPY --from=builder /usr/local/riscv-elf-binutils /usr/local/riscv-elf-binutils
 ENV PATH=$PATH:/usr/local/riscv-elf-binutils/bin
 WORKDIR /
 
-# docker build -f binutils-riscv-v2.35.dockerfile -t binutils-riscv:a3.12-v2.35.1 .
-# docker tag binutils-riscv:a3.12-v2.35.1 iroazh/binutils-riscv:a3.12-v2.35.1
+# docker build -f binutils-riscv-v2.dockerfile -t binutils-riscv:a3.12-v2.35.1 .
+# docker tag binutils-riscv:a3.12-v2.35.1 sifive/binutils-riscv:a3.12-v2.35.1

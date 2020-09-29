@@ -30,7 +30,7 @@ COPY --from=builder ${CLANG11PATH}/${xtarget} \
      ${CLANG11PATH}/${xtarget}
 WORKDIR /
 
-# docker build -f clang-riscv64-v11.0.0.dockerfile -t clang-riscv64:a3.12-v11.0.0-rc3 .
-# docker tag clang-riscv64:a3.12-v11.0.0-rc3 iroazh/clang-riscv64:a3.12-v11.0.0-rc3
+# docker build -f clang-riscv64-v11.dockerfile -t clang-riscv64:a3.12-v11.0.0-rc3 .
+# docker tag clang-riscv64:a3.12-v11.0.0-rc3 sifive/clang-riscv64:a3.12-v11.0.0-rc3
 
 

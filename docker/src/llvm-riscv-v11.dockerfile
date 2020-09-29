@@ -38,4 +38,4 @@ WORKDIR /
 # on is therefore never pushed to the docker hub, as it only lasts for the
 # time required to build the toolchain itself
 
-# docker build -f llvm-riscv-v11.0.0.dockerfile -t llvm-riscv:a3.12-v11.0.0-rc3 .
+# docker build -f llvm-riscv-v11.dockerfile -t llvm-riscv:a3.12-v11.0.0-rc3 .

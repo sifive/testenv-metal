@@ -11,4 +11,4 @@ RUN [ "e6fcece3f9f74d37974a2766f45160e8debd11dc5d57e6547dcaf5e75b4db783" = \
     mv llvm-project-11.0.0rc3 llvm && rm llvm-project-11.0.0rc3.tar.xz
 WORKDIR /
 
-# docker build -f clang-v11.0.0.dockerfile -t clang:v11.0.0-rc3 .
+# docker build -f clang-v11.dockerfile -t clang:v11.0.0-rc3 .

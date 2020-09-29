@@ -18,6 +18,7 @@ RUN apk add ninja cmake git curl python3
 
 # docker build -f freedom-dev.dockerfile -t freedom-dev:tmp .
 # docker run --name freedom-dev_tmp -it freedom-dev:tmp /bin/sh -c "exit"
-# docker export freedom-dev_tmp | docker import - freedom-dev:latest
+# docker export freedom-dev_tmp | docker import - freedom-dev:a3.12-v1.0
 # docker rm freedom-dev_tmp
 # docker rmi freedom-dev:tmp
+# docker tag freedom-dev:a3.12-v1.0 sifive/freedom-dev:a3.12-v1.0
