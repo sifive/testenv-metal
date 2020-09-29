@@ -132,7 +132,7 @@ jobs:
             name: utest_result
 
       - name: Load statuses
-              test -s build_status &&
+        run:  test -s build_status &&
               test -s utest_status &&
               echo "::set-env name=BUILD_TOTAL::$(cat build_status | cut -d'|' -f1)" &&
               echo "::set-env name=BUILD_FAILURES::$(cat build_status | cut -d'|' -f2)" &&
