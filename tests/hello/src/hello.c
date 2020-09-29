@@ -24,10 +24,6 @@
 # define PRINTF(_msg_, ...)
 #endif
 
-#ifndef DEBUG
-#error Test GitHub Action
-#endif
-
 int main(void) {
 
     printf("Hello, World!\n");
