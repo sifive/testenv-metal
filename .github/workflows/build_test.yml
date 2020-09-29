@@ -52,23 +52,11 @@ jobs:
       - name: Build all targets
         run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
 
-      #- name: Create test artifacts
-      #  run: tar czvf utests.tgz $(find build -name "*.elf")
-      #  
-      #- name: Create BSP artifacts
-      #  run: tar czvf bsps.tgz $(find bsp -name "*.dts")
-
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
         with:
             name: utests
             path: build/**/*.elf
-
-      - name: Upload bsp artifacts
-        uses: actions/upload-artifact@v2
-        with:
-            name: bsps
-            path: bsp/*/dts/qemu.dts
 
       - name: Report overall status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
@@ -79,23 +67,23 @@ jobs:
   utest:
     name: Run Unit Tests on QEMU
     runs-on: ubuntu-latest
+    needs: build
     env:
         UTEST_TOTAL: 0
         UTEST_FAILURES: 0
 
     steps:
-      - name: Fetch Docker image
+      - uses: actions/checkout@v2
+        with:
+            submodules: false
+
+            - name: Fetch Docker image
         run: docker/bin/dock.sh utest /bin/true
 
       - name: Download test artifacts
         uses: actions/download-artifact@v2
         with:
             name: utests
-
-      - name: Download bsp artifacts
-        uses: actions/download-artifact@v2
-        with:
-            name: bsps
 
       - name: Test all targets
         run: docker/bin/dock.sh utest scripts/utestall.sh -g build
