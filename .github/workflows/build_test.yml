@@ -112,7 +112,6 @@ jobs:
         run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
               echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
 
-
   status:
 
     name: Overall status
@@ -133,8 +132,8 @@ jobs:
 
       - name: Global status
         run:  BUILD_FAILURES=$(cat build_failures);
-              UTEST_ABORTS=$(cat utest_failures | cut -d'|', -f1);
-              UTEST_FAILURES=$(cat utest_failures | cut -d'|', -f2);
+              UTEST_ABORTS=$(cat utest_failures | cut -d'|' -f1);
+              UTEST_FAILURES=$(cat utest_failures | cut -d'|' -f2);
               echo "Build failures ${BUILD_FAILURES}"
               echo "Utest aborts ${UTEST_ABORTS}, failures ${UTEST_FAILURES}";
               test -s build_failures &&
