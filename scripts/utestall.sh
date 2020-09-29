@@ -62,7 +62,8 @@ test -n "${TESTDIR}" || die "No test direcory specified"
 FAILURES=0
 TOTAL=0
 for testdir in ${TESTDIR}; do
-    dtsdirs=$(cd ${testdir} && find . -type d -maxdepth 1)
+    dtsdirs=$(cd ${testdir} && find . -type d -maxdepth 1) || \
+        die "Unable to find unit tests from ${testdir}"
     for dts in ${dtsdirs}; do
         dts=$(echo "${dts}" | cut -c3-)  # skip leading ./
         if [ -z "${dts}" ]; then
