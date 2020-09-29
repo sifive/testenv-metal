@@ -24,6 +24,8 @@ FROM alpine:3.12
 LABEL description="RISC-V 64-bit environment"
 LABEL maintainer="Emmanuel Blot <emmanuel.blot@sifive.com>"
 ENV CLANG11PATH=/usr/local/clang11
+ENV xlen=64
+ENV xtarget="riscv${xlen}-unknown-elf"
 COPY --from=builder ${CLANG11PATH}/${xtarget} \
      ${CLANG11PATH}/${xtarget}
 WORKDIR /
