@@ -12,8 +12,8 @@ env:
     NEWLIB_VERSION: v3.3.0
 
 jobs:
-    build-alpine-docker:
-        name: Build toolchain
+    toolchain-alpine-docker:
+        name: Toolchain
         runs-on: self-hosted  #, ubuntu-latest, should be changed (security issue)
         steps:
 
@@ -44,19 +44,13 @@ jobs:
                    docker tag clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} sifive/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} &&
                    docker tag clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} sifive/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
 
-    upload-docker:
-        name: Upload Docker images
-        runs-on: self-hosted  #, ubuntu-latest
-        needs: build-alpine-docker
-        steps:
-
             - name: Login to DockerHub Registry
               run: echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
             - name: Push the images to Docker hub
               run: docker push sifive/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
                    docker push sifive/clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} &&
-                   docker push sifive/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION}  &&
+                   docker push sifive/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} &&
                    docker push sifive/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
 
             - name: Logout from to DockerHub Registry

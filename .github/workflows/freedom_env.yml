@@ -9,7 +9,7 @@ env:
 
 jobs:
     dev-alpine-docker:
-        name: Create build environment
+        name: Build environment
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
@@ -22,8 +22,17 @@ jobs:
             - name: Tag Docker image
               run: docker tag freedom-dev:${ALPINE_VERSION}-${DEV_VERSION} sifive/freedom-dev:${ALPINE_VERSION}-${DEV_VERSION}
 
+            - name: Login to DockerHub Registry
+              run: echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+
+            - name: Push the image to Docker hub
+              run: docker push sifive/freedom-dev:${ALPINE_VERSION}-${DEV_VERSION}
+
+            - name: Logout from to DockerHub Registry
+              run: docker logout
+
     test-alpine-docker:
-        name: Create test environment
+        name: Test environment
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
@@ -36,18 +45,11 @@ jobs:
             - name: Tag Docker image
               run: docker tag freedom-test:${ALPINE_VERSION}-${TEST_VERSION} sifive/freedom-test:${ALPINE_VERSION}-${TEST_VERSION}
 
-    upload-docker:
-        name: Upload Docker image
-        runs-on: ubuntu-latest
-        needs: [dev-alpine-docker, test-alpine-docker]
-        steps:
-
             - name: Login to DockerHub Registry
               run: echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
-            - name: Push the images to Docker hub
-              run: docker push sifive/freedom-dev:${ALPINE_VERSION}-${DEV_VERSION} &&
-                   docker push sifive/freedom-test:${ALPINE_VERSION}-${TEST_VERSION}
+            - name: Push the image to Docker hub
+              run: docker push sifive/freedom-test:${ALPINE_VERSION}-${TEST_VERSION}
 
             - name: Logout from to DockerHub Registry
               run: docker logout
