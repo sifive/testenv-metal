@@ -123,6 +123,9 @@ jobs:
       SLACK_EMOJI: "boom"
 
     steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: false
 
       - name: Download build result
         uses: actions/download-artifact@v2
