@@ -82,3 +82,4 @@ GIT_MSG="$(echo ${GIT_INFO} | cut -d: -f2)"
 
 echo "::set-env name=SLACK_FOOTER::${GIT_SHA}"
 echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
+echo "::set-env name=SLACK_ICON_EMOJI:::${SLACK_EMOJI}:"
