@@ -165,7 +165,7 @@ jobs:
         env:
             SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
             SLACK_USERNAME: GitHub CI/CD
-            # SLACK_ICON: https://github.com/sifive.png?size=48
+            SLACK_ICON: https://github.com/sifive.png?size=48
 
       - name: Overall result
         run:  test ${BUILD_FAILURES} -eq 0 &&
