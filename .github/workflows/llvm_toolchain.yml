@@ -1,6 +1,6 @@
 name: Build LLVM RISC-V toolchain for Alpine Docker Container
 
-on: [workflow_dispatch] # manual dispatch only for now
+on: workflow_dispatch  # manual dispatch only for now
 
 env:
     ALPINE_VERSION: a3.12
@@ -14,29 +14,29 @@ env:
 jobs:
     build-alpine-docker:
         name: Build toolchain
-        runs-on: self-hosted  #, ubuntu-latest
+        runs-on: self-hosted  #, ubuntu-latest, should be changed (security issue)
         steps:
 
             - name: Build a docker image with LLVM project source
-              run: docker build -f clang-${LLVM_MAJVER}.dockerfile -t clang:${LLVM_VERSION} .
+              run: docker build -f docker/src/clang-${LLVM_MAJVER}.dockerfile -t clang:${LLVM_VERSION} docker/src
 
             - name: Build a docker image with newlib source
-              run: docker build -f newlib-${NEWLIB_MAJVER}.dockerfile -t newlib:${NEWLIB_VERSION} .
+              run: docker build -f docker/src/newlib-${NEWLIB_MAJVER}.dockerfile -t newlib:${NEWLIB_VERSION} docker/src
 
             - name: Build binutils for RISC-V
-              run: docker build -f binutils-riscv-${BINUTILS_MAJVER}.dockerfile -t binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} .
+              run: docker build -f docker/src/binutils-riscv-${BINUTILS_MAJVER}.dockerfile -t binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} docker/src
 
             - name: Build LLVM toolchain for RISC-V
-              run: docker build -f llvm-riscv-${LLVM_MAJVER}.dockerfile -t llvm-riscv:${ALPINE_VERSION}-${LLVM_VERSION} .
+              run: docker build -f docker/src/llvm-riscv-${LLVM_MAJVER}.dockerfile -t llvm-riscv:${ALPINE_VERSION}-${LLVM_VERSION} docker/src
 
             - name: Package LLVM toolchain for RISC-V
-              run: docker build -f clang-riscv-${LLVM_MAJVER}.dockerfile -t clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} .
+              run: docker build -f docker/src/clang-riscv-${LLVM_MAJVER}.dockerfile -t clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} docker/src
 
             - name: Package C newlib and compiler tuntime for RISC-V 64 bit targets
-              run: docker build -f clang-riscv64-${LLVM_MAJVER}.dockerfile -t clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} .
+              run: docker build -f docker/src/clang-riscv64-${LLVM_MAJVER}.dockerfile -t clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} docker/src
 
             - name: Package C newlib and compiler tuntime for RISC-V 32 bit targets
-              run: docker build -f clang-riscv32-${LLVM_MAJVER}.dockerfile -t clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} .
+              run: docker build -f docker/src/clang-riscv32-${LLVM_MAJVER}.dockerfile -t clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} docker/src
 
             - name: Tag Docker images
               run: docker tag binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
@@ -44,13 +44,19 @@ jobs:
                    docker tag clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} &&
                    docker tag clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
 
+    upload-docker:
+        name: Upload Docker images
+        runs-on: self-hosted  #, ubuntu-latest
+        needs: build-alpine-docker
+
             - name: Login to DockerHub Registry
               run: echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+
             - name: Push the images to Docker hub
-              run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
-                   docker push ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} &&
-                   docker push ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION}  &&
-                   docker push  ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
+              run: docker push sifive/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
+                   docker push sifive/clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} &&
+                   docker push sifive/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION}  &&
+                   docker push sifive/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
 
             - name: Logout from to DockerHub Registry
               run: docker logout
