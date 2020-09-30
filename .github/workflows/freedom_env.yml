@@ -8,7 +8,7 @@ env:
     TEST_VERSION: v1.0.1
 
 jobs:
-    alpine-docker:
+    dev-alpine-docker:
         name: Build and upload Docker images
         runs-on: ubuntu-latest
         steps:
