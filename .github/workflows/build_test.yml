@@ -118,6 +118,9 @@ jobs:
       UTEST_TESTS: 0
       UTEST_FAILURES: 0
       UTEST_IGNORED: 0
+      SLACK_TITLE: "No title"
+      SLACK_COLOR: "red"
+      SLACK_EMOJI: "boom"
 
     steps:
 
@@ -132,17 +135,7 @@ jobs:
             name: utest_result
 
       - name: Load statuses
-        run:  test -s build_status &&
-              test -s utest_status &&
-              echo "::set-env name=BUILD_TOTAL::$(cat build_status | cut -d'|' -f1)" &&
-              echo "::set-env name=BUILD_FAILURES::$(cat build_status | cut -d'|' -f2)" &&
-              echo "::set-env name=BUILD_ERRORS::$(cat build_status | cut -d'|' -f3)" &&
-              echo "::set-env name=BUILD_WARNINGS::$(cat build_status | cut -d'|' -f4)" &&
-              echo "::set-env name=UTEST_TOTAL::$(cat utest_status | cut -d'|' -f1)" &&
-              echo "::set-env name=UTEST_ABORTS::$(cat utest_status | cut -d'|' -f2)" &&
-              echo "::set-env name=UTEST_TESTS::$(cat utest_status | cut -d'|' -f3)" &&
-              echo "::set-env name=UTEST_FAILURES::$(cat utest_status | cut -d'|' -f4)" &&
-              echo "::set-env name=UTEST_IGNORED::$(cat utest_status | cut -d'|' -f5)"
+        run:  scripts/gh_setenv.sh build_status utest_status
 
       - name: Report build status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
@@ -152,6 +145,16 @@ jobs:
       - name: Report unit test status
         run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
               echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
+
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@master
+        env:
+            SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+            SLACK_USERNAME: cicd
+            # SLACK_ICON: https://github.com/sifive.png?size=48
+            SLACK_ICON_EMOJI: ":${SLACK_EMOJI}:"
+            SLACK_COLOR: ${SLACK_COLOR}
+            SLACK_FOOTER: ${{ github.event.inputs.scl_ref }}
 
       - name: Overall result
         run:  test ${BUILD_FAILURES} -eq 0 &&
