@@ -39,10 +39,10 @@ jobs:
               run: docker build -f docker/src/clang-riscv32-${LLVM_MAJVER}.dockerfile -t clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} docker/src
 
             - name: Tag Docker images
-              run: docker tag binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
-                   docker tag clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} &&
-                   docker tag clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} &&
-                   docker tag clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
+              run: docker tag binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} sifive/binutils-riscv:${ALPINE_VERSION}-${BINUTILS_VERSION} &&
+                   docker tag clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} sifive/clang-riscv:${ALPINE_VERSION}-${LLVM_VERSION} &&
+                   docker tag clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} sifive/clang-riscv32:${ALPINE_VERSION}-${LLVM_VERSION} &&
+                   docker tag clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION} sifive/clang-riscv64:${ALPINE_VERSION}-${LLVM_VERSION}
 
     upload-docker:
         name: Upload Docker images
