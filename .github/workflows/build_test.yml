@@ -41,6 +41,9 @@ jobs:
              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
              else echo "${GITHUB_EVENT}"; fi
 
+      - name: Store scl-metal info
+        run:  (cd scl-metal && git log -1 --pretty=%H:%B | head -1) > scl_metal_status
+
       - name: Report submodule status
         run:  git submodule status
 
@@ -64,6 +67,12 @@ jobs:
         with:
             name: build_result
             path: build_status
+
+      - name: Upload SCL metal info
+        uses: actions/upload-artifact@v2
+        with:
+            name: scl_info
+            path: scl_metal_status
 
   utest:
 
@@ -134,8 +143,13 @@ jobs:
         with:
             name: utest_result
 
+      - name: Download SCL metal info
+        uses: actions/upload-artifact@v2
+        with:
+            name: scl_info
+
       - name: Load statuses
-        run:  scripts/gh_setenv.sh build_status utest_status
+        run:  scripts/gh_setenv.sh build_status utest_status scl_metal_status
 
       - name: Report build status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";

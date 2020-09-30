@@ -3,18 +3,22 @@
 SCRIPT_DIR=$(dirname $0)
 . ${SCRIPT_DIR}/funcs.sh
 
-if [ $# -ne 2 ]; then
+if [ $# -ne 3 ]; then
     die "Invalid parameters"
 fi
 
 BUILD_STATUS="$1"
 UTEST_STATUS="$2"
+SCL_INFO="$3"
 
 if [ ! -s "${BUILD_STATUS}" ]; then
     die "Invalid build status file ${BUILD_STATUS}"
 fi
 if [ ! -s "${UTEST_STATUS}" ]; then
-    die "Invalid build status file ${UTEST_STATUS}"
+    die "Invalid unit test status file ${UTEST_STATUS}"
+fi
+if [ ! -s "${SCL_INFO}" ]; then
+    die "Invalid SCL-metal info file ${SCL_INFO}"
 fi
 
 set -eu
@@ -64,22 +68,21 @@ echo ""
 
 if [ -n "${ERR_MSG}" ]; then
     echo "::set-env name=SLACK_TITLE::${ERR_MSG}"
-    echo "::set-env name=SLACK_COLOR::red"
+    echo "::set-env name=SLACK_COLOR::#DC143C"
     EMOJI=scream
 elif [ -n "${WARN_MSG}" ]; then
     echo "::set-env name=SLACK_TITLE::${WARN_MSG}"
-    echo "::set-env name=SLACK_COLOR::orange"
+    echo "::set-env name=SLACK_COLOR::#FFA500"
     EMOJI=worried
 else
     echo "::set-env name=SLACK_TITLE::Success"
-    echo "::set-env name=SLACK_COLOR::green"
+    echo "::set-env name=SLACK_COLOR::#32CD32"
     EMOJI=thumbsup
 fi
 
-GIT_INFO=$(cd scl-metal && git log -1 --pretty=%H:%B | head -1)
-GIT_SHA="$(echo ${GIT_INFO} | cut -d: -f1)"
-GIT_MSG="$(echo ${GIT_INFO} | cut -d: -f2)"
+GIT_SHA="$(cat ${SCL_INFO} | cut -d: -f1)"
+GIT_MSG="$(cat ${SCL_INFO} | cut -d: -f2)"
 
 echo "::set-env name=SLACK_FOOTER::${GIT_SHA}"
 echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
-echo "::set-env name=SLACK_ICON_EMOJI::\${{ :${EMOJI}: }}"
+echo "::set-env name=SLACK_ICON_EMOJI:: :${EMOJI}:"
