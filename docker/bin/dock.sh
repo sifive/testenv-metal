@@ -65,7 +65,7 @@ for volume in ${VOLUMES}; do
 done
 
 IMGPATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-IMGPATH=${IMGPATH}:/usr/local/clang10/bin:/usr/local/riscv-elf-binutils/bin
+IMGPATH=${IMGPATH}:/usr/local/clang11/bin:/usr/local/riscv-elf-binutils/bin
 IMGPATH=${IMGPATH}:/usr/local/qemu-fdt/bin
 
 # Development (transparent) mode"

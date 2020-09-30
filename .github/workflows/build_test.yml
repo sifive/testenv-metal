@@ -31,7 +31,7 @@ jobs:
             submodules: false
 
       - name: Checkout SCL and Unity submodules
-        run: git submodule update --init
+        run:  git submodule update --init
 
       - name: Select SCL revision to test
         # event-initiated request contains scl_ref, while it is not defined
@@ -92,7 +92,7 @@ jobs:
             path: build
 
       - name: Test all targets
-        run: docker/bin/dock.sh utest scripts/utestall.sh -g build
+        run:  docker/bin/dock.sh utest scripts/utestall.sh -g build
 
       - name: Store utest status
         run: echo "${UTEST_TOTAL}|${UTEST_ABORTS}|${UTEST_TESTS}|${UTEST_FAILURES}|${UTEST_IGNORED}" > utest_status
