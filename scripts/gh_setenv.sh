@@ -75,3 +75,10 @@ else
     echo "::set-env name=SLACK_COLOR::green"
     echo "::set-env name=SLACK_EMOJI::thumbsup"
 fi
+
+GIT_INFO=$(cd scl-metal && git log -1 --pretty=%H:%B | head -1)
+GIT_SHA="$(echo ${GIT_INFO} | cut -d: -f1)"
+GIT_MSG="$(echo ${GIT_INFO} | cut -d: -f2)"
+
+echo "::set-env name=SLACK_FOOTER::${GIT_SHA}"
+echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"

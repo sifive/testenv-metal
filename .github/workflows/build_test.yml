@@ -118,9 +118,6 @@ jobs:
       UTEST_TESTS: 0
       UTEST_FAILURES: 0
       UTEST_IGNORED: 0
-      SLACK_TITLE: "No title"
-      SLACK_COLOR: "red"
-      SLACK_EMOJI: "boom"
 
     steps:
       - uses: actions/checkout@v2
@@ -153,10 +150,9 @@ jobs:
         uses: rtCamp/action-slack-notify@master
         env:
             SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-            SLACK_USERNAME: cicd
+            SLACK_USERNAME: GitHub CI/CD
             # SLACK_ICON: https://github.com/sifive.png?size=48
-            SLACK_ICON_EMOJI: ":${SLACK_EMOJI}:"
-            SLACK_COLOR: ${SLACK_COLOR}
+            SLACK_ICON_EMOJI: :${SLACK_EMOJI}:
             SLACK_FOOTER: ${{ github.event.inputs.scl_ref }}
 
       - name: Overall result
