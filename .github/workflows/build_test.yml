@@ -41,6 +41,9 @@ jobs:
              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
              else echo "${GITHUB_EVENT}"; fi
 
+      - name: Store scl-metal info
+        run:  (cd scl-metal && git log -1 --pretty=%H:%cn:%B | head -1) > scl_metal_status
+
       - name: Report submodule status
         run:  git submodule status
 
@@ -64,6 +67,12 @@ jobs:
         with:
             name: build_result
             path: build_status
+
+      - name: Upload SCL metal info
+        uses: actions/upload-artifact@v2
+        with:
+            name: scl_info
+            path: scl_metal_status
 
   utest:
 
@@ -120,6 +129,9 @@ jobs:
       UTEST_IGNORED: 0
 
     steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: false
 
       - name: Download build result
         uses: actions/download-artifact@v2
@@ -131,18 +143,13 @@ jobs:
         with:
             name: utest_result
 
+      - name: Download SCL metal info
+        uses: actions/download-artifact@v2
+        with:
+            name: scl_info
+
       - name: Load statuses
-        run:  test -s build_status &&
-              test -s utest_status &&
-              echo "::set-env name=BUILD_TOTAL::$(cat build_status | cut -d'|' -f1)" &&
-              echo "::set-env name=BUILD_FAILURES::$(cat build_status | cut -d'|' -f2)" &&
-              echo "::set-env name=BUILD_ERRORS::$(cat build_status | cut -d'|' -f3)" &&
-              echo "::set-env name=BUILD_WARNINGS::$(cat build_status | cut -d'|' -f4)" &&
-              echo "::set-env name=UTEST_TOTAL::$(cat utest_status | cut -d'|' -f1)" &&
-              echo "::set-env name=UTEST_ABORTS::$(cat utest_status | cut -d'|' -f2)" &&
-              echo "::set-env name=UTEST_TESTS::$(cat utest_status | cut -d'|' -f3)" &&
-              echo "::set-env name=UTEST_FAILURES::$(cat utest_status | cut -d'|' -f4)" &&
-              echo "::set-env name=UTEST_IGNORED::$(cat utest_status | cut -d'|' -f5)"
+        run:  scripts/gh_setenv.sh build_status utest_status scl_metal_status
 
       - name: Report build status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
@@ -152,6 +159,13 @@ jobs:
       - name: Report unit test status
         run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
               echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
+
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@master
+        env:
+            SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+            SLACK_USERNAME: GitHub CI/CD
+            SLACK_ICON: https://github.com/sifive.png?size=48
 
       - name: Overall result
         run:  test ${BUILD_FAILURES} -eq 0 &&
