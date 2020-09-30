@@ -35,27 +35,27 @@ jobs:
               echo "GH refs ${GITHUB_SHA}, ${GITHUB_REF}"
 
       - name: Checkout SCL and Unity submodules
-        run: git submodule update --init
+        run:  git submodule update --init
 
       - name: Select SCL revision to test
         # event-initiated request contains scl_ref, while it is not defined
         # for a push-initiated request
-        run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
-             (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
-             else true; fi
+        run:  if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
+              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
+              else true; fi
 
       - name: Report submodule status
         run:  git submodule status
 
       - name: Fetch all Docker images
-        run: docker/bin/dock.sh build /bin/true &&
-             docker/bin/dock.sh utest /bin/true
+        run:  docker/bin/dock.sh build /bin/true &&
+              docker/bin/dock.sh utest /bin/true
 
       - name: Build all targets
         run:  docker/bin/dock.sh build scripts/buildall.sh -g -r -s $TARGETS
 
       - name: Test all targets
-        run: docker/bin/dock.sh utest scripts/utestall.sh -g build
+        run:  docker/bin/dock.sh utest scripts/utestall.sh -g build
 
       - name: Report overall status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
