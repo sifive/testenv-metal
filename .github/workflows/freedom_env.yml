@@ -9,7 +9,7 @@ env:
 
 jobs:
     dev-alpine-docker:
-        name: Build and upload Docker images
+        name: Create build environment
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
@@ -34,7 +34,7 @@ jobs:
               run: docker build -f docker/src/freedom-test.dockerfile -t freedom-test:${ALPINE_VERSION}-${TEST_VERSION} docker/src/
 
             - name: Tag Docker image
-              run: docker tag freedom-dev:${ALPINE_VERSION}-${TEST_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/freedom-dev:${ALPINE_VERSION}-${TEST_VERSION}
+              run: docker tag freedom-test:${ALPINE_VERSION}-${TEST_VERSION} ${{ secrets.DOCKERHUB_USERNAME }}/freedom-test:${ALPINE_VERSION}-${TEST_VERSION}
 
     upload-docker:
         name: Upload Docker image
