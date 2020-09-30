@@ -63,6 +63,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -h)
             usage
+            exit 0
             ;;
         -g)
             GHA=1
@@ -87,6 +88,7 @@ while [ $# -gt 0 ]; do
             if [ -z "${XBSP}" ]; then
                 XBSP="$1"
             fi
+            ;;
     esac
     shift
 done

@@ -49,7 +49,7 @@ error () {
 
 # Die with an error message
 die() {
-    error $* >&2
+    error "$*" >&2
     exit 1
 }
 

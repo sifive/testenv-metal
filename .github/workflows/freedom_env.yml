@@ -8,10 +8,13 @@ env:
     TEST_VERSION: v1.0.1
 
 jobs:
-    dev-alpine-docker:
-        name: Create build environment
+    alpine-docker:
+        name: Build and upload Docker images
         runs-on: ubuntu-latest
         steps:
+            - uses: actions/checkout@v2
+              with:
+                submodules: false
 
             - name: Build docker image
               run: docker build -f docker/src/freedom-dev.dockerfile -t freedom-dev:${ALPINE_VERSION}-${DEV_VERSION} docker/src/
@@ -23,6 +26,9 @@ jobs:
         name: Create test environment
         runs-on: ubuntu-latest
         steps:
+            - uses: actions/checkout@v2
+              with:
+                submodules: false
 
             - name: Build docker image
               run: docker build -f docker/src/freedom-test.dockerfile -t freedom-test:${ALPINE_VERSION}-${TEST_VERSION} docker/src/
