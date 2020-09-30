@@ -65,15 +65,15 @@ echo ""
 if [ -n "${ERR_MSG}" ]; then
     echo "::set-env name=SLACK_TITLE::${ERR_MSG}"
     echo "::set-env name=SLACK_COLOR::red"
-    echo "::set-env name=SLACK_EMOJI::scream"
+    EMOJI=scream
 elif [ -n "${WARN_MSG}" ]; then
     echo "::set-env name=SLACK_TITLE::${WARN_MSG}"
     echo "::set-env name=SLACK_COLOR::orange"
-    echo "::set-env name=SLACK_EMOJI::worried"
+    EMOJI=worried
 else
     echo "::set-env name=SLACK_TITLE::Success"
     echo "::set-env name=SLACK_COLOR::green"
-    echo "::set-env name=SLACK_EMOJI::thumbsup"
+    EMOJI=thumbsup
 fi
 
 GIT_INFO=$(cd scl-metal && git log -1 --pretty=%H:%B | head -1)
@@ -82,4 +82,4 @@ GIT_MSG="$(echo ${GIT_INFO} | cut -d: -f2)"
 
 echo "::set-env name=SLACK_FOOTER::${GIT_SHA}"
 echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
-echo "::set-env name=SLACK_ICON_EMOJI:::${SLACK_EMOJI}:"
+echo "::set-env name=SLACK_ICON_EMOJI::${{ :${SLACK_EMOJI}: }}"
