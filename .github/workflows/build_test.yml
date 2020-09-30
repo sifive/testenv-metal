@@ -42,7 +42,7 @@ jobs:
              else echo "${GITHUB_EVENT}"; fi
 
       - name: Store scl-metal info
-        run:  (cd scl-metal && git log -1 --pretty=%H:%B | head -1) > scl_metal_status
+        run:  (cd scl-metal && git log -1 --pretty=%H:%cn:%B | head -1) > scl_metal_status
 
       - name: Report submodule status
         run:  git submodule status
@@ -144,7 +144,7 @@ jobs:
             name: utest_result
 
       - name: Download SCL metal info
-        uses: actions/upload-artifact@v2
+        uses: actions/download-artifact@v2
         with:
             name: scl_info
 

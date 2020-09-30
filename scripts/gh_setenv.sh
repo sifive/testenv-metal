@@ -81,8 +81,9 @@ else
 fi
 
 GIT_SHA="$(cat ${SCL_INFO} | cut -d: -f1)"
-GIT_MSG="$(cat ${SCL_INFO} | cut -d: -f2)"
+GIT_NAME="$(cat ${SCL_INFO} | cut -d: -f2)"
+GIT_MSG="$(cat ${SCL_INFO} | cut -d: -f3)"
 
-echo "::set-env name=SLACK_FOOTER::${GIT_SHA}"
+echo "::set-env name=SLACK_FOOTER::${GIT_SHA} (${GIT_NAME})"
 echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
 echo "::set-env name=SLACK_ICON_EMOJI:: :${EMOJI}:"
