@@ -1,4 +1,4 @@
-name: Build Freedom runtime environments for Alpine Docker Container
+name: Freedom runtime envs
 
 on: workflow_dispatch  # manual dispatch only for now
 

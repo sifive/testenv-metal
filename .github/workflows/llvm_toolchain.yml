@@ -1,4 +1,4 @@
-name: Build LLVM RISC-V toolchain for Alpine Docker Container
+name: LLVM RISC-V toolchain
 
 on: workflow_dispatch  # manual dispatch only for now
 
