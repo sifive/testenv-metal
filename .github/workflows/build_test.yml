@@ -127,6 +127,7 @@ jobs:
       UTEST_TESTS: 0
       UTEST_FAILURES: 0
       UTEST_IGNORED: 0
+      TESTENV_BRANCH: ""
 
     steps:
       - uses: actions/checkout@v2
@@ -160,8 +161,15 @@ jobs:
         run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
               echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
 
+      - name: Extract git meta data
+        run:  BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
+              echo "::set-env name=TESTENV_BRANCH::${BRANCH}"
+
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@master
+        # Only notify slack channel if the build is triggered from SCL-metal
+        # or if the local commit is in the master branch
+        if: ${{ github.event_name == 'workflow_dispatch' || github.env.TESTENV_BRANCH == 'master' }}
         env:
             SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
             SLACK_USERNAME: GitHub CI/CD
