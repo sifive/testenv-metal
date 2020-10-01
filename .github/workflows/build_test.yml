@@ -32,14 +32,15 @@ jobs:
             submodules: false
 
       - name: Set env. variables
+        id: vars
         run:  echo "REF ${GITHUB_REF}";
               BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
-              echo "::set-env name=TESTENV_BRANCH::${BRANCH}";
+              echo "{TESTENV_BRANCH}={${BRANCH}}" >> $GITHUB_ENV;
               echo "LOCAL_BRANCH ${BRANCH} / ${TESTENV_BRANCH}"
 
       - name: Show env. variables
         run:  echo "TESTENV_BRANCH ${TESTENV_BRANCH}";
-              echo "TESTENV_BRANCH ${{ github.job.build.env.TESTENV_BRANCH }}";
+              echo "TESTENV_BRANCH";
               false
 
       - name: Checkout SCL and Unity submodules
