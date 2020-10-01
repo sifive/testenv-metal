@@ -35,7 +35,7 @@ jobs:
         id: vars
         run:  echo "REF ${GITHUB_REF}";
               BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
-              echo "{TESTENV_BRANCH}={${BRANCH}}" >> $GITHUB_ENV;
+              echo "TESTENV_BRANCH=${BRANCH}" >> $GITHUB_ENV;
               echo "LOCAL_BRANCH ${BRANCH} / ${TESTENV_BRANCH}"
 
       - name: Show env. variables
