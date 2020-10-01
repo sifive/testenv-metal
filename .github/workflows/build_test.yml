@@ -161,12 +161,9 @@ jobs:
         run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
               echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
 
-      - name: Set env. variables
+      - name: Extract git meta data
         run:  BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
               echo "::set-env name=TESTENV_BRANCH::${BRANCH}"
-
-      - name: Show env. variables
-        run:  echo "TESTENV_BRANCH ${TESTENV_BRANCH}"
 
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@master
