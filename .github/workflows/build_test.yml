@@ -40,7 +40,8 @@ jobs:
 
       - name: Show env. variables
         run:  echo "TESTENV_BRANCH ${TESTENV_BRANCH}";
-              echo "TESTENV_BRANCH";
+              echo "TESTENV_BRANCH ${{ github.env.TESTENV_BRANCH }}";
+              echo "TESTENV_BRANCH ${{ github.jobs.build.env.TESTENV_BRANCH }}";
               false
 
       - name: Checkout SCL and Unity submodules
