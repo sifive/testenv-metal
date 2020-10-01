@@ -35,7 +35,7 @@ jobs:
 
       - name: Show env. variables
         run:  echo "REF ${GITHUB_REF}";
-              echo "::set-env name=LOCAL_BRANCH::$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
+              LOCAL_BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
               echo "LOCAL_BRANCH ${LOCAL_BRANCH}";
               false
 
