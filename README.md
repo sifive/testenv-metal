@@ -37,7 +37,7 @@ For now, freedom-metal and scl-metal are build with
 
 2. Build RV32 and RV64 QEMU BSPs
     ````sh
-    docker/bin/dock.sh build scripts/buildall.shm-g -r qemu-sifive_e_rv32 qemu-sifive_e_rv64
+    docker/bin/dock.sh build scripts/buildall.sh -g -r qemu-sifive_e_rv32 qemu-sifive_e_rv64
     ````
 
     Alternatively, it is possible to build for a single build type and a single target, as in:
