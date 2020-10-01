@@ -40,9 +40,15 @@ jobs:
 
       - name: Show env. variables
         run:  echo "TESTENV_BRANCH ${TESTENV_BRANCH}";
-              echo "TESTENV_BRANCH ${{ github.env.TESTENV_BRANCH }}";
-              echo "TESTENV_BRANCH ${{ github.jobs.build.env.TESTENV_BRANCH }}";
-              false
+
+      - name: My first step
+        if: ${{ github.env.TESTENV_BRANCH != '' }}
+        run: echo "TESTENV_BRANCH is not empty ${TESTENV_BRANCH}";
+
+      - name: My second step
+        if: ${{ github.env.TESTENV_BRANCH == '' }}
+        run: echo "TESTENV_BRANCH is empty";
+             false
 
       - name: Checkout SCL and Unity submodules
         run:  git submodule update --init
