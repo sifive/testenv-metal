@@ -30,25 +30,6 @@ jobs:
             # see below
             submodules: false
 
-      - name: Set env. variables
-        id: vars
-        run:  echo "REF ${GITHUB_REF}";
-              BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
-              echo "TESTENV_BRANCH=${BRANCH}" >> $GITHUB_ENV;
-              echo "LOCAL_BRANCH ${BRANCH} / ${TESTENV_BRANCH}"
-
-      - name: Show env. variables
-        run:  echo "TESTENV_BRANCH ${TESTENV_BRANCH}";
-
-      - name: My first step
-        if: ${{ env.TESTENV_BRANCH != '' }}
-        run: echo "TESTENV_BRANCH is not empty ${TESTENV_BRANCH}";
-
-      - name: My second step
-        if: ${{ env.TESTENV_BRANCH == '' }}
-        run: echo "TESTENV_BRANCH is empty";
-             false
-
       - name: Checkout SCL and Unity submodules
         run:  git submodule update --init
 
@@ -182,13 +163,13 @@ jobs:
 
       - name: Extract git meta data
         run:  BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
-              echo "::set-env name=TESTENV_BRANCH::${BRANCH}"
+              echo "TESTENV_BRANCH=${BRANCH}" >> $GITHUB_ENV;
 
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@master
         # Only notify slack channel if the build is triggered from SCL-metal
         # or if the local commit is in the master branch
-        if: ${{ github.event_name == 'workflow_dispatch' || github.env.TESTENV_BRANCH == 'master' }}
+        if: ${{ github.event_name == 'workflow_dispatch' || env.TESTENV_BRANCH == 'master' }}
         env:
             SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
             SLACK_USERNAME: GitHub CI/CD
