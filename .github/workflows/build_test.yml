@@ -22,6 +22,7 @@ jobs:
       BUILD_FAILURES: 0
       BUILD_WARNINGS: 0
       BUILD_ERRORS: 0
+      TESTENV_BRANCH: ""
 
     steps:
       - uses: actions/checkout@v2
@@ -29,6 +30,17 @@ jobs:
             # submodule version depends on how this workflow is triggered,
             # see below
             submodules: false
+
+      - name: Set env. variables
+        run:  echo "REF ${GITHUB_REF}";
+              BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
+              echo "::set-env name=TESTENV_BRANCH::${BRANCH}";
+              echo "LOCAL_BRANCH ${BRANCH} / ${TESTENV_BRANCH}"
+
+      - name: Show env. variables
+        run:  echo "TESTENV_BRANCH ${TESTENV_BRANCH}";
+              echo "TESTENV_BRANCH ${{ github.env.TESTENV_BRANCH }}";
+              false
 
       - name: Checkout SCL and Unity submodules
         run:  git submodule update --init
