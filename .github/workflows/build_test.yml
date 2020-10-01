@@ -35,8 +35,9 @@ jobs:
 
       - name: Show env. variables
         run:  echo "REF ${GITHUB_REF}";
-              LOCAL_BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
-              echo "LOCAL_BRANCH ${LOCAL_BRANCH}";
+              BRANCH="$(echo ${GITHUB_REF} | rev | cut -d/ -f1 | rev)";
+              echo ""::set-env name=GITHUB_BRANCH::${BRANCH}";
+              echo "LOCAL_BRANCH ${BRANCH} / ${GITHUB_BRANCH}";
               false
 
       - name: Select SCL revision to test
