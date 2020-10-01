@@ -33,6 +33,10 @@ jobs:
       - name: Checkout SCL and Unity submodules
         run:  git submodule update --init
 
+      - name: Show env. variables
+        run:  echo "REF ${GITHUB_REF}";
+              false
+
       - name: Select SCL revision to test
         # event-initiated request contains scl_ref, while it is not defined
         # for a push-initiated request
@@ -162,6 +166,8 @@ jobs:
 
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@master
+        # Only notify slack channel if the build is triggered from SCL-metal
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
             SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
             SLACK_USERNAME: GitHub CI/CD
