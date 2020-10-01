@@ -3,13 +3,14 @@
 SCRIPT_DIR=$(dirname $0)
 . ${SCRIPT_DIR}/funcs.sh
 
-if [ $# -ne 3 ]; then
+if [ $# -ne 4 ]; then
     die "Invalid parameters"
 fi
 
-BUILD_STATUS="$1"
-UTEST_STATUS="$2"
-SCL_INFO="$3"
+EVENT_NAME="$1"
+BUILD_STATUS="$2"
+UTEST_STATUS="$3"
+SCL_INFO="$4"
 
 if [ ! -s "${BUILD_STATUS}" ]; then
     die "Invalid build status file ${BUILD_STATUS}"
@@ -77,9 +78,15 @@ else
     echo "::set-env name=SLACK_COLOR::#32CD32"
 fi
 
-GIT_SHA="$(cat ${SCL_INFO} | cut -d: -f1)"
-GIT_NAME="$(cat ${SCL_INFO} | cut -d: -f2)"
-GIT_MSG="$(cat ${SCL_INFO} | cut -d: -f3)"
+if [ "${EVENT_NAME}" = "push" ]; then
+    # commit to this repo
+    echo "::set-env name=SLACK_FOOTER::${GITHUB_SHA}"
+else
+    # commit to subrepo
+    GIT_SHA="$(cat ${SCL_INFO} | cut -d: -f1)"
+    GIT_NAME="$(cat ${SCL_INFO} | cut -d: -f2)"
+    GIT_MSG="$(cat ${SCL_INFO} | cut -d: -f3)"
 
-echo "::set-env name=SLACK_FOOTER::${GIT_SHA} (${GIT_NAME})"
-echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
+    echo "::set-env name=SLACK_FOOTER::${GIT_SHA} (${GIT_NAME})"
+    echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
+fi

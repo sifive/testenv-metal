@@ -37,9 +37,9 @@ jobs:
         # event-initiated request contains scl_ref, while it is not defined
         # for a push-initiated request
         run: if [ -n "${{ github.event.inputs.scl_ref }}" ]; then
-             echo "${GITHUB_EVENT} ${{ github.event.inputs.scl_ref }}";
+             echo "${GITHUB_EVENT_NAME} ${{ github.event.inputs.scl_ref }}";
              (cd scl-metal && git checkout ${{ github.event.inputs.scl_ref }} )
-             else echo "${GITHUB_EVENT}"; fi
+             else echo "${GITHUB_EVENT_NAME}"; fi
 
       - name: Store scl-metal info
         run:  (cd scl-metal && git log -1 --pretty=%H:%cn:%B | head -1) > scl_metal_status
@@ -153,7 +153,7 @@ jobs:
             name: scl_info
 
       - name: Load statuses
-        run:  scripts/gh_setenv.sh build_status utest_status scl_metal_status
+        run:  scripts/gh_setenv.sh ${GITHUB_EVENT_NAME} build_status utest_status scl_metal_status
 
       - name: Report build status
         run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
