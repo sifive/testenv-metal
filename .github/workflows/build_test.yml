@@ -22,7 +22,6 @@ jobs:
       BUILD_FAILURES: 0
       BUILD_WARNINGS: 0
       BUILD_ERRORS: 0
-      TESTENV_BRANCH: ""
 
     steps:
       - uses: actions/checkout@v2
@@ -42,11 +41,11 @@ jobs:
         run:  echo "TESTENV_BRANCH ${TESTENV_BRANCH}";
 
       - name: My first step
-        if: ${{ github.env.TESTENV_BRANCH != '' }}
+        if: ${{ env.TESTENV_BRANCH != '' }}
         run: echo "TESTENV_BRANCH is not empty ${TESTENV_BRANCH}";
 
       - name: My second step
-        if: ${{ github.env.TESTENV_BRANCH == '' }}
+        if: ${{ env.TESTENV_BRANCH == '' }}
         run: echo "TESTENV_BRANCH is empty";
              false
 
