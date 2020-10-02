@@ -54,7 +54,8 @@ class ObjectModelConverter:
     def __init__(self, *names: List[str]):
         self._comps: \
             Dict[str, Optional[Tuple[Dict[str, str],
-                                     DefaultDict[str, Dict[str, RegField]]]]] \
+                                     DefaultDict[str, Dict[str, RegField]]],
+                                     Dict[str, Dict[str, bool]]]] \
             = {x.lower(): None for x in names}
 
     def parse(self, mfp: TextIO) -> None:
@@ -81,8 +82,9 @@ class ObjectModelConverter:
                 if regname not in self._comps:
                     continue
                 grpdescs, reggroups = self._parse_region(region)
+                features = self._parse_features(component)
                 mreggroups = self._merge_registers(reggroups)
-                self._comps[regname] = (grpdescs, mreggroups)
+                self._comps[regname] = (grpdescs, mreggroups, features)
 
     def generate_header(self, ofp: TextIO, name: str, bitsize: int) -> None:
         """Generate a header file stream for a component.
@@ -92,7 +94,7 @@ class ObjectModelConverter:
            :param out: the output stream
         """
         try:
-            grpdescs, grpfields = self._comps[name.lower()]
+            grpdescs, grpfields, features = self._comps[name.lower()]
         except (KeyError, TypeError) as exc:
             raise ValueError(f'Unknown component name: {name}') from exc
         newgroups = self._split_registers(grpfields, bitsize)
@@ -102,6 +104,7 @@ class ObjectModelConverter:
         else:
             filename = f'sifive_{name}.h'
         self._generate_prolog(ofp, filename, prefix)
+        self._generate_features(ofp, prefix, features)
         self._generate_registers(ofp, prefix, newgroups, grpdescs)
         print('', file=ofp)
         self._generate_fields(ofp, bitsize, prefix, newgroups, grpdescs)
@@ -145,6 +148,30 @@ class ObjectModelConverter:
             regfield = RegField(bitbase, bitsize, desc, reset, access)
             registers[group][name] = regfield
         return groups, registers
+
+    @classmethod
+    def _parse_features(cls, component: Dict[str, Any]) \
+            -> Dict[str, Dict[str, bool]]:
+        """Parse the supported feature of a component.cls
+
+           :param component: the component to parse
+           :return: a dictionary of supported features, with optional options
+        """
+        features = {}
+        for sectname in component:
+            section = component[sectname]
+            if not isinstance(section, dict) or '_types' not in section:
+                continue
+            features[sectname] = {}
+            for opt in section:
+                if not opt.startswith('has'):
+                    continue
+                value = section[opt]
+                if not isinstance(value, bool):
+                    continue
+                option = opt[3:]
+                features[sectname][option] = value
+        return features
 
     @classmethod
     def _merge_registers(cls, reggroups: Dict[str, Dict[str, RegField]]) \
@@ -229,7 +256,38 @@ class ObjectModelConverter:
             outgroups[gname] = fregs
         return outgroups
 
-    def _generate_registers(self, out: TextIO, prefix: str,
+    @classmethod
+    def _generate_features(cls, out: TextIO, prefix: str,
+                           features: Dict[str, Dict[str, bool]]) -> None:
+        """Generate the definitions of the supported features.
+
+           :param out: output stream
+           :param prefix: the prefix for all register names
+           :param features: a dict of supported features and options
+        """
+        if not features:
+            return
+        print(f'/* Supported {prefix} features */', file=out)
+        print('', file=out)
+        lengths = [len(x) for x in features]
+        lengths.extend([len(x)+len(feat)+1
+                        for feat in features.values() for x in feat])
+        length = len(prefix) + len(prefix) + 1 + max(lengths)
+        length += cls.EXTRA_SEP_COUNT
+        for featname in features:
+            feat_str = f'{prefix}_HAS_{featname.upper()}'
+            print(f'#define {feat_str:{length}s} 1', file=out)
+            subfeatures = features[featname]
+            for subname in subfeatures:
+                val = int(subfeatures[subname])
+                sub_str = f'{prefix}_HAS_{featname.upper()}_{subname.upper()}'
+                print(f'#define {sub_str:{length}s} {val}', file=out)
+            print('', file=out)
+        print('', file=out)
+
+
+    @classmethod
+    def _generate_registers(cls, out: TextIO, prefix: str,
                             reggroups: Dict[str, Dict[str, RegField]],
                             groupdesc: Dict[str, str]):
         """Print out the register addresses (in bytes).
@@ -242,7 +300,7 @@ class ObjectModelConverter:
         grpnames = tuple(sorted(reggroups, key=lambda n: min([r.offset
                                     for r in reggroups[n].values()])))
         length = (len(prefix) + len('REGISTER') +
-                 max([len(x) for x in reggroups]) + 2 + self.EXTRA_SEP_COUNT)
+                 max([len(x) for x in reggroups]) + 2 + cls.EXTRA_SEP_COUNT)
         for grpname in grpnames:
             group = reggroups[grpname]
             regname = sorted(group, key=lambda n: group[n].offset)[0]
@@ -252,7 +310,8 @@ class ObjectModelConverter:
             print(f'/* {desc} */', file=out)
             print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
-    def _generate_fields(self, out: TextIO, bitsize: int, prefix: str,
+    @classmethod
+    def _generate_fields(cls, out: TextIO, bitsize: int, prefix: str,
                          reggroups: Dict[str, Dict[str, RegField]],
                          groupdesc: Dict[str, str]):
         """Print out the register content (offset and mask).
@@ -270,7 +329,7 @@ class ObjectModelConverter:
                       max([len(regname) for regname in reggroups[grpname]])
                           for grpname in reggroups])
         length += len(prefix) + len('REGISTER') + len('OFFSET') + 4
-        length += self.EXTRA_SEP_COUNT
+        length += cls.EXTRA_SEP_COUNT
         for grpname in grpnames:
             group = reggroups[grpname]
             desc = groupdesc.get(grpname, '')
