@@ -24,22 +24,22 @@ fi
 
 set -eu
 
-BUILD_TOTAL=$(cat ${BUILD_STATUS} | cut -d'|' -f1)
+BUILD_SESSIONS=$(cat ${BUILD_STATUS} | cut -d'|' -f1)
 BUILD_FAILURES=$(cat ${BUILD_STATUS} | cut -d'|' -f2)
 BUILD_ERRORS=$(cat ${BUILD_STATUS} | cut -d'|' -f3)
 BUILD_WARNINGS=$(cat ${BUILD_STATUS} | cut -d'|' -f4)
-UTEST_TOTAL=$(cat ${UTEST_STATUS} | cut -d'|' -f1)
+UTEST_SESSIONS=$(cat ${UTEST_STATUS} | cut -d'|' -f1)
 UTEST_ABORTS=$(cat ${UTEST_STATUS} | cut -d'|' -f2)
 UTEST_TESTS=$(cat ${UTEST_STATUS} | cut -d'|' -f3)
 UTEST_FAILURES=$(cat ${UTEST_STATUS} | cut -d'|' -f4)
 UTEST_IGNORED=$(cat ${UTEST_STATUS} | cut -d'|' -f5)
 
-echo "::set-env name=BUILD_TOTAL::${BUILD_TOTAL}"
+echo "::set-env name=BUILD_SESSIONS::${BUILD_SESSIONS}"
 echo "::set-env name=BUILD_FAILURES::${BUILD_FAILURES}"
 echo "::set-env name=BUILD_ERRORS::${BUILD_ERRORS}"
 echo "::set-env name=BUILD_WARNINGS::${BUILD_WARNINGS}"
 
-echo "::set-env name=UTEST_TOTAL::${UTEST_TOTAL}"
+echo "::set-env name=UTEST_SESSIONS::${UTEST_SESSIONS}"
 echo "::set-env name=UTEST_ABORTS::${UTEST_ABORTS}"
 echo "::set-env name=UTEST_TESTS::${UTEST_TESTS}"
 echo "::set-env name=UTEST_FAILURES::${UTEST_FAILURES}"
@@ -49,9 +49,9 @@ set +e
 
 ERR_MSG=""
 WARN_MSG=""
-if [ ${BUILD_TOTAL} -eq 0 ]; then
+if [ ${BUILD_SESSIONS} -eq 0 ]; then
     ERR_MSG="No build performed"
-elif [ ${UTEST_TOTAL} -eq 0 ]; then
+elif [ ${UTEST_SESSIONS} -eq 0 ]; then
     ERR_MSG="No unit tests performed"
 fi
 if [ ${BUILD_FAILURES} -ne 0 ]; then
@@ -86,8 +86,13 @@ if [ ${UTEST_FAILURES} -ne 0 ]; then
         ERR_MSG="${MSG}"
     fi
 fi
-if [ -z "${ERR_MSG}" -a ${BUILD_WARNINGS} -ne 0 ]; then
-    WARN_MSG="${BUILD_WARNINGS} build warnings"
+if [ ${BUILD_WARNINGS} -ne 0 ]; then
+    MSG="${BUILD_WARNINGS} build warnings"
+    if [ -z "${ERR_MSG}" ]; then
+        WARN_MSG="${MSG}"
+    else
+        ERR_MSG="${ERR_MSG}, ${MSG}"
+    fi
 fi
 
 echo ""

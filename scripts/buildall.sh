@@ -140,7 +140,7 @@ fi
 
 if [ ${GHA} -ne 0 ]; then
     echo ""
-    echo "::set-env name=BUILD_TOTAL::${TOTAL}"
+    echo "::set-env name=BUILD_SESSIONS::${TOTAL}"
     echo "::set-env name=BUILD_FAILURES::${FAILURES}"
     echo "::set-env name=BUILD_WARNINGS::${WARNCOUNT}"
     echo "::set-env name=BUILD_ERRORS::${ERRCOUNT}"

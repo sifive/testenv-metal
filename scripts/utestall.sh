@@ -116,7 +116,7 @@ fi
 
 if [ ${GHA} -ne 0 ]; then
     echo ""
-    echo "::set-env name=UTEST_TOTAL::${TOTAL}"
+    echo "::set-env name=UTEST_SESSIONS::${TOTAL}"
     echo "::set-env name=UTEST_ABORTS::${ABORTS}"
     echo "::set-env name=UTEST_TESTS::${TOTAL_TESTS}"
     echo "::set-env name=UTEST_FAILURES::${TOTAL_FAILURES}"

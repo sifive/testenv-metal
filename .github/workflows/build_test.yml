@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TARGETS: qemu-sifive_e_rv64 qemu-sifive_e_rv32
-      BUILD_TOTAL: 0
+      BUILD_SESSIONS: 0
       BUILD_FAILURES: 0
       BUILD_WARNINGS: 0
       BUILD_ERRORS: 0
@@ -55,7 +55,7 @@ jobs:
               touch build/.phony
 
       - name: Store build status
-        run:  echo "${BUILD_TOTAL}|${BUILD_FAILURES}|${BUILD_ERRORS}|${BUILD_WARNINGS}" > build_status
+        run:  echo "${BUILD_SESSIONS}|${BUILD_FAILURES}|${BUILD_ERRORS}|${BUILD_WARNINGS}" > build_status
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     env:
-      UTEST_TOTAL: 0
+      UTEST_SESSIONS: 0
       UTEST_ABORTS: 0
       UTEST_TESTS: 0
       UTEST_FAILURES: 0
@@ -107,7 +107,7 @@ jobs:
         run:  docker/bin/dock.sh utest scripts/utestall.sh -g build
 
       - name: Store utest status
-        run: echo "${UTEST_TOTAL}|${UTEST_ABORTS}|${UTEST_TESTS}|${UTEST_FAILURES}|${UTEST_IGNORED}" > utest_status
+        run: echo "${UTEST_SESSIONS}|${UTEST_ABORTS}|${UTEST_TESTS}|${UTEST_FAILURES}|${UTEST_IGNORED}" > utest_status
 
       - name: Upload utest status
         uses: actions/upload-artifact@v2
@@ -121,11 +121,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, utest]
     env:
-      BUILD_TOTAL: 0
+      BUILD_SESSIONS: 0
       BUILD_FAILURES: 0
       BUILD_WARNINGS: 0
       BUILD_ERRORS: 0
-      UTEST_TOTAL: 0
+      UTEST_SESSIONS: 0
       UTEST_ABORTS: 0
       UTEST_TESTS: 0
       UTEST_FAILURES: 0
@@ -156,12 +156,12 @@ jobs:
         run:  scripts/gh_setenv.sh ${GITHUB_EVENT_NAME} build_status utest_status scl_metal_status
 
       - name: Report build status
-        run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_TOTAL}";
+        run:  echo "Build failures ${BUILD_FAILURES}/${BUILD_SESSIONS}";
               echo "Build error count ${BUILD_ERRORS}";
               echo "Build warning count ${BUILD_WARNINGS}"
 
       - name: Report unit test status
-        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_TOTAL}";
+        run:  echo "Unit test fatal sessions ${UTEST_ABORTS}/${UTEST_SESSIONS}";
               echo "${UTEST_TESTS} Tests ${UTEST_FAILURES} Failures ${UTEST_IGNORED} Ignored"
 
       - name: Extract git meta data
