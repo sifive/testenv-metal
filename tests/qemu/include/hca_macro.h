@@ -35,10 +35,6 @@
 
 #include <metal/io.h>
 
-#include <api/scl_api.h>
-
-#include <api/hardware/hca_utils.h>
-
 /**
  * @addtogroup HCA
  * @addtogroup HCA_MACRO
