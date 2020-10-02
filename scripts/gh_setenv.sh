@@ -3,23 +3,18 @@
 SCRIPT_DIR=$(dirname $0)
 . ${SCRIPT_DIR}/funcs.sh
 
-if [ $# -ne 4 ]; then
+if [ $# -ne 2 ]; then
     die "Invalid parameters"
 fi
 
-EVENT_NAME="$1"
-BUILD_STATUS="$2"
-UTEST_STATUS="$3"
-SCL_INFO="$4"
+BUILD_STATUS="$1"
+UTEST_STATUS="$2"
 
 if [ ! -s "${BUILD_STATUS}" ]; then
     die "Invalid build status file ${BUILD_STATUS}"
 fi
 if [ ! -s "${UTEST_STATUS}" ]; then
     die "Invalid unit test status file ${UTEST_STATUS}"
-fi
-if [ ! -s "${SCL_INFO}" ]; then
-    die "Invalid SCL-metal info file ${SCL_INFO}"
 fi
 
 set -eu
@@ -108,15 +103,15 @@ else
     echo "::set-env name=SLACK_COLOR::#32CD32"
 fi
 
-if [ "${EVENT_NAME}" = "push" ]; then
-    # commit to this repo
-    echo "::set-env name=SLACK_FOOTER::${GITHUB_SHA}"
-else
-    # commit to subrepo
-    GIT_SHA="$(cat ${SCL_INFO} | cut -d: -f1)"
-    GIT_NAME="$(cat ${SCL_INFO} | cut -d: -f2)"
-    GIT_MSG="$(cat ${SCL_INFO} | cut -d: -f3)"
-
-    echo "::set-env name=SLACK_FOOTER::${GIT_SHA} (${GIT_NAME})"
-    echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
-fi
+# if [ "${EVENT_NAME}" = "push" ]; then
+#     # commit to this repo
+#     echo "::set-env name=SLACK_FOOTER::${GITHUB_SHA}"
+# else
+#     # commit to subrepo
+#     GIT_SHA="$(cat ${SCL_INFO} | cut -d: -f1)"
+#     GIT_NAME="$(cat ${SCL_INFO} | cut -d: -f2)"
+#     GIT_MSG="$(cat ${SCL_INFO} | cut -d: -f3)"
+#
+#     echo "::set-env name=SLACK_FOOTER::${GIT_SHA} (${GIT_NAME})"
+#     echo "::set-env name=SLACK_MESSAGE::${GIT_MSG}"
+# fi
