@@ -101,15 +101,20 @@ rm -rf build/${XBSP}/${SUBDIR}
 mkdir -p build/${XBSP}/${SUBDIR} || die "Cannot create build dir"
 cd build/${XBSP}/${SUBDIR} || die "Invalid build dir"
 cmake -G Ninja ../../.. ${CMAKE_OPTS} || die "Unable to run cmake"
-if [ ${GHA} -eq 0 ]; then
-    ninja ${NINJA_OPTS}
-else
-    # silent build mode, discard Ninja output
-    # as Ninja redirects toolchain stderr to stdout, need to filter out
-    # NINJA_STATUS prolog to get the compiler warnings and errors
+OPT_TARGETS=$(ninja help | grep "/all:"  | cut -d: -f1)
+# make sure "all" is run first
+for target in all ${OPT_TARGETS}; do
+    info "Build target '${target}'"
+    if [ ${GHA} -eq 0 ]; then
+        ninja ${NINJA_OPTS} ${target}
+    else
+        # silent build mode, discard Ninja output
+        # as Ninja redirects toolchain stderr to stdout, need to filter out
+        # NINJA_STATUS prolog to get the compiler warnings and errors
 
-    # now use POSIX shell black magic to preserve Ninja exit status while
-    # filtering its standard output
-    { { { { ninja ${NINJA_OPTS}; echo $? >&3; } | filter_issues >&4; } 3>&1; } \
-        | (read xs; exit $xs); } 4>&1
-fi
+        # now use POSIX shell black magic to preserve Ninja exit status while
+        # filtering its standard output
+        { { { { ninja ${NINJA_OPTS} ${target}; echo $? >&3; } | \
+                filter_issues >&4; } 3>&1; } | (read xs; exit $xs); } 4>&1
+    fi
+done
