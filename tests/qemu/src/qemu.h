@@ -4,10 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include "api/hardware/v0.5/random/hca_trng.h"
-#include "api/hardware/v0.5/sifive_hca-0.5.x.h"
-#include "api/hardware/hca_utils.h"
-#include "api/hardware/hca_macro.h"
+#include "sifive_hca-0.5.x.h"
+#include "hca_macro.h"
 
 //-----------------------------------------------------------------------------
 // Type definitions

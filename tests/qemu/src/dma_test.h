@@ -4,10 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include "api/hardware/v0.5/random/hca_trng.h"
-#include "api/hardware/v0.5/sifive_hca-0.5.x.h"
-#include "api/hardware/hca_utils.h"
-#include "api/hardware/hca_macro.h"
+#include "sifive_hca-0.5.x.h"
+#include "hca_macro.h"
 #include "qemu.h"
 
 //-----------------------------------------------------------------------------
@@ -211,6 +209,83 @@ _hca_set_aes_iv96(const uint8_t * iv)
         __builtin_bswap32(dwiv[1u]);
     METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_AES_INITV+0x04u) =
         __builtin_bswap32(dwiv[2u]);
+}
+
+//-----------------------------------------------------------------------------
+// TRNG function
+//-----------------------------------------------------------------------------
+
+static inline int32_t
+_hca_trng_init(void)
+{
+    int ret = 0;
+
+    if (0 == METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_REV))
+    {
+        // revision of TRNG is Zero so the TRNG is not present.
+        return 0;
+    }
+
+    // Lock Trim Value
+    _hca_updreg32(METAL_SIFIVE_HCA_TRNG_TRIM, 1,
+                   HCA_REGISTER_TRNG_TRIM_LOCK_OFFSET,
+                   HCA_REGISTER_TRNG_TRIM_LOCK_MASK);
+
+    // start on-demand health test
+    _hca_updreg32( METAL_SIFIVE_HCA_TRNG_CR, 1,
+                   HCA_REGISTER_TRNG_CR_HTSTART_OFFSET,
+                   HCA_REGISTER_TRNG_CR_HTSTART_MASK);
+
+    while ((METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_SR) >>
+            HCA_REGISTER_TRNG_SR_HTR_OFFSET) &
+           HCA_REGISTER_TRNG_SR_HTR_MASK)
+    {
+        // test that all 0's are read back from TRNG_DATA during startup health
+        // test
+        if (METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_DATA) != 0)
+        {
+            if ((METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_SR) >>
+                 HCA_REGISTER_TRNG_SR_HTR_OFFSET) &
+                HCA_REGISTER_TRNG_SR_HTR_MASK)
+            {
+                return -1;
+            }
+        }
+    }
+
+    // Test Heath test status
+    if (((METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_SR) >>
+          HCA_REGISTER_TRNG_SR_HTS_OFFSET) &
+         HCA_REGISTER_TRNG_SR_HTS_MASK) != 0)
+    {
+        ret = -1;
+    }
+
+    _hca_updreg32(METAL_SIFIVE_HCA_TRNG_CR, 0,
+                   HCA_REGISTER_TRNG_CR_HTSTART_OFFSET,
+                   HCA_REGISTER_TRNG_CR_HTSTART_MASK);
+    return 0;
+}
+
+static inline uint32_t
+_hca_trng_getdata(uint32_t *data_out)
+{
+    if (0 == METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_REV))
+    {
+        // revision of TRNG is Zero so the TRNG is not present.
+        return -1;
+    }
+
+    // Poll for RNDRDY bit
+    while (((METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_SR) >>
+             HCA_REGISTER_TRNG_SR_RNDRDY_OFFSET) &
+            HCA_REGISTER_TRNG_SR_RNDRDY_MASK) == 0)
+        ;
+
+    // read TRNG_DATA register
+    *data_out = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_DATA);
+
+    return 0;
 }
 
 #endif // DMA_TEST_H

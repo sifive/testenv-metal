@@ -4,10 +4,8 @@
 #include <stdio.h>
 #include "metal/machine.h"
 #include "metal/tty.h"
-#include "api/hardware/v0.5/random/hca_trng.h"
-#include "api/hardware/v0.5/sifive_hca-0.5.x.h"
-#include "api/hardware/hca_utils.h"
-#include "api/hardware/hca_macro.h"
+#include "sifive_hca-0.5.x.h"
+#include "hca_macro.h"
 #include "unity_fixture.h"
 #include "dma_test.h"
 
@@ -17,10 +15,6 @@
 //-----------------------------------------------------------------------------
 
 #define TRNG_MAX_RESULTS     8
-
-static const metal_scl_t scl = {
-    .hca_base = METAL_SIFIVE_HCA_0_BASE_ADDRESS,
-};
 
 //-----------------------------------------------------------------------------
 // Type definitions
@@ -53,13 +47,13 @@ TEST(trng, poll)
 {
     int32_t rc;
 
-    rc = hca_trng_init(&scl);
+    rc = _hca_trng_init();
     TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot init TRNG");
 
     uint32_t out = 0;
 
     for(unsigned int ix=0; ix<4; ix++) {
-        rc = hca_trng_getdata(&scl, &out);
+        rc = _hca_trng_getdata(&out);
         TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot generate TRNG");
         // there is a 1/1^32 chance to get a zeroed valid value...
         TEST_ASSERT_TRUE_MESSAGE(out != 0, "Zero value found");
@@ -72,7 +66,7 @@ TEST(trng, poll)
 
 
     for(unsigned int ix=0; ix<4; ix++) {
-        rc = hca_trng_getdata(&scl, &out);
+        rc = _hca_trng_getdata(&out);
         TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot generate PRNG");
         // there is a 1/1^32 chance to get a zeroed valid value...
         TEST_ASSERT_TRUE_MESSAGE(out != 0, "Zero value found");
@@ -85,7 +79,7 @@ TEST(trng, poll)
 
 
     for(unsigned int ix=0; ix<4; ix++) {
-        rc = hca_trng_getdata(&scl, &out);
+        rc = _hca_trng_getdata(&out);
         TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot generate TRNG");
         // there is a 1/1^32 chance to get a zeroed valid value...
         TEST_ASSERT_TRUE_MESSAGE(out != 0, "Zero value found");
@@ -105,7 +99,7 @@ void hca_irq_handler(int id, void * opaque)
     }
     if ( results->tr_count < ARRAY_SIZE(results->tr_values) ) {
         uint32_t out;
-        out = METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_TRNG_DATA);
+        out = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_DATA);
         //PRINTF("RNG: 0x%08x", out);
         results->tr_values[results->tr_count++] = out;
     } else  {
@@ -117,7 +111,7 @@ TEST(trng, irq)
 {
     int32_t rc;
 
-    rc = hca_trng_init(&scl);
+    rc = _hca_trng_init();
     TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot init TRNG");
 
     // Lets get the CPU and and its interrupt
@@ -166,7 +160,7 @@ TEST(trng, irq)
     TEST_ASSERT_FALSE_MESSAGE(rc, "Cannot diable IRQ");
 
     // clear interrupt
-    METAL_REG32(scl.hca_base, METAL_SIFIVE_HCA_TRNG_DATA);
+    METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_TRNG_DATA);
 
     TEST_ASSERT_EQUAL_MESSAGE(_trng_results.tr_count, TRNG_MAX_RESULTS,
                               "Missing RNG values");
