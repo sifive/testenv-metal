@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 
+"""JSON Object Model to C header file generator."""
+
+#pylint: disable-msg=too-many-arguments
+#pylint: disable-msg=too-many-locals
+#pylint: disable-msg=too-many-nested-blocks
+#pylint: disable-msg=cell-var-from-loop
+
+
 from argparse import ArgumentParser, FileType
 from enum import Enum
 from json import loads as json_loads
 from os.path import basename
-from pprint import pformat, pprint
 from re import sub as re_sub
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from textwrap import dedent
@@ -13,8 +20,11 @@ from typing import (Any, DefaultDict, Dict, List, NamedTuple, Optional, TextIO,
                     Tuple)
 
 Access = Enum('Access', 'R RW W RFWT_ONE_TO_CLEAR')
+"""Register access types."""
+
 
 class RegField(NamedTuple):
+    """Register description."""
     offset: int
     size: int
     desc: str
@@ -97,7 +107,8 @@ class ObjectModelConverter:
         self._generate_fields(ofp, bitsize, prefix, newgroups, grpdescs)
         self._generate_epilog(ofp, filename)
 
-    def _parse_region(self, region: Dict[str, Any]) \
+    @classmethod
+    def _parse_region(cls, region: Dict[str, Any]) \
             -> Tuple[Dict[str, str], DefaultDict[str, Dict[str, RegField]]]:
         """Parse an object model region containing a register map.
 
@@ -135,7 +146,8 @@ class ObjectModelConverter:
             registers[group][name] = regfield
         return groups, registers
 
-    def _merge_registers(self, reggroups: Dict[str, Dict[str, RegField]]) \
+    @classmethod
+    def _merge_registers(cls, reggroups: Dict[str, Dict[str, RegField]]) \
             -> Dict[str, Dict[str, RegField]]:
         """Merge 8-bit groups belonging to the same registers.
 
@@ -150,7 +162,7 @@ class ObjectModelConverter:
             mregs = DefaultDict(list)
             # group registers of the same name radix into lists
             for fname in sorted(gregs, key=lambda n: gregs[n].offset):
-                bfname = re_sub('_\d+', '', fname)  # register name w/o index
+                bfname = re_sub(r'_\d+', '', fname)  # register name w/o index
                 mregs[bfname].append(gregs[fname])
             # merge siblings into a single register
             for mname in mregs:
@@ -160,7 +172,6 @@ class ObjectModelConverter:
                     continue
                 # pprint(mregs)
                 breg = None
-                noffset = None
                 nsize = None
                 nreset = None
                 nregs = []
@@ -173,9 +184,8 @@ class ObjectModelConverter:
                             nreset |= lreg.reset << nsize
                             nsize += lreg.size
                         else:
-                            print('NO match')
                             reg = RegField(breg.offset, nsize, breg.desc,
-                                           nreset, bref.access)
+                                           nreset, breg.access)
                             nregs.append(reg)
                             breg = None
                     if breg is None:
@@ -192,7 +202,8 @@ class ObjectModelConverter:
             outregs[gname] = mregs
         return outregs
 
-    def _split_registers(self, reggroups: Dict[str, Dict[str, RegField]],
+    @classmethod
+    def _split_registers(cls, reggroups: Dict[str, Dict[str, RegField]],
                          bitsize: int) -> Dict[str, Dict[str, RegField]]:
         """Split register fields into bitsized register words.
 
@@ -284,18 +295,20 @@ class ObjectModelConverter:
                       file=out)
             print('', file=out)
 
-    def _generate_prolog(self, out: TextIO, filename: str, name: str):
+    @classmethod
+    def _generate_prolog(cls, out: TextIO, filename: str, name: str):
         """Generate file prolog.
 
           :param out: the output text stream
         """
         mult_ex = f"{filename.upper().replace('.', '_').replace('-', '_')}_"
-        print(dedent(self.HEADER % (name, filename)).lstrip(), file=out)
+        print(dedent(cls.HEADER % (name, filename)).lstrip(), file=out)
         print(f'#ifndef {mult_ex}', file=out)
         print(f'#define {mult_ex}', file=out)
         print(file=out)
 
-    def _generate_epilog(self, out: TextIO, filename: str):
+    @classmethod
+    def _generate_epilog(cls, out: TextIO, filename: str):
         """Generate file epilog.
 
           :param out: the output text stream
