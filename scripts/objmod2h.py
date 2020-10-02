@@ -19,6 +19,7 @@ from traceback import print_exc
 from typing import (Any, DefaultDict, Dict, List, NamedTuple, Optional, TextIO,
                     Tuple)
 
+
 Access = Enum('Access', 'R RW W RFWT_ONE_TO_CLEAR')
 """Register access types."""
 
@@ -51,11 +52,10 @@ class ObjectModelConverter:
     EXTRA_SEP_COUNT = 2
 
     def __init__(self, *names: List[str]):
-        self._comps: Dict[str,
-                          Optional[Tuple[Dict[str, str],
-                                         DefaultDict[str,
-                                                     Dict[str, RegField]]]]] = \
-            {x.lower(): None for x in names}
+        self._comps: \
+            Dict[str, Optional[Tuple[Dict[str, str],
+                                     DefaultDict[str, Dict[str, RegField]]]]] \
+            = {x.lower(): None for x in names}
 
     def parse(self, mfp: TextIO) -> None:
         """Parse an object model text stream.
@@ -93,7 +93,7 @@ class ObjectModelConverter:
         """
         try:
             grpdescs, grpfields = self._comps[name.lower()]
-        except KeyError as exc:
+        except (KeyError, TypeError) as exc:
             raise ValueError(f'Unknown component name: {name}') from exc
         newgroups = self._split_registers(grpfields, bitsize)
         prefix = name.upper()
@@ -168,16 +168,13 @@ class ObjectModelConverter:
             for mname in mregs:
                 lregs = mregs[mname]
                 if len(lregs) == 1:
-                    # singleton
                     continue
-                # pprint(mregs)
                 breg = None
                 nsize = None
                 nreset = None
                 nregs = []
                 for lreg in lregs:
                     if breg:
-                        #print(f'b.o {breg.offset} nz {nsize} l.o {lreg.offset}')
                         if lreg.offset == breg.offset+nsize:
                             if lreg.access != breg.access:
                                 raise ValueError('Incoherent access modes')
@@ -196,9 +193,7 @@ class ObjectModelConverter:
                     reg = RegField(breg.offset, nsize, breg.desc,
                                    nreset, breg.access)
                     nregs.append(reg)
-                # pprint(nregs)
                 mregs[mname] = nregs
-                # exit(0)
             outregs[gname] = mregs
         return outregs
 
@@ -324,6 +319,8 @@ def main() -> None:
     try:
         argparser = ArgumentParser(description=modules[__name__].__doc__)
 
+        argparser.add_argument('comp', nargs=1,
+                               help='Component(s) to extract from model')
         argparser.add_argument('-i', '--input', type=FileType('rt'),
                                default=stdin,
                                help='Input header file')
@@ -331,17 +328,18 @@ def main() -> None:
                                default=stdout,
                                help='Output header file')
         argparser.add_argument('-w', '--width', type=int,
-                               choices=(8, 16, 32, 64), default=32,
-                               help='Output register width (default: 32)')
+                               choices=(8, 16, 32, 64), default=64,
+                               help='Output register width (default: 64)')
         argparser.add_argument('-d', '--debug', action='store_true',
                                help='Enable debug mode')
 
         args = argparser.parse_args()
         debug = args.debug
 
-        omc = ObjectModelConverter('hca')
+        component = args.comp[0]
+        omc = ObjectModelConverter(component)
         omc.parse(args.input)
-        omc.generate_header(args.output, 'hca', args.width)
+        omc.generate_header(args.output, component, args.width)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)
