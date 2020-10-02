@@ -6,7 +6,8 @@
 directory_name (component)
 
 # where to find unity header file
-INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/unity/src
+INCLUDE_DIRECTORIES (include
+                     ${CMAKE_SOURCE_DIR}/unity/src
                      ${CMAKE_SOURCE_DIR}/unity/extras/fixture/src
                      ${CMAKE_SOURCE_DIR}/unity/extras/memory/src)
 
