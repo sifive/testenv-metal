@@ -53,15 +53,40 @@ if [ ${BUILD_TOTAL} -eq 0 ]; then
     ERR_MSG="No build performed"
 elif [ ${UTEST_TOTAL} -eq 0 ]; then
     ERR_MSG="No unit tests performed"
-elif [ ${BUILD_FAILURES} -ne 0 ]; then
-    ERR_MSG="${BUILD_FAILURES} build failures"
-elif [ ${BUILD_ERRORS} -ne 0 ]; then
-    ERR_MSG="${BUILD_ERRORS} build errors"
-elif [ ${UTEST_ABORTS} -ne 0 ]; then
-    ERR_MSG="${UTEST_ABORTS} unit test aborts"
-elif [ ${UTEST_FAILURES} -ne 0 ]; then
-    ERR_MSG="${UTEST_FAILURES} unit test failures"
-elif [ ${BUILD_WARNINGS} -ne 0 ]; then
+fi
+if [ ${BUILD_FAILURES} -ne 0 ]; then
+    MSG="${BUILD_FAILURES} build failures"
+    if [ -n "${ERR_MSG}" ]; then
+        ERR_MSG="${ERR_MSG}, ${MSG}"
+    else
+        ERR_MSG="${MSG}"
+    fi
+fi
+if [ ${BUILD_ERRORS} -ne 0 ]; then
+    MSG="${BUILD_ERRORS} build errors"
+    if [ -n "${ERR_MSG}" ]; then
+        ERR_MSG="${ERR_MSG}, ${MSG}"
+    else
+        ERR_MSG="${MSG}"
+    fi
+fi
+if [ ${UTEST_ABORTS} -ne 0 ]; then
+    MSG="${UTEST_ABORTS} test aborts"
+    if [ -n "${ERR_MSG}" ]; then
+        ERR_MSG="${ERR_MSG}, ${MSG}"
+    else
+        ERR_MSG="${MSG}"
+    fi
+fi
+if [ ${UTEST_FAILURES} -ne 0 ]; then
+    MSG="${UTEST_FAILURES} test failures"
+    if [ -n "${ERR_MSG}" ]; then
+        ERR_MSG="${ERR_MSG}, ${MSG}"
+    else
+        ERR_MSG="${MSG}"
+    fi
+fi
+if [ -z "${ERR_MSG}" -a ${BUILD_WARNINGS} -ne 0 ]; then
     WARN_MSG="${BUILD_WARNINGS} build warnings"
 fi
 
