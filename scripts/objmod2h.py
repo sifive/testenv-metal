@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
+from argparse import ArgumentParser, FileType
 from enum import Enum
 from json import loads as json_loads
 from os.path import basename
 from pprint import pformat, pprint
 from re import sub as re_sub
+from sys import exit as sysexit, modules, stdin, stdout, stderr
 from textwrap import dedent
+from traceback import print_exc
 from typing import (Any, DefaultDict, Dict, List, NamedTuple, Optional, TextIO,
                     Tuple)
-
 
 Access = Enum('Access', 'R RW W RFWT_ONE_TO_CLEAR')
 
@@ -303,14 +305,43 @@ class ObjectModelConverter:
         print(f'#endif /* {mult_ex} */', file=out)
 
 
+def main() -> None:
+    """Main routine"""
+    debug = False
+    try:
+        argparser = ArgumentParser(description=modules[__name__].__doc__)
 
-def main(omfile):
-    omc = ObjectModelConverter('hca')
-    with open(omfile, 'rt') as mfp:
-        omc.parse(mfp)
-    from sys import stdout
-    omc.generate_header(stdout, 'hca', 32)
+        argparser.add_argument('-i', '--input', type=FileType('rt'),
+                               default=stdin,
+                               help='Input header file')
+        argparser.add_argument('-o', '--output', type=FileType('wt'),
+                               default=stdout,
+                               help='Output header file')
+        argparser.add_argument('-w', '--width', type=int,
+                               choices=(8, 16, 32, 64), default=32,
+                               help='Output register width (default: 32)')
+        argparser.add_argument('-d', '--debug', action='store_true',
+                               help='Enable debug mode')
+
+        args = argparser.parse_args()
+        debug = args.debug
+
+        omc = ObjectModelConverter('hca')
+        omc.parse(args.input)
+        omc.generate_header(args.output, 'hca', args.width)
+
+    except (IOError, OSError, ValueError) as exc:
+        print('Error: %s' % exc, file=stderr)
+        if debug:
+            print_exc(chain=False, file=stderr)
+        sysexit(1)
+    except SystemExit as exc:
+        if debug:
+            print_exc(chain=True, file=stderr)
+        raise
+    except KeyboardInterrupt:
+        sysexit(2)
 
 
 if __name__ == '__main__':
-    main('/Users/eblot/Downloads/hca.v0.6.0.objectModel.json')
+    main()
