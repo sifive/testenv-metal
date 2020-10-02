@@ -106,10 +106,10 @@ else
 fi
 
 if [ "${GH_EVENT}" = "pull_request" ]; then
-    SHA="$(echo ${GH_SHAS} | cut -d: -f2)"
+    SHORT_SHA="$(echo ${GH_SHAS} | cut -d: -f2 | cut -c-8)"
 else
-    SHA="$(echo ${GH_SHAS} | cut -d: -f1)"
+    SHORT_SHA="$(echo ${GH_SHAS} | cut -d: -f1 | cut -c-8)"
 fi
 
-FOOTER="${SHA::8}: ${UTEST_TESTS} test passed, ${UTEST_IGNORED} test ignored"
+FOOTER="${SHORT_SHA}: ${UTEST_TESTS} test passed, ${UTEST_IGNORED} test ignored"
 echo "::set-env name=SLACK_FOOTER::${FOOTER}"
