@@ -3,6 +3,9 @@
 # the following features are not yet exercized in regular scl-metal-tests
 #------------------------------------------------------------------------------
 
+# Do not build with 'all' targets
+optional_target ()
+
 directory_name (component)
 
 # where to find unity header file

@@ -236,6 +236,14 @@ MACRO (enable_unity)
 ENDMACRO ()
 
 #-----------------------------------------------------------------------------
+# Exclude sub targets from the main ('all') target
+#-----------------------------------------------------------------------------
+MACRO (optional_target)
+  SET_PROPERTY (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+               PROPERTY EXCLUDE_FROM_ALL ON)
+ENDMACRO ()
+
+#-----------------------------------------------------------------------------
 # Apply default link options to a final application
 #  :app: the application component
 #  :ld_script: the filename of the linker script
