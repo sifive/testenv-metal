@@ -21,6 +21,9 @@
 *.specs
 build*/
 
+# Tested environments
+scl-metal
+
 # Editor - Various Merge tools
 *.bak
 # Editor - Emacs
