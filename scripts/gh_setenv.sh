@@ -3,14 +3,15 @@
 SCRIPT_DIR=$(dirname $0)
 . ${SCRIPT_DIR}/funcs.sh
 
-if [ $# -ne 4 ]; then
+if [ $# -ne 5 ]; then
     die "Invalid parameters"
 fi
 
 GH_EVENT="$1"
-GH_SHAS="$2"
-BUILD_STATUS="$3"
-UTEST_STATUS="$4"
+GH_REF="$2"
+GH_SHAS="$3"
+BUILD_STATUS="$4"
+UTEST_STATUS="$5"
 
 if [ ! -s "${BUILD_STATUS}" ]; then
     die "Invalid build status file ${BUILD_STATUS}"
@@ -107,6 +108,8 @@ fi
 
 if [ "${GH_EVENT}" = "pull_request" ]; then
     SHORT_SHA="$(echo ${GH_SHAS} | cut -d: -f2 | cut -c-8)"
+    REF=$(echo ${GH_REF} | cut -c2-)
+    echo "::set-env name=SLACK_MESSAGE::${REF}"
 else
     SHORT_SHA="$(echo ${GH_SHAS} | cut -d: -f1 | cut -c-8)"
 fi
