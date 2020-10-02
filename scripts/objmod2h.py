@@ -2,9 +2,12 @@
 
 from enum import Enum
 from json import loads as json_loads
+from os.path import basename
 from pprint import pformat, pprint
 from re import sub as re_sub
-from typing import DefaultDict, List, NamedTuple, Optional
+from textwrap import dedent
+from typing import (Any, DefaultDict, Dict, List, NamedTuple, Optional, TextIO,
+                    Tuple)
 
 
 Access = Enum('Access', 'R RW W RFWT_ONE_TO_CLEAR')
@@ -18,13 +21,35 @@ class RegField(NamedTuple):
 
 
 class ObjectModelConverter:
+    """JSON object model converter.
 
-    ACCESS_TYPES = ()
+       :param names: one or more IP names to extract from the object model
+    """
+
+    HEADER = """
+    /**
+     * %s registers
+     * @file %s
+     *
+     * @copyright (c) 2020 SiFive, Inc
+     * @copyright SPDX-License-Identifier: MIT
+     */
+    """
+
+    EXTRA_SEP_COUNT = 2
 
     def __init__(self, *names: List[str]):
-        self._names = tuple((x.lower() for x in names))
+        self._comps: Dict[str,
+                          Optional[Tuple[Dict[str, str],
+                                         DefaultDict[str,
+                                                     Dict[str, RegField]]]]] = \
+            {x.lower(): None for x in names}
 
-    def parse(self, mfp):
+    def parse(self, mfp: TextIO) -> None:
+        """Parse an object model text stream.
+
+           :param mfp: object model file-like object
+        """
         objmod = json_loads(mfp.read())
         if not isinstance(objmod, list):
             raise ValueError('Invalid format')
@@ -40,18 +65,45 @@ class ObjectModelConverter:
             for region in component['memoryRegions']:
                 if 'registerMap' not in region:
                     continue
-                if region['name'].lower() not in self._names:
+                regname = region['name'].lower()
+                if regname not in self._comps:
                     continue
-                print(f'Found {region["name"]}')
-                groups, reggroups = self._parse_region(region)
+                grpdescs, reggroups = self._parse_region(region)
                 mreggroups = self._merge_registers(reggroups)
-                bitsize = 64
-                newgroups = self._split_registers(mreggroups, bitsize)
-                prefix = region['name'].upper()
-                self._generate_registers(prefix, newgroups, bitsize)
-                self._generate_fields(prefix, newgroups, bitsize)
+                self._comps[regname] = (grpdescs, mreggroups)
 
-    def _parse_region(self, region):
+    def generate_header(self, ofp: TextIO, name: str, bitsize: int) -> None:
+        """Generate a header file stream for a component.
+
+           :param name: the name of a previously parsed component
+           :param bitsize: the max width of register, in bits
+           :param out: the output stream
+        """
+        try:
+            grpdescs, grpfields = self._comps[name.lower()]
+        except KeyError as exc:
+            raise ValueError(f'Unknown component name: {name}') from exc
+        newgroups = self._split_registers(grpfields, bitsize)
+        prefix = name.upper()
+        if ofp.name and not ofp.name.startswith('<'):
+            filename = basename(ofp.name)
+        else:
+            filename = f'sifive_{name}.h'
+        self._generate_prolog(ofp, filename, prefix)
+        self._generate_registers(ofp, prefix, newgroups, grpdescs)
+        print('', file=ofp)
+        self._generate_fields(ofp, bitsize, prefix, newgroups, grpdescs)
+        self._generate_epilog(ofp, filename)
+
+    def _parse_region(self, region: Dict[str, Any]) \
+            -> Tuple[Dict[str, str], DefaultDict[str, Dict[str, RegField]]]:
+        """Parse an object model region containing a register map.
+
+            :param region: the region to parse
+            :return: a 2-tuple of a group dictionay which gives the description
+                     string for each named group, and a dictionary of groups of
+                     register fields
+        """
         regmap = region['registerMap']
         groups = {}
         for group in regmap["groups"]:
@@ -81,7 +133,13 @@ class ObjectModelConverter:
             registers[group][name] = regfield
         return groups, registers
 
-    def _merge_registers(self, reggroups):
+    def _merge_registers(self, reggroups: Dict[str, Dict[str, RegField]]) \
+            -> Dict[str, Dict[str, RegField]]:
+        """Merge 8-bit groups belonging to the same registers.
+
+            :param reggroups: register fields (indexed on group, name)
+            :return: a dictionary of groups of register fields
+        """
         regnames = tuple(sorted(reggroups, key=lambda n: min([r.offset
                                     for r in reggroups[n].values()])))
         outregs = {}
@@ -132,7 +190,14 @@ class ObjectModelConverter:
             outregs[gname] = mregs
         return outregs
 
-    def _split_registers(self, reggroups, bitsize):
+    def _split_registers(self, reggroups: Dict[str, Dict[str, RegField]],
+                         bitsize: int) -> Dict[str, Dict[str, RegField]]:
+        """Split register fields into bitsized register words.
+
+            :param reggroups: register fields (indexed on group, name)
+            :param bitsize: max width of output registers
+            :return: a dictionary of groups of register fields
+        """
         outgroups = {}
         for gname in reggroups:
             registers = reggroups[gname]
@@ -152,50 +217,99 @@ class ObjectModelConverter:
                     wreset = (field.reset >> idx) & mask
                     fregs[f'{regname}_{wsize}'] = RegField(
                         field.offset+idx, min(bitsize, field.size-idx),
-                        f'{field.desc} {wsize}', field.reset, field.access)
+                        f'{field.desc} {wsize}', wreset, field.access)
             outgroups[gname] = fregs
-        # pprint(outgroups)
         return outgroups
 
-    def _generate_registers(self, prefix: str, reggroups, bitsize):
+    def _generate_registers(self, out: TextIO, prefix: str,
+                            reggroups: Dict[str, Dict[str, RegField]],
+                            groupdesc: Dict[str, str]):
+        """Print out the register addresses (in bytes).
+
+           :param out: output stream
+           :param prefix: the prefix for all register names
+           :param reggroups: the group of register fields to print out
+           :param groupdesc: the description of each group
+        """
         grpnames = tuple(sorted(reggroups, key=lambda n: min([r.offset
                                     for r in reggroups[n].values()])))
+        length = (len(prefix) + len('REGISTER') +
+                 max([len(x) for x in reggroups]) + 2 + self.EXTRA_SEP_COUNT)
         for grpname in grpnames:
             group = reggroups[grpname]
             regname = sorted(group, key=lambda n: group[n].offset)[0]
             address = group[regname].offset//8
-            addr_str = f'{prefix}_{grpname}'
-            print (f'#define {addr_str:40s} 0x{address:04X}u')
+            addr_str = f'{prefix}_REGISTER_{grpname}'
+            desc = groupdesc.get(grpname, '')
+            print(f'/* {desc} */', file=out)
+            print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
-    def _generate_fields(self, prefix: str, reggroups, bitsize):
-        return
+    def _generate_fields(self, out: TextIO, bitsize: int, prefix: str,
+                         reggroups: Dict[str, Dict[str, RegField]],
+                         groupdesc: Dict[str, str]):
+        """Print out the register content (offset and mask).
+
+           :param out: output stream
+           :param bitsize: the max register width in bits
+           :param prefix: the prefix for all register names
+           :param reggroups: the group of register fields to print out
+           :param groupdesc: the description of each group
+        """
         mask = (1 << bitsize) - 1
         grpnames = tuple(sorted(reggroups, key=lambda n: min([r.offset
                                     for r in reggroups[n].values()])))
         length = max([len(grpname) +
                       max([len(regname) for regname in reggroups[grpname]])
                           for grpname in reggroups])
-        length += len(prefix) + len('OFFSET') + 3
-        length += 2  # extra spaces
+        length += len(prefix) + len('REGISTER') + len('OFFSET') + 4
+        length += self.EXTRA_SEP_COUNT
         for grpname in grpnames:
             group = reggroups[grpname]
-            for regname in sorted(group, key=lambda n: group[n].offset):
+            desc = groupdesc.get(grpname, '')
+            print(f'/*\n * {desc}\n */', file=out)
+            sorted_names = sorted(group, key=lambda n: group[n].offset)
+            base_offset = group[sorted_names[0]].offset
+            for regname in sorted_names:
                 field = group[regname]
-                offset = field.offset % bitsize
+                offset = field.offset - base_offset
                 mask = (1 << field.size) - 1
-                print(f'// {field.desc}')
-                off_str = f'{prefix}_{grpname}_{regname}_OFFSET'
-                msk_str = f'{prefix}_{grpname}_{regname}_MASK'
+                print(f'/* {field.desc} [{field.access.name}] */', file=out)
+                off_str = f'{prefix}_REGISTER_{grpname}_{regname}_OFFSET'
+                msk_str = f'{prefix}_REGISTER_{grpname}_{regname}_MASK'
                 padding = max(2, 2*((field.size+7)//8))
-                print(f'#define {off_str:{length}s} {offset}u')
-                print(f'#define {msk_str:{length}s} 0x{mask:0{padding}X}u')
-                print()
+                print(f'#define {off_str:{length}s} {offset}u', file=out)
+                print(f'#define {msk_str:{length}s} 0x{mask:0{padding}X}u',
+                      file=out)
+            print('', file=out)
+
+    def _generate_prolog(self, out: TextIO, filename: str, name: str):
+        """Generate file prolog.
+
+          :param out: the output text stream
+        """
+        mult_ex = f"{filename.upper().replace('.', '_').replace('-', '_')}_"
+        print(dedent(self.HEADER % (name, filename)).lstrip(), file=out)
+        print(f'#ifndef {mult_ex}', file=out)
+        print(f'#define {mult_ex}', file=out)
+        print(file=out)
+
+    def _generate_epilog(self, out: TextIO, filename: str):
+        """Generate file epilog.
+
+          :param out: the output text stream
+        """
+        mult_ex = f"{filename.upper().replace('.', '_').replace('-', '_')}_"
+        print(file=out)
+        print(f'#endif /* {mult_ex} */', file=out)
+
 
 
 def main(omfile):
-    omc = ObjectModelConverter('HCA')
+    omc = ObjectModelConverter('hca')
     with open(omfile, 'rt') as mfp:
         omc.parse(mfp)
+    from sys import stdout
+    omc.generate_header(stdout, 'hca', 32)
 
 
 if __name__ == '__main__':
