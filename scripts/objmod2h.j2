@@ -1,0 +1,23 @@
+/**
+ * {{ ucomp }} registers
+ * @file {{ filename }}
+ *
+ * @copyright (c) 2020 SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+#ifndef SIFIVE_{{ ucomp }}_H_
+#define SIFIVE_{{ ucomp }}_H_
+
+typedef struct _{{ ucomp }} {
+{%- for name, (reg, size, desc, padding) in cgroups.items() %}
+    {% if size == 1 -%}
+    uint32_t {{ name }}; {% if desc %} {{ padding }} /**< {{ desc }} */ {% endif -%}
+    {% else -%}
+    uint32_t {{ name }}[{{ size }}U]; {% if desc %} {{ padding }} /**< {{ desc }} */ {% endif -%}
+    {% endif -%}
+{% endfor %}
+} {{ ucomp }}_Type;
+
+#endif /* SIFIVE_{{ ucomp }}_H_ */
+

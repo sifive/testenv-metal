@@ -9,6 +9,7 @@
 
 
 from argparse import ArgumentParser, FileType
+from copy import copy
 from enum import Enum
 from json import loads as json_loads
 from os.path import basename
@@ -16,9 +17,15 @@ from re import sub as re_sub
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from textwrap import dedent
 from traceback import print_exc
-from typing import (Any, DefaultDict, Dict, List, NamedTuple, Optional, TextIO,
-                    Tuple)
+from typing import (Any, DefaultDict, Dict, List, NamedTuple, OrderedDict,
+                    Optional, TextIO, Tuple)
+try:
+    from jinja2 import Environment as JiEnv
+except ImportError:
+    JiEnv = None
 
+
+from pprint import pformat, pprint
 
 Access = Enum('Access', 'R RW W RFWT_ONE_TO_CLEAR')
 """Register access types."""
@@ -53,10 +60,13 @@ class ObjectModelConverter:
 
     def __init__(self, *names: List[str]):
         self._comps: \
-            Dict[str, Optional[Tuple[Dict[str, str],
-                                     DefaultDict[str, Dict[str, RegField]]],
-                                     Dict[str, Dict[str, bool]]]] \
-            = {x.lower(): None for x in names}
+            Dict[str,
+                 Optional[
+                     Tuple[Dict[str, str],
+                           OrderedDict[str, OrderedDict[str, RegField]]],
+                           Dict[str, Dict[str, bool]]
+                 ]
+            ] = {x.lower(): None for x in names}
 
     def parse(self, mfp: TextIO) -> None:
         """Parse an object model text stream.
@@ -86,12 +96,13 @@ class ObjectModelConverter:
                 mreggroups = self._merge_registers(reggroups)
                 self._comps[regname] = (grpdescs, mreggroups, features)
 
-    def generate_header(self, ofp: TextIO, name: str, bitsize: int) -> None:
+    def generate_legacy_header(self, ofp: TextIO, name: str,
+                               bitsize: int) -> None:
         """Generate a header file stream for a component.
 
+           :param ofp: the output stream
            :param name: the name of a previously parsed component
            :param bitsize: the max width of register, in bits
-           :param out: the output stream
         """
         try:
             grpdescs, grpfields, features = self._comps[name.lower()]
@@ -103,16 +114,18 @@ class ObjectModelConverter:
             filename = basename(ofp.name)
         else:
             filename = f'sifive_{name}.h'
-        self._generate_prolog(ofp, filename, prefix)
-        self._generate_features(ofp, prefix, features)
-        self._generate_registers(ofp, prefix, newgroups, grpdescs)
+        self._generate_legacy_prolog(ofp, filename, prefix)
+        self._generate_legacy_features(ofp, prefix, features)
+        self._generate_legacy_registers(ofp, prefix, newgroups, grpdescs)
         print('', file=ofp)
-        self._generate_fields(ofp, bitsize, prefix, newgroups, grpdescs)
-        self._generate_epilog(ofp, filename)
+        self._generate_legacy_fields(ofp, bitsize, prefix, newgroups,
+                                     grpdescs)
+        self._generate_legacy_epilog(ofp, filename)
 
     @classmethod
     def _parse_region(cls, region: Dict[str, Any]) \
-            -> Tuple[Dict[str, str], DefaultDict[str, Dict[str, RegField]]]:
+            -> Tuple[Dict[str, str],
+                     OrderedDict[str, OrderedDict[str, List[RegField]]]]:
         """Parse an object model region containing a register map.
 
             :param region: the region to parse
@@ -147,7 +160,18 @@ class ObjectModelConverter:
             access = Access[access_[0]] if access_ else None
             regfield = RegField(bitbase, bitsize, desc, reset, access)
             registers[group][name] = regfield
-        return groups, registers
+        foffsets = {}
+        # sort the field by offset for each register group
+        for grpname in registers:
+            group = registers[grpname]
+            fnames = sorted(group, key=lambda n: group[n].offset)
+            fodict = OrderedDict(((name, group[name]) for name in fnames))
+            foffsets[grpname] = group[fnames[0]].offset
+            registers[grpname] = fodict
+        godict = OrderedDict(((name, registers[name])
+                             for name in sorted(registers,
+                                                key=lambda n: foffsets[n])))
+        return groups, godict
 
     @classmethod
     def _parse_features(cls, component: Dict[str, Any]) \
@@ -174,22 +198,22 @@ class ObjectModelConverter:
         return features
 
     @classmethod
-    def _merge_registers(cls, reggroups: Dict[str, Dict[str, RegField]]) \
-            -> Dict[str, Dict[str, RegField]]:
+    def _merge_registers(cls,
+        reggroups: OrderedDict[str, OrderedDict[str, RegField]]) \
+            -> OrderedDict[str, OrderedDict[str, RegField]]:
         """Merge 8-bit groups belonging to the same registers.
 
             :param reggroups: register fields (indexed on group, name)
             :return: a dictionary of groups of register fields
         """
-        regnames = tuple(sorted(reggroups, key=lambda n: min([r.offset
-                                    for r in reggroups[n].values()])))
-        outregs = {}
-        for gname in regnames:  # HW group name
-            gregs = reggroups[gname] # HW register groups
-            mregs = DefaultDict(list)
+        outregs = OrderedDict()
+        for gname, gregs in reggroups.items():  # HW group name
+            mregs = OrderedDict()
             # group registers of the same name radix into lists
             for fname in sorted(gregs, key=lambda n: gregs[n].offset):
                 bfname = re_sub(r'_\d+', '', fname)  # register name w/o index
+                if bfname not in mregs:
+                    mregs[bfname] = []
                 mregs[bfname].append(gregs[fname])
             # merge siblings into a single register
             for mname in mregs:
@@ -225,18 +249,19 @@ class ObjectModelConverter:
         return outregs
 
     @classmethod
-    def _split_registers(cls, reggroups: Dict[str, Dict[str, RegField]],
-                         bitsize: int) -> Dict[str, Dict[str, RegField]]:
+    def _split_registers(cls,
+        reggroups: OrderedDict[str, OrderedDict[str, RegField]],
+        bitsize: int) -> OrderedDict[str, OrderedDict[str, RegField]]:
         """Split register fields into bitsized register words.
 
             :param reggroups: register fields (indexed on group, name)
             :param bitsize: max width of output registers
             :return: a dictionary of groups of register fields
         """
-        outgroups = {}
+        outgroups = OrderedDict()
         for gname in reggroups:
             registers = reggroups[gname]
-            fregs = {}
+            fregs = OrderedDict()
             for regname in registers:
                 fields = registers[regname]
                 if len(fields) > 1:
@@ -257,8 +282,31 @@ class ObjectModelConverter:
         return outgroups
 
     @classmethod
-    def _generate_features(cls, out: TextIO, prefix: str,
-                           features: Dict[str, Dict[str, bool]]) -> None:
+    def _generate_legacy_prolog(cls,
+        out: TextIO, filename: str, name: str) -> None:
+        """Generate file prolog.
+
+          :param out: the output text stream
+        """
+        mult_ex = f"{filename.upper().replace('.', '_').replace('-', '_')}_"
+        print(dedent(cls.HEADER % (name, filename)).lstrip(), file=out)
+        print(f'#ifndef {mult_ex}', file=out)
+        print(f'#define {mult_ex}', file=out)
+        print(file=out)
+
+    @classmethod
+    def _generate_legacy_epilog(cls, out: TextIO, filename: str) -> None:
+        """Generate file epilog.
+
+          :param out: the output text stream
+        """
+        mult_ex = f"{filename.upper().replace('.', '_').replace('-', '_')}_"
+        print(file=out)
+        print(f'#endif /* {mult_ex} */', file=out)
+
+    @classmethod
+    def _generate_legacy_features(cls,
+        out: TextIO, prefix: str, features: Dict[str, Dict[str, bool]]) -> None:
         """Generate the definitions of the supported features.
 
            :param out: output stream
@@ -285,11 +333,11 @@ class ObjectModelConverter:
             print('', file=out)
         print('', file=out)
 
-
     @classmethod
-    def _generate_registers(cls, out: TextIO, prefix: str,
-                            reggroups: Dict[str, Dict[str, RegField]],
-                            groupdesc: Dict[str, str]):
+    def _generate_legacy_registers(cls,
+        out: TextIO, prefix: str,
+        reggroups: OrderedDict[str, OrderedDict[str, List[RegField]]],
+        groupdesc: Dict[str, str]) -> None:
         """Print out the register addresses (in bytes).
 
            :param out: output stream
@@ -297,23 +345,22 @@ class ObjectModelConverter:
            :param reggroups: the group of register fields to print out
            :param groupdesc: the description of each group
         """
-        grpnames = tuple(sorted(reggroups, key=lambda n: min([r.offset
-                                    for r in reggroups[n].values()])))
         length = (len(prefix) + len('REGISTER') +
                  max([len(x) for x in reggroups]) + 2 + cls.EXTRA_SEP_COUNT)
-        for grpname in grpnames:
-            group = reggroups[grpname]
-            regname = sorted(group, key=lambda n: group[n].offset)[0]
-            address = group[regname].offset//8
+        for grpname, registers in reggroups.items():
+            firstfield = list(registers.values())[0]
+            # print('FIRST', firstfield)
+            address = firstfield.offset//8
             addr_str = f'{prefix}_REGISTER_{grpname}'
             desc = groupdesc.get(grpname, '')
             print(f'/* {desc} */', file=out)
             print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
     @classmethod
-    def _generate_fields(cls, out: TextIO, bitsize: int, prefix: str,
-                         reggroups: Dict[str, Dict[str, RegField]],
-                         groupdesc: Dict[str, str]):
+    def _generate_legacy_fields(cls,
+        out: TextIO, bitsize: int, prefix: str,
+        reggroups: OrderedDict[str, OrderedDict[str, List[RegField]]],
+        groupdesc: Dict[str, str]) -> None:
         """Print out the register content (offset and mask).
 
            :param out: output stream
@@ -323,58 +370,151 @@ class ObjectModelConverter:
            :param groupdesc: the description of each group
         """
         mask = (1 << bitsize) - 1
-        grpnames = tuple(sorted(reggroups, key=lambda n: min([r.offset
-                                    for r in reggroups[n].values()])))
         length = max([len(grpname) +
                       max([len(regname) for regname in reggroups[grpname]])
                           for grpname in reggroups])
         length += len(prefix) + len('REGISTER') + len('OFFSET') + 4
         length += cls.EXTRA_SEP_COUNT
-        for grpname in grpnames:
-            group = reggroups[grpname]
+        for grpname, group in reggroups.items():
             desc = groupdesc.get(grpname, '')
             print(f'/*\n * {desc}\n */', file=out)
-            sorted_names = sorted(group, key=lambda n: group[n].offset)
-            base_offset = group[sorted_names[0]].offset
-            for regname in sorted_names:
-                field = group[regname]
-                offset = field.offset - base_offset
+            base_offset = None
+            for fname, field in group.items():
+                if base_offset is None:
+                    base_offset = field.offset
+                    offset = 0
+                else:
+                    offset = field.offset - base_offset
                 mask = (1 << field.size) - 1
                 print(f'/* {field.desc} [{field.access.name}] */', file=out)
-                off_str = f'{prefix}_REGISTER_{grpname}_{regname}_OFFSET'
-                msk_str = f'{prefix}_REGISTER_{grpname}_{regname}_MASK'
+                off_str = f'{prefix}_REGISTER_{grpname}_{fname}_OFFSET'
+                msk_str = f'{prefix}_REGISTER_{grpname}_{fname}_MASK'
                 padding = max(2, 2*((field.size+7)//8))
                 print(f'#define {off_str:{length}s} {offset}u', file=out)
                 print(f'#define {msk_str:{length}s} 0x{mask:0{padding}X}u',
                       file=out)
             print('', file=out)
 
-    @classmethod
-    def _generate_prolog(cls, out: TextIO, filename: str, name: str):
-        """Generate file prolog.
+    def generate_si5sis_header(self, ofp: TextIO, name: str,
+                               bitsize: int) -> None:
+        """Generate a legacy header file stream for a component.
 
-          :param out: the output text stream
+           :param out: the output stream
+           :param name: the name of a previously parsed component
+           :param bitsize: the max width of register, in bits
         """
-        mult_ex = f"{filename.upper().replace('.', '_').replace('-', '_')}_"
-        print(dedent(cls.HEADER % (name, filename)).lstrip(), file=out)
-        print(f'#ifndef {mult_ex}', file=out)
-        print(f'#define {mult_ex}', file=out)
-        print(file=out)
+        env = JiEnv(trim_blocks=False)
+        # env = JiEnv(trim_blocks=False)
+        # template = env.from_string(modules[__name__].SIS_TEMPLATE.lstrip())
+        from os.path import join as joinpath, splitext
+        jinja = joinpath('.'.join((splitext(__file__)[0], 'j2')))
+        with open(jinja, 'rt') as jfp:
+            template = env.from_string(jfp.read())
+        try:
+            grpdescs, grpfields, features = self._comps[name.lower()]
+        except (KeyError, TypeError) as exc:
+            raise ValueError(f'Unknown component name: {name}') from exc
+        groups = self._split_registers(grpfields, bitsize)
+        ucomp = name.upper()
+        if ofp.name and not ofp.name.startswith('<'):
+            filename = basename(ofp.name)
+        else:
+            filename = f'sifive_{name}.h'
+        # pprint(groups)
+        #grpsizes = {n: (sum([f.size for fields in grpfields[n].values()
+        #                    for f in fields])+31)//32
+        #            for n in grpnames}
+        class hexint(int):
+            def __repr__(self):
+                return f'0x{self:04x}'
 
-    @classmethod
-    def _generate_epilog(cls, out: TextIO, filename: str):
-        """Generate file epilog.
+        grpsizes = OrderedDict()
+        for name, group in groups.items():
+            fields = list(group.values())
+            size = fields[-1].offset + fields[-1].size - fields[0].offset
+            # grpsizes[name] = hexint(fields[0].offset//8), (size+7)//8
+            grpsizes[name] = hexint(fields[0].offset//8), size
+        #pprint(grpsizes)
+        #exit(0)
 
-          :param out: the output text stream
-        """
-        mult_ex = f"{filename.upper().replace('.', '_').replace('-', '_')}_"
-        print(file=out)
-        print(f'#endif /* {mult_ex} */', file=out)
+        cgroups = OrderedDict()
+        last_pos = 0
+        rsv = 0
+        length = 40
+        for name, group in groups.items():
+            fields = list(group.values())
+            if last_pos:
+                padding = fields[0].offset-last_pos
+                if padding > 0:
+                    size = (padding+31)//32
+                    rname = f'_RESERVED{rsv}'
+                    padding = ' ' * (length - len(rname))
+                    cgroups[rname] = \
+                        (RegField('PADDING', ['all', size], '', 0, Access.R),
+                         size, '', padding)
+                    rsv += 1
+            size = fields[-1].offset + fields[-1].size - fields[0].offset
+            padding = ' ' * (length - len(name))
+            cgroups[name] = (group, (size+31)//32, grpdescs[name], padding)
+            last_pos = fields[-1].offset + fields[-1].size
+        #pprint(cgroups)
+        #exit(0)
+
+        # shallow copy to avoid polluting locals dir
+        text = template.render(copy(locals()))
+        ofp.write(text)
+        return
+
+        length = (len(ucomp) + max([len(x) for x in grpdescs]) + 1 +
+                  self.EXTRA_SEP_COUNT)
+        for grpname in grpnames:
+            group = reggroups[grpname]
+            regname = sorted(group, key=lambda n: group[n].offset)[0]
+            address = group[regname].offset//8
+            addr_str = f'{ucomp}_REGISTER_{grpname}'
+            desc = groupdesc.get(grpname, '')
+            print(f'/* {desc} */', file=out)
+            print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
 
-def main() -> None:
+SIS_TEMPLATE = """
+/**
+ * {{ ucomp }} registers
+ * @file {{ filename }}
+ *
+ * @copyright (c) 2020 SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+#ifndef SIFIVE_{{ ucomp }}_H_
+#define SIFIVE_{{ ucomp }}_H_
+
+typedef struct _{{ ucomp }} {
+{% set last_pos = 0 %}
+{% set wordsize = bitsize//32 %}
+{% for name in grpnames %}
+    {%if last_pos %}
+
+    {% endif %}
+    {% if grpsizes[name] == 1 %}
+    uint32_t {{ name }}; /**< {{ grpsizes[name] }} */
+    {% else %}
+    uint32_t {{ name }}[{{ grpsizes[name] }}U]; /**< {{ grpsizes[name] }} */
+    {% endif %}
+{% endfor %}
+} {{ ucomp }}_Type;
+
+#endif /* SIFIVE_{{ ucomp }}_H_ */
+"""
+
+
+
+def main(args=None) -> None:
     """Main routine"""
     debug = False
+    outfmts = ['legacy']
+    if JiEnv is not None:
+        outfmts.append('si5sis')
     try:
         argparser = ArgumentParser(description=modules[__name__].__doc__)
 
@@ -386,19 +526,23 @@ def main() -> None:
         argparser.add_argument('-o', '--output', type=FileType('wt'),
                                default=stdout,
                                help='Output header file')
+        argparser.add_argument('-f', '--format', choices=outfmts,
+                               default=outfmts[-1],
+                               help=f'Output format (default: {outfmts[-1]})')
         argparser.add_argument('-w', '--width', type=int,
                                choices=(8, 16, 32, 64), default=64,
                                help='Output register width (default: 64)')
         argparser.add_argument('-d', '--debug', action='store_true',
                                help='Enable debug mode')
 
-        args = argparser.parse_args()
+        args = argparser.parse_args(args)
         debug = args.debug
 
         component = args.comp[0]
         omc = ObjectModelConverter(component)
         omc.parse(args.input)
-        omc.generate_header(args.output, component, args.width)
+        generator = getattr(omc, f'generate_{args.format}_header')
+        generator(args.output, component,  args.width)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)
@@ -414,4 +558,8 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    main()
+    from sys import argv
+    if len(argv) > 1:
+        main()
+    else:
+        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -w 64 hca'.split())
