@@ -239,8 +239,10 @@ ENDMACRO ()
 # Exclude sub targets from the main ('all') target
 #-----------------------------------------------------------------------------
 MACRO (optional_target)
-  SET_PROPERTY (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-               PROPERTY EXCLUDE_FROM_ALL ON)
+  IF (NOT DEFINED BUILD_OPTIONAL_TARGETS)
+    SET_PROPERTY (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                  PROPERTY EXCLUDE_FROM_ALL ON)
+  ENDIF ()
 ENDMACRO ()
 
 #-----------------------------------------------------------------------------
@@ -376,3 +378,8 @@ MACRO (deploy_cmakefiles)
     ENDIF ()
   ENDFOREACH ()
 ENDMACRO ()
+
+#------------------------------------------------------------------------------
+# Silent "Manually-specified variables were not used by the project" warnings
+#------------------------------------------------------------------------------
+SET (_IGNORE_ME "${BUILD_OPTIONAL_TARGETS}")

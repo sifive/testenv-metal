@@ -15,11 +15,13 @@ SCRIPT_DIR=$(dirname $0)
 usage () {
     NAME=`basename $0`
     cat <<EOT
-$NAME [-h] [-v] [-g] [-r report] [debug|release|static_analysis] <bsp>
+$NAME [-h] [-a] [-C] [-g] [-r report] [-v] [debug|release|static_analysis] <bsp>
 
  bsp: the name of a BSP (see bsp/ directory)
 
  -h:  print this help
+ -a:  build all targets, ignore optional property
+ -C:  do not clean existing build directory
  -g:  github mode (filter compiler output)
  -r:  copy all warnings and errors messages into a log file
  -v:  verbose (report all toolchain commands)
@@ -59,11 +61,20 @@ SA_DIR=""
 GHA=0
 REPORTLOG=""
 XBSP=""
+CLEAN=1
+FORCEALL=0
 while [ $# -gt 0 ]; do
     case "$1" in
         -h)
             usage
             exit 0
+            ;;
+        -a)
+            FORCEALL=1
+            CMAKE_OPTS="${CMAKE_OPTS} -DBUILD_OPTIONAL_TARGETS=1"
+            ;;
+        -C)
+            CLEAN=0
             ;;
         -g)
             GHA=1
@@ -97,7 +108,9 @@ test -n "${XBSP}" || die "XBSP should be specified"
 CMAKE_OPTS="${CMAKE_OPTS} -DXBSP=${XBSP} -DCMAKE_BUILD_TYPE=${BUILD}"
 SUBDIR=$(echo "${SA_DIR}${BUILD}" | tr [:upper:] [:lower:])
 
-rm -rf build/${XBSP}/${SUBDIR}
+if [ ${CLEAN} -ne 0 ]; then
+    rm -rf build/${XBSP}/${SUBDIR}
+fi
 mkdir -p build/${XBSP}/${SUBDIR} || die "Cannot create build dir"
 cd build/${XBSP}/${SUBDIR} || die "Invalid build dir"
 cmake -G Ninja ../../.. ${CMAKE_OPTS} || die "Unable to run cmake"
