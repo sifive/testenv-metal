@@ -72,6 +72,13 @@ IMGPATH=${IMGPATH}:/usr/local/qemu-fdt/bin
 # - build with user id so that output files belongs to the effective user
 DOCKOPTS="--user $(id -u):$(id -g)"
 
+for symlink in $(cd "${PWD}" && find . -type l); do
+    REALPATH="$(cd ${symlink} && pwd -P)"
+    LOCPATH="$(echo $symlink | cut -c3-)"
+    LNOPT="--mount type=bind,source=${REALPATH},target=/tmp/${NAME}/${LOCPATH}"
+    DOCKOPTS="${DOCKOPTS} ${LNOPT}"
+done
+
 docker run \
     --rm \
     --name ${NAME} \
