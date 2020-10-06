@@ -2,6 +2,8 @@
  * {{ ucomp }} registers
  * @file {{ filename }}
  *
+ * @note This file has been automatically generated from the {{ucomp}} object model.
+ *
  * @copyright (c) 2020 SiFive, Inc
  * @copyright SPDX-License-Identifier: MIT
  */
@@ -16,8 +18,8 @@
 
 typedef struct _{{ ucomp }} {
 {%- for name, (perm, type_, name, desc) in cgroups.items() %}
-    {{perm}} {{type_}} {{name}}{% if desc %}/**< {{desc}} */{% endif -%}
-{% endfor %}
+    {{perm}} {{type_}} {{name}}{%- if desc -%}/**< {{desc}} */{%- endif -%}
+{%- endfor %}
 } {{ ucomp }}_Type;
 {% for name, (group, gdesc) in fgroups.items() %}
 {%- if name in bitfields %}

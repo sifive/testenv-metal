@@ -585,9 +585,6 @@ class ObjectModelConverter:
             wpad = ' ' * (swidth - 7)
             padders[:] = [bpad, wpad]
 
-        cgroups = {}
-        groups = {}
-
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
         ofp.write(text)
@@ -621,6 +618,8 @@ class ObjectModelConverter:
         outcols = []
         for col, width in zip(columns, widths):
             if not width:
+                if not col:
+                    outcols[-1] = outcols[-1].rstrip()
                 outcols.append(col)
                 continue
             colw = len(col)
@@ -633,6 +632,8 @@ SIS_TEMPLATE = """
 /**
  * {{ ucomp }} registers
  * @file {{ filename }}
+ *
+ * @note This file has been automatically generated from the {{ucomp}} object model.
  *
  * @copyright (c) 2020 SiFive, Inc
  * @copyright SPDX-License-Identifier: MIT
@@ -648,8 +649,8 @@ SIS_TEMPLATE = """
 
 typedef struct _{{ ucomp }} {
 {%- for name, (perm, type_, name, desc) in cgroups.items() %}
-    {{perm}} {{type_}} {{name}}{% if desc %}/**< {{desc}} */{% endif -%}
-{% endfor %}
+    {{perm}} {{type_}} {{name}}{%- if desc -%}/**< {{desc}} */{%- endif -%}
+{%- endfor %}
 } {{ ucomp }}_Type;
 {% for name, (group, gdesc) in fgroups.items() %}
 {%- if name in bitfields %}
@@ -675,7 +676,6 @@ typedef union _{{ucomp}}_{{name}} {
 {% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */
 """
-
 
 def main(args=None) -> None:
     """Main routine"""
