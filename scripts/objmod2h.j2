@@ -20,11 +20,25 @@ typedef struct _{{ ucomp }} {
 {% endfor %}
 } {{ ucomp }}_Type;
 {% for name, (group, gdesc) in fgroups.items() %}
+{%- if name in bitfields %}
+/**
+ * Structure type to access {{gdesc}} ({{name}})
+ */
+{%- set type_, bitfield, padders = bitfields[name] %}
+typedef union _{{ucomp}}_{{name}} {
+    struct {
+        {%- for (btype, bname, bdesc) in bitfield %}
+        {{btype}} {{bname}} /**< {{bdesc}} */
+        {%- endfor %}
+    } b; {{padders[0]}} /**< Structure used for bit access */
+    {{type_}} w; {{padders[1]}} /**< Structure used for word access */
+} {{ucomp}}_{{name}}_Type;
+{% endif %}
 /* {{ucomp}} {% if gdesc %}{{gdesc}}{% endif %} */
     {%- for field in group %}
         {%- for name, value, desc in field %}
 #define {{name}} {{value}} {% if desc %}/**< {{desc}} */{% endif -%}
         {% endfor %}
-    {% endfor -%}
+{% endfor -%}
 {% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */

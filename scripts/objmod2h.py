@@ -533,8 +533,60 @@ class ObjectModelConverter:
                 for ffield in freg:
                     ffield[:] = self.pad_columns(ffield, widths)
 
-        # cgroups = {}
-        # fgroups = {}
+        def bitdesc(pos, size, desc):
+            if size > 1:
+                brange = f'{pos}..{pos+size-1}'
+            else:
+                brange = f'{pos}'
+            return f'bit: {brange:>6s}  {desc}'
+
+        bitfields = OrderedDict()
+        bflen = 0
+        for name, group in grpfields.items():
+            fieldcount = len(group)
+            if fieldcount <= 1:
+                continue
+            last_pos = 0
+            rsv = 0
+            bits = []
+            base = None
+            for fname, fields in group.items():
+                for field in fields:
+                    if base is None:
+                        base = field.offset
+                    offset = field.offset-base
+                    padding = offset - last_pos
+                    if padding > 0:
+                        desc = bitdesc(last_pos, padding, 'Reserved')
+                        vstr = f'_reserved{rsv}:{padding};'
+                        bits.append([type_, vstr, desc])
+                        rsv += 1
+                        if len(vstr) > bflen:
+                            bflen = len(vstr)
+                    desc = bitdesc(offset, field.size, field.desc)
+                    vstr = f'{fname}:{field.size};'
+                    bits.append([type_, vstr, desc])
+                    last_pos = offset + field.size
+                    if len(vstr) > bflen:
+                        bflen = len(vstr)
+            padding = regbits - last_pos
+            if padding > 0:
+                desc = bitdesc(last_pos, padding, 'Reserved')
+                vstr = f'_reserved{rsv}:{padding};'
+                bits.append([type_, vstr, desc])
+                if len(vstr) > bflen:
+                    bflen = len(vstr)
+            bitfields[name] = (type_, bits, [0, 0])
+        widths = (len(type_), bflen + self.EXTRA_SEP_COUNT, 0)
+        swidth = sum(widths)
+        for _, bitfield, padders in bitfields.values():
+            bitfield[:] = [self.pad_columns(bits, widths) for bits in bitfield]
+            bpad = ' ' * swidth
+            wpad = ' ' * (swidth - 7)
+            padders[:] = [bpad, wpad]
+
+        cgroups = {}
+        groups = {}
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
@@ -600,12 +652,26 @@ typedef struct _{{ ucomp }} {
 {% endfor %}
 } {{ ucomp }}_Type;
 {% for name, (group, gdesc) in fgroups.items() %}
+{%- if name in bitfields %}
+/**
+ * Structure type to access {{gdesc}} ({{name}})
+ */
+{%- set type_, bitfield, padders = bitfields[name] %}
+typedef union _{{ucomp}}_{{name}} {
+    struct {
+        {%- for (btype, bname, bdesc) in bitfield %}
+        {{btype}} {{bname}} /**< {{bdesc}} */
+        {%- endfor %}
+    } b; {{padders[0]}} /**< Structure used for bit access */
+    {{type_}} w; {{padders[1]}} /**< Structure used for word access */
+} {{ucomp}}_{{name}}_Type;
+{% endif %}
 /* {{ucomp}} {% if gdesc %}{{gdesc}}{% endif %} */
     {%- for field in group %}
         {%- for name, value, desc in field %}
 #define {{name}} {{value}} {% if desc %}/**< {{desc}} */{% endif -%}
         {% endfor %}
-    {% endfor -%}
+{% endfor -%}
 {% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */
 """
