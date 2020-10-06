@@ -17,8 +17,8 @@ from re import sub as re_sub
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from textwrap import dedent
 from traceback import print_exc
-from typing import (Any, DefaultDict, Dict, Iterable, List, NamedTuple,
-                    OrderedDict, Optional, TextIO, Tuple)
+from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
+                    NamedTuple, OrderedDict, Optional, TextIO, Tuple)
 try:
     from jinja2 import Environment as JiEnv
 except ImportError:
@@ -32,7 +32,8 @@ Access = Enum('Access', 'R RW W RFWT_ONE_TO_CLEAR')
 
 
 class RegField(NamedTuple):
-    """Register description."""
+    """Register description.
+    """
     offset: int
     size: int
     desc: str
@@ -40,243 +41,96 @@ class RegField(NamedTuple):
     access: Optional[str]
 
 
-class ObjectModelConverter:
-    """JSON object model converter.
+class OMComponent:
+    """Object model component container
 
-       :param names: one or more IP names to extract from the object model
+       :param name: the component name, as defined in the object model
     """
 
-    HEADER = """
-    /**
-     * %s registers
-     * @file %s
-     *
-     * @copyright (c) 2020 SiFive, Inc
-     * @copyright SPDX-License-Identifier: MIT
-     */
+    def __init__(self, name: str):
+        self._name = name
+        self._descriptors: Dict[str, str] = {}
+        self._fields: OrderedDict[str, OrderedDict[str, RegField]] = {}
+        self._features: Dict[str, Dict[str, bool]] = {}
+        self._interrupts: OrderedDict[str, Tuple[str, int]] = {}
+
+    @property
+    def name(self) -> str:
+        """Return the name of the component.
+
+           :return: the name
+        """
+        return self._name
+
+    @property
+    def descriptors(self) -> Dict[str, str]:
+        """Return a map of human readable strings for each defined register
+           group.
+
+           :return: a map of descriptor (register name, description)
+        """
+        return self._descriptors
+
+    @property
+    def fields(self) -> OrderedDict[str, OrderedDict[str, RegField]]:
+        """Return an ordered map of registers.
+           Each register is an ordered map of register fields.
+
+           Order is the memory offset (from lowest to highest offsets)
+
+           :return: a map of register field maps.
+        """
+        return self._fields
+
+    @property
+    def features(self) -> Dict[str, Dict[str, bool]]:
+        """Return a map of supported features and subfeatures.
+
+           :return: a map of subfeature maps.
+        """
+        return self._features
+
+    @property
+    def interrupts(self) -> OrderedDict[str, Tuple[str, int]]:
+        """Return an ordered map of interrupt channels.
+
+           Order is the channel number (from lowest to highest)
+
+           :return: a map of (name, (controller, channel)).
+        """
+        return self._interrupts
+
+    @descriptors.setter
+    def descriptors(self, descs: Dict[str, str]) -> None:
+        if not isinstance(descs, Dict):
+            raise ValueError('Invalid descriptors')
+        self._descriptors = descs
+
+    @fields.setter
+    def fields(self, fields: Dict[str, str]) -> None:
+        if not isinstance(fields, OrderedDict):
+            raise ValueError('Invalid fields')
+        self._fields = fields
+
+    @features.setter
+    def features(self, features: Dict[str, str]) -> None:
+        if not isinstance(features, Dict):
+            raise ValueError('Invalid features')
+        self._features = features
+
+    @interrupts.setter
+    def interrupts(self, interrupts: Dict[str, str]) -> None:
+        if not isinstance(interrupts, OrderedDict):
+            raise ValueError('Invalid interrupts')
+        self._interrupts = interrupts
+
+
+class OMHeaderGenerator:
+    """Generic header generator (abstract class)
     """
 
-    EXTRA_SEP_COUNT = 2
-
-    SIS_ACCESS_MAP = {
-        Access.R: ('R/ ', '__IM'),
-        Access.RW: ('R/W', '__IOM'),
-        Access.W: (' /W', '__OM'),
-        Access.RFWT_ONE_TO_CLEAR: ('/WC', '__OM'),
-    }
-
-    def __init__(self, *names: List[str]):
-        self._comps: \
-            Dict[str,
-                 Optional[
-                     Tuple[Dict[str, str],
-                           OrderedDict[str, OrderedDict[str, RegField]]],
-                           Dict[str, Dict[str, bool]],
-                           Dict[str, Tuple[str, int]]
-                 ]
-            ] = {x.lower(): None for x in names}
-
-    def parse(self, mfp: TextIO) -> None:
-        """Parse an object model text stream.
-
-           :param mfp: object model file-like object
-        """
-        objmod = json_loads(mfp.read())
-        if not isinstance(objmod, list):
-            raise ValueError('Invalid format')
-        objs = objmod[0]
-        if not isinstance(objs, dict):
-            raise ValueError('Invalid format')
-        components = objs['components']
-        if not isinstance(components, list):
-            raise ValueError('Invalid format')
-        for component in components:
-            if 'memoryRegions' not in component:
-                continue
-            for region in component['memoryRegions']:
-                if 'registerMap' not in region:
-                    continue
-                regname = region['name'].lower()
-                if regname not in self._comps:
-                    continue
-                grpdescs, reggroups = self._parse_region(region)
-                features = self._parse_features(component)
-                mreggroups = self._merge_registers(reggroups)
-                ints = self._parse_interrupts(component)
-                self._comps[regname] = (grpdescs, mreggroups, features, ints)
-
-    def generate_legacy_header(self, ofp: TextIO, name: str,
-                               bitsize: int) -> None:
-        """Generate a header file stream for a component.
-
-           :param ofp: the output stream
-           :param name: the name of a previously parsed component
-           :param bitsize: the max width of register, in bits
-        """
-        try:
-            grpdescs, grpfields, features = self._comps[name.lower()]
-        except (KeyError, TypeError) as exc:
-            raise ValueError(f'Unknown component name: {name}') from exc
-        newgroups = self._split_registers(grpfields, bitsize)
-        prefix = name.upper()
-        if ofp.name and not ofp.name.startswith('<'):
-            filename = basename(ofp.name)
-        else:
-            filename = f'sifive_{name}.h'
-        self._generate_legacy_prolog(ofp, filename, prefix)
-        self._generate_legacy_features(ofp, prefix, features)
-        self._generate_legacy_registers(ofp, prefix, newgroups, grpdescs)
-        print('', file=ofp)
-        self._generate_legacy_fields(ofp, bitsize, prefix, newgroups,
-                                     grpdescs)
-        self._generate_legacy_epilog(ofp, filename)
-
     @classmethod
-    def _parse_region(cls, region: Dict[str, Any]) \
-            -> Tuple[Dict[str, str],
-                     OrderedDict[str, OrderedDict[str, List[RegField]]]]:
-        """Parse an object model region containing a register map.
-
-            :param region: the region to parse
-            :return: a 2-tuple of a group dictionay which gives the description
-                     string for each named group, and a dictionary of groups of
-                     register fields
-        """
-        regmap = region['registerMap']
-        groups = {}
-        for group in regmap["groups"]:
-            name = group['name']
-            desc = group.get('description', '').strip()
-            if desc.lower().endswith(' register'):
-                desc = desc[:-len(' register')]
-            if name not in groups:
-                groups[name] = desc
-            elif not groups[name]:
-                groups[name] = desc
-        registers = DefaultDict(dict)
-        for field in  regmap['registerFields']:
-            bitbase = field['bitRange']['base']
-            bitsize = field['bitRange']['size']
-            regfield = field['description']
-            name = regfield['name']
-            if name == 'reserved':
-                continue
-            desc = regfield['description']
-            group = regfield['group']
-            reset = regfield.get('resetValue', None)
-            access_ = list(filter(lambda x: x in Access.__members__,
-                                  regfield['access'].get('_types', '')))
-            access = Access[access_[0]] if access_ else None
-            regfield = RegField(bitbase, bitsize, desc, reset, access)
-            registers[group][name] = regfield
-        foffsets = {}
-        # sort the field by offset for each register group
-        for grpname in registers:
-            group = registers[grpname]
-            fnames = sorted(group, key=lambda n: group[n].offset)
-            fodict = OrderedDict(((name, group[name]) for name in fnames))
-            foffsets[grpname] = group[fnames[0]].offset
-            registers[grpname] = fodict
-        godict = OrderedDict(((name, registers[name])
-                             for name in sorted(registers,
-                                                key=lambda n: foffsets[n])))
-        return groups, godict
-
-    @classmethod
-    def _parse_features(cls, component: Dict[str, Any]) \
-            -> Dict[str, Dict[str, bool]]:
-        """Parse the supported feature of a component.cls
-
-           :param component: the component to parse
-           :return: a dictionary of supported features, with optional options
-        """
-        features = {}
-        for sectname in component:
-            section = component[sectname]
-            if not isinstance(section, dict) or '_types' not in section:
-                continue
-            features[sectname] = {}
-            for opt in section:
-                if not opt.startswith('has'):
-                    continue
-                value = section[opt]
-                if not isinstance(value, bool):
-                    continue
-                option = opt[3:]
-                features[sectname][option] = value
-        return features
-
-    @classmethod
-    def _parse_interrupts(cls, component: Dict[str, Any]) \
-            -> OrderedDict[str, Tuple[str, int]]:
-        ints = {}
-        for section in component.get('interrupts', []):
-            if not isinstance(section, dict) or '_types' not in section:
-                continue
-            types = section['_types']
-            if 'OMInterrupt' not in types:
-                continue
-            name = section['name']
-            channel = section['numberAtReceiver']
-            parent = section['receiver']
-            ints[name] = (parent, channel)
-        interrupts = OrderedDict(
-            ((i, ints[i]) for i in sorted(ints, key=lambda i: ints[i])))
-        return interrupts
-
-    @classmethod
-    def _merge_registers(cls,
-        reggroups: OrderedDict[str, OrderedDict[str, RegField]]) \
-            -> OrderedDict[str, OrderedDict[str, RegField]]:
-        """Merge 8-bit groups belonging to the same registers.
-
-            :param reggroups: register fields (indexed on group, name)
-            :return: a dictionary of groups of register fields
-        """
-        outregs = OrderedDict()
-        for gname, gregs in reggroups.items():  # HW group name
-            mregs = OrderedDict()
-            # group registers of the same name radix into lists
-            for fname in sorted(gregs, key=lambda n: gregs[n].offset):
-                bfname = re_sub(r'_\d+', '', fname)  # register name w/o index
-                if bfname not in mregs:
-                    mregs[bfname] = []
-                mregs[bfname].append(gregs[fname])
-            # merge siblings into a single register
-            for mname in mregs:
-                lregs = mregs[mname]
-                if len(lregs) == 1:
-                    continue
-                breg = None
-                nsize = None
-                nreset = None
-                nregs = []
-                for lreg in lregs:
-                    if breg:
-                        if lreg.offset == breg.offset+nsize:
-                            if lreg.access != breg.access:
-                                raise ValueError('Incoherent access modes')
-                            nreset |= lreg.reset << nsize
-                            nsize += lreg.size
-                        else:
-                            reg = RegField(breg.offset, nsize, breg.desc,
-                                           nreset, breg.access)
-                            nregs.append(reg)
-                            breg = None
-                    if breg is None:
-                        breg = lreg
-                        nsize = lreg.size
-                        nreset = lreg.reset
-                if breg:
-                    reg = RegField(breg.offset, nsize, breg.desc,
-                                   nreset, breg.access)
-                    nregs.append(reg)
-                mregs[mname] = nregs
-            outregs[gname] = mregs
-        return outregs
-
-    @classmethod
-    def _split_registers(cls,
+    def split_registers(cls,
         reggroups: OrderedDict[str, OrderedDict[str, RegField]],
         bitsize: int) -> OrderedDict[str, OrderedDict[str, RegField]]:
         """Split register fields into bitsized register words.
@@ -308,9 +162,45 @@ class ObjectModelConverter:
             outgroups[gname] = fregs
         return outgroups
 
+
+class OMLegacyHeaderGenerator(OMHeaderGenerator):
+
+    HEADER = """
+    /**
+     * %s registers
+     * @file %s
+     *
+     * @copyright (c) 2020 SiFive, Inc
+     * @copyright SPDX-License-Identifier: MIT
+     */
+    """
+
+    EXTRA_SEP_COUNT = 2
+    """Extra space count between columns."""
+
+    def generate(self, ofp: TextIO, comp: OMComponent, bitsize: int) -> None:
+        """Generate a header file stream for a component.
+
+           :param ofp: the output stream
+           :param comp: the component for which to generate the file
+           :param bitsize: the max width of register, in bits
+        """
+        newgroups = self.split_registers(comp.fields, bitsize)
+        prefix = comp.name.upper()
+        if ofp.name and not ofp.name.startswith('<'):
+            filename = basename(ofp.name)
+        else:
+            filename = f'sifive_{comp.name}.h'
+        self._generate_prolog(ofp, filename, prefix)
+        self._generate_features(ofp, prefix, comp.features)
+        self._generate_registers(ofp, prefix, newgroups, comp.descriptors)
+        print('', file=ofp)
+        self._generate_fields(ofp, bitsize, prefix, newgroups,
+                             comp.descriptors)
+        self._generate_epilog(ofp, filename)
+
     @classmethod
-    def _generate_legacy_prolog(cls,
-        out: TextIO, filename: str, name: str) -> None:
+    def _generate_prolog(cls, out: TextIO, filename: str, name: str) -> None:
         """Generate file prolog.
 
           :param out: the output text stream
@@ -322,7 +212,7 @@ class ObjectModelConverter:
         print(file=out)
 
     @classmethod
-    def _generate_legacy_epilog(cls, out: TextIO, filename: str) -> None:
+    def _generate_epilog(cls, out: TextIO, filename: str) -> None:
         """Generate file epilog.
 
           :param out: the output text stream
@@ -332,8 +222,8 @@ class ObjectModelConverter:
         print(f'#endif /* {mult_ex} */', file=out)
 
     @classmethod
-    def _generate_legacy_features(cls,
-        out: TextIO, prefix: str, features: Dict[str, Dict[str, bool]]) -> None:
+    def _generate_features(cls, out: TextIO, prefix: str,
+                           features: Dict[str, Dict[str, bool]]) -> None:
         """Generate the definitions of the supported features.
 
            :param out: output stream
@@ -361,7 +251,7 @@ class ObjectModelConverter:
         print('', file=out)
 
     @classmethod
-    def _generate_legacy_registers(cls,
+    def _generate_registers(cls,
         out: TextIO, prefix: str,
         reggroups: OrderedDict[str, OrderedDict[str, List[RegField]]],
         groupdesc: Dict[str, str]) -> None:
@@ -384,7 +274,7 @@ class ObjectModelConverter:
             print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
     @classmethod
-    def _generate_legacy_fields(cls,
+    def _generate_fields(cls,
         out: TextIO, bitsize: int, prefix: str,
         reggroups: OrderedDict[str, OrderedDict[str, List[RegField]]],
         groupdesc: Dict[str, str]) -> None:
@@ -422,12 +312,25 @@ class ObjectModelConverter:
                       file=out)
             print('', file=out)
 
-    def generate_si5sis_header(self, ofp: TextIO, name: str,
-                               bitsize: int) -> None:
+
+class OMSi5SisHeaderGenerator(OMHeaderGenerator):
+
+    EXTRA_SEP_COUNT = 2
+    """Extra space count between columns."""
+
+    SIS_ACCESS_MAP = {
+        Access.R: ('R/ ', '__IM'),
+        Access.RW: ('R/W', '__IOM'),
+        Access.W: (' /W', '__OM'),
+        Access.RFWT_ONE_TO_CLEAR: ('/WC', '__OM'),
+    }
+    """Access map for SIS formats."""
+
+    def generate(self, ofp: TextIO, comp: OMComponent, bitsize: int) -> None:
         """Generate a legacy header file stream for a component.
 
            :param out: the output stream
-           :param name: the name of a previously parsed component
+           :param comp: the component for which to generate the file
            :param bitsize: the max width of register, in bits
         """
         env = JiEnv(trim_blocks=False)
@@ -436,16 +339,14 @@ class ObjectModelConverter:
         jinja = joinpath('.'.join((splitext(__file__)[0], 'j2')))
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
-        try:
-            grpdescs, grpfields, features, ints = self._comps[name.lower()]
-        except (KeyError, TypeError) as exc:
-            raise ValueError(f'Unknown component name: {name}') from exc
-        groups = self._split_registers(grpfields, bitsize)
-        ucomp = name.upper()
+        #     grpdescs, grpfields, features, ints = self._comps[name.lower()]
+        grpfields = comp.fields
+        groups = self.split_registers(grpfields, bitsize)
+        ucomp = comp.name.upper()
         if ofp.name and not ofp.name.startswith('<'):
             filename = basename(ofp.name)
         else:
-            filename = f'sifive_{name}.h'
+            filename = f'sifive_{comp.name}.h'
 
         # constant that may be tweaked, or computed, TBD
         regbits = 32
@@ -464,7 +365,7 @@ class ObjectModelConverter:
         type_ = f'uint{regbits}_t'
 
         for name, group in groups.items():
-            gdesc = grpdescs.get(name, '')
+            gdesc = comp.descriptors.get(name, '')
             fields = list(group.values())
             # cgroup generation
             if last_pos:
@@ -607,7 +508,7 @@ class ObjectModelConverter:
 
         interrupts = []
         ilen = 0
-        for name, (_, channel) in ints.items():
+        for name, (_, channel) in comp.interrupts.items():
             iname = f'{ucomp}_INTERRUPT_{name.upper()}_NUM'
             if len(iname) > ilen:
                 ilen = len(iname)
@@ -647,7 +548,13 @@ class ObjectModelConverter:
     @classmethod
     def pad_columns(cls, columns: Iterable[str], widths: Iterable[int]) \
             -> Tuple[str]:
-        """
+        """Append trailing space to each element of a list, to produce
+           aligned printed columns.
+
+           If a column width evaluates to false, the column is not padded.
+
+           :param columns: strings to pad
+           :param widths: width of each column.
         """
         outcols = []
         for col, width in zip(columns, widths):
@@ -660,6 +567,223 @@ class ObjectModelConverter:
             padlen = width - colw
             outcols.append(f"{col}{' '*padlen}" if padlen > 0 else col)
         return tuple(outcols)
+
+
+class OMParser:
+    """JSON object model converter.
+
+       :param names: one or more IP names to extract from the object model
+    """
+
+    def __init__(self):
+        self._components: Dict[str, Optional[OMComponent]] = {}
+
+    def __getitem__(self, name) -> OMComponent:
+        """Return a componen from its object model name, if any.
+
+           :raise: KeyError if the component has not been parsed
+           :return: the parsed component
+        """
+        comp = self._components[name]
+        if comp is None:
+            raise KeyError(f'{name} not parsed')
+        return comp
+
+    def __iter__(self) -> Iterator[OMComponent]:
+        """Return an iterator for all parsed component, ordered by name.
+
+           :return: a component iterator
+        """
+        names = sorted(self._components)
+        for name in names:
+            comp = self._components[name]
+            if comp is None:
+                continue
+            yield comp
+
+    def parse(self, mfp: TextIO, *names: str) -> None:
+        """Parse an object model text stream.
+
+           :param mfp: object model file-like object
+        """
+        names = list(*names)
+        objmod = json_loads(mfp.read())
+        if not isinstance(objmod, list):
+            raise ValueError('Invalid format')
+        objs = objmod[0]
+        if not isinstance(objs, dict):
+            raise ValueError('Invalid format')
+        components = objs['components']
+        if not isinstance(components, list):
+            raise ValueError('Invalid format')
+        for component in components:
+            if 'memoryRegions' not in component:
+                continue
+            for region in component['memoryRegions']:
+                if 'registerMap' not in region:
+                    continue
+                regname = region['name'].lower()
+                if regname not in names:
+                    continue
+                comp = OMComponent(regname)
+                grpdescs, reggroups = self._parse_region(region)
+                features = self._parse_features(component)
+                mreggroups = self._merge_registers(reggroups)
+                ints = self._parse_interrupts(component)
+                comp.descriptors = grpdescs
+                comp.fields = mreggroups
+                comp.features = features
+                comp.interrupts = ints
+                self._components[regname] = comp
+
+    @classmethod
+    def _parse_region(cls, region: Dict[str, Any]) \
+            -> Tuple[Dict[str, str],
+                     OrderedDict[str, OrderedDict[str, List[RegField]]]]:
+        """Parse an object model region containing a register map.
+
+            :param region: the region to parse
+            :return: a 2-tuple of a group dictionay which gives the description
+                     string for each named group, and a dictionary of groups of
+                     register fields
+        """
+        regmap = region['registerMap']
+        groups = {}
+        for group in regmap["groups"]:
+            name = group['name']
+            desc = group.get('description', '').strip()
+            if desc.lower().endswith(' register'):
+                desc = desc[:-len(' register')]
+            if name not in groups:
+                groups[name] = desc
+            elif not groups[name]:
+                groups[name] = desc
+        registers = DefaultDict(dict)
+        for field in  regmap['registerFields']:
+            bitbase = field['bitRange']['base']
+            bitsize = field['bitRange']['size']
+            regfield = field['description']
+            name = regfield['name']
+            if name == 'reserved':
+                continue
+            desc = regfield['description']
+            group = regfield['group']
+            reset = regfield.get('resetValue', None)
+            access_ = list(filter(lambda x: x in Access.__members__,
+                                  regfield['access'].get('_types', '')))
+            access = Access[access_[0]] if access_ else None
+            regfield = RegField(bitbase, bitsize, desc, reset, access)
+            registers[group][name] = regfield
+        foffsets = {}
+        # sort the field by offset for each register group
+        for grpname in registers:
+            group = registers[grpname]
+            fnames = sorted(group, key=lambda n: group[n].offset)
+            fodict = OrderedDict(((name, group[name]) for name in fnames))
+            foffsets[grpname] = group[fnames[0]].offset
+            registers[grpname] = fodict
+        godict = OrderedDict(((name, registers[name])
+                             for name in sorted(registers,
+                                                key=lambda n: foffsets[n])))
+        return groups, godict
+
+    @classmethod
+    def _parse_features(cls, component: Dict[str, Any]) \
+            -> Dict[str, Dict[str, bool]]:
+        """Parse the supported feature of a component.cls
+
+           :param component: the component to parse
+           :return: a dictionary of supported features, with optional options
+        """
+        features = {}
+        for sectname in component:
+            section = component[sectname]
+            if not isinstance(section, dict) or '_types' not in section:
+                continue
+            features[sectname] = {}
+            for opt in section:
+                if not opt.startswith('has'):
+                    continue
+                value = section[opt]
+                if not isinstance(value, bool):
+                    continue
+                option = opt[3:]
+                features[sectname][option] = value
+        return features
+
+    @classmethod
+    def _parse_interrupts(cls, component: Dict[str, Any]) \
+            -> OrderedDict[str, Tuple[str, int]]:
+        """Parse interrupts definitions.
+
+           :param component: the object model compoent to parse
+           :return: an ordered map of (name, (controller, channel))
+        """
+        ints = {}
+        for section in component.get('interrupts', []):
+            if not isinstance(section, dict) or '_types' not in section:
+                continue
+            types = section['_types']
+            if 'OMInterrupt' not in types:
+                continue
+            name = section['name']
+            channel = section['numberAtReceiver']
+            parent = section['receiver']
+            ints[name] = (parent, channel)
+        interrupts = OrderedDict(
+            ((i, ints[i]) for i in sorted(ints, key=lambda i: ints[i])))
+        return interrupts
+
+    @classmethod
+    def _merge_registers(cls,
+        reggroups: OrderedDict[str, OrderedDict[str, RegField]]) \
+            -> OrderedDict[str, OrderedDict[str, RegField]]:
+        """Merge 8-bit groups belonging to the same registers.
+
+            :param reggroups: register fields (indexed on group, name)
+            :return: a dictionary of groups of register fields
+        """
+        outregs = OrderedDict()
+        for gname, gregs in reggroups.items():  # HW group name
+            mregs = OrderedDict()
+            # group registers of the same name radix into lists
+            for fname in sorted(gregs, key=lambda n: gregs[n].offset):
+                bfname = re_sub(r'_\d+', '', fname)  # register name w/o index
+                if bfname not in mregs:
+                    mregs[bfname] = []
+                mregs[bfname].append(gregs[fname])
+            # merge siblings into a single register
+            for mname in mregs:
+                lregs = mregs[mname]
+                if len(lregs) == 1:
+                    continue
+                breg = None
+                nsize = None
+                nreset = None
+                nregs = []
+                for lreg in lregs:
+                    if breg:
+                        if lreg.offset == breg.offset+nsize:
+                            if lreg.access != breg.access:
+                                raise ValueError('Incoherent access modes')
+                            nreset |= lreg.reset << nsize
+                            nsize += lreg.size
+                        else:
+                            reg = RegField(breg.offset, nsize, breg.desc,
+                                           nreset, breg.access)
+                            nregs.append(reg)
+                            breg = None
+                    if breg is None:
+                        breg = lreg
+                        nsize = lreg.size
+                        nreset = lreg.reset
+                if breg:
+                    reg = RegField(breg.offset, nsize, breg.desc,
+                                   nreset, breg.access)
+                    nregs.append(reg)
+                mregs[mname] = nregs
+            outregs[gname] = mregs
+        return outregs
 
 
 SIS_TEMPLATE = """
@@ -725,7 +849,8 @@ def main(args=None) -> None:
     if JiEnv is not None:
         outfmts.append('si5sis')
     try:
-        argparser = ArgumentParser(description=modules[__name__].__doc__)
+        module = modules[__name__]
+        argparser = ArgumentParser(description=module.__doc__)
 
         argparser.add_argument('comp', nargs=1,
                                help='Component(s) to extract from model')
@@ -747,11 +872,12 @@ def main(args=None) -> None:
         args = argparser.parse_args(args)
         debug = args.debug
 
-        component = args.comp[0]
-        omc = ObjectModelConverter(component)
-        omc.parse(args.input)
-        generator = getattr(omc, f'generate_{args.format}_header')
-        generator(args.output, component,  args.width)
+        omp = OMParser()
+        omp.parse(args.input, args.comp)
+        generator = getattr(module, f'OM{args.format.title()}HeaderGenerator')
+        for comp in omp:
+            generator().generate(args.output, comp, args.width)
+            break
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)
