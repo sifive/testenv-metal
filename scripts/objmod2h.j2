@@ -9,13 +9,14 @@
 #ifndef SIFIVE_{{ ucomp }}_H_
 #define SIFIVE_{{ ucomp }}_H_
 
+/* following defines should be used for structure members */
+#define __IM   volatile const   /**< Defines 'read only' structure member permissions */
+#define __OM   volatile         /**< Defines 'write only' structure member permissions */
+#define __IOM  volatile         /**< Defines 'read / write' structure member permissions */
+
 typedef struct _{{ ucomp }} {
-{%- for name, (reg, size, desc, padding) in cgroups.items() %}
-    {% if size == 1 -%}
-    uint32_t {{ name }}; {% if desc %} {{ padding }} /**< {{ desc }} */ {% endif -%}
-    {% else -%}
-    uint32_t {{ name }}[{{ size }}U]; {% if desc %} {{ padding }} /**< {{ desc }} */ {% endif -%}
-    {% endif -%}
+{%- for name, (perm, type_, name, desc) in cgroups.items() %}
+    {{perm}} {{type_}} {{name}}{% if desc %}/**< {{desc}} */{% endif -%}
 {% endfor %}
 } {{ ucomp }}_Type;
 

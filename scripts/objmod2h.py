@@ -58,6 +58,13 @@ class ObjectModelConverter:
 
     EXTRA_SEP_COUNT = 2
 
+    SIS_ACCESS_MAP = {
+        Access.R: ('R/ ', '__IM '),
+        Access.RW: ('R/W', '__IOM'),
+        Access.W: (' /W', '__OM '),
+        Access.RFWT_ONE_TO_CLEAR: ('/WC', '__OM '),
+    }
+
     def __init__(self, *names: List[str]):
         self._comps: \
             Dict[str,
@@ -404,7 +411,6 @@ class ObjectModelConverter:
            :param bitsize: the max width of register, in bits
         """
         env = JiEnv(trim_blocks=False)
-        # env = JiEnv(trim_blocks=False)
         # template = env.from_string(modules[__name__].SIS_TEMPLATE.lstrip())
         from os.path import join as joinpath, splitext
         jinja = joinpath('.'.join((splitext(__file__)[0], 'j2')))
@@ -420,45 +426,61 @@ class ObjectModelConverter:
             filename = basename(ofp.name)
         else:
             filename = f'sifive_{name}.h'
-        # pprint(groups)
-        #grpsizes = {n: (sum([f.size for fields in grpfields[n].values()
-        #                    for f in fields])+31)//32
-        #            for n in grpnames}
-        class hexint(int):
-            def __repr__(self):
-                return f'0x{self:04x}'
 
-        grpsizes = OrderedDict()
-        for name, group in groups.items():
-            fields = list(group.values())
-            size = fields[-1].offset + fields[-1].size - fields[0].offset
-            # grpsizes[name] = hexint(fields[0].offset//8), (size+7)//8
-            grpsizes[name] = hexint(fields[0].offset//8), size
-        #pprint(grpsizes)
-        #exit(0)
+        #class hexint(int):
+        #    def __repr__(self):
+        #        return f'0x{self:04x}'
+        #grpsizes = OrderedDict()
+        #for name, group in groups.items():
+        #    fields = list(group.values())
+        #    size = fields[-1].offset + fields[-1].size - fields[0].offset
+        #    grpsizes[name] = hexint(fields[0].offset//8), size
+
+        # constants that may be tweaked, or computed, TBD
+        length = 40
+        regbits = 32
+        wx = 3
 
         cgroups = OrderedDict()
         last_pos = 0
         rsv = 0
-        length = 40
+        type_ = f'uint{regbits}_t'
+
         for name, group in groups.items():
             fields = list(group.values())
             if last_pos:
                 padding = fields[0].offset-last_pos
-                if padding > 0:
-                    size = (padding+31)//32
+                if padding >= regbits:
+                    tsize = (padding + regbits - 1)//regbits
                     rname = f'_RESERVED{rsv}'
-                    padding = ' ' * (length - len(rname))
-                    cgroups[rname] = \
-                        (RegField('PADDING', ['all', size], '', 0, Access.R),
-                         size, '', padding)
+                    rname = f'{rname};' if tsize == 1 else f'{rname}[{tsize}U];'
+                    cgroups[rname] = ['     ', type_, rname, '']
                     rsv += 1
             size = fields[-1].offset + fields[-1].size - fields[0].offset
+            tsize = (size + regbits - 1)//regbits
+            # conditions to use 64 bit register
+            # - 64 bit should be enable
+            # - 32 bit word count should be even
+            # - register should be aligned on a 64-bit boundary
+            #   (assuming the structure is always aligned on 64-bit as well)
+            if bitsize == 64 and (tsize & 1) == 0 and \
+                    (fields[0].offset & (bitsize - 1)) == 0:
+                rtype = 'uint64_t'
+                tsize >>= 1
+            else:
+                rtype = type_
             padding = ' ' * (length - len(name))
-            cgroups[name] = (group, (size+31)//32, grpdescs[name], padding)
-            last_pos = fields[-1].offset + fields[-1].size
-        #pprint(cgroups)
-        #exit(0)
+            fmtname = f'{name};' if tsize == 1 else f'{name}[{tsize}U];'
+            padlen = length - (len(type_) + 1 + len(fmtname))
+            padding = ' ' * padlen
+            fmtname = ''.join((fmtname, padding))
+            access, perm = self.SIS_ACCESS_MAP[self.merge_access(fields)]
+            gdesc = grpdescs.get(name, '')
+            offset = fields[0].offset // 8
+            desc = f'Offset: 0x{offset:0{wx}X} ({access}) {gdesc}'
+            cgroups[name] = [perm, rtype, fmtname, desc]
+            regsize = (fields[-1].size + regbits -1 ) & ~ (regbits - 1)
+            last_pos = fields[-1].offset + regsize
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
@@ -476,6 +498,27 @@ class ObjectModelConverter:
             print(f'/* {desc} */', file=out)
             print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
+    @classmethod
+    def merge_access(cls, fields: List[RegField]) -> Access:
+        """Build the access of a register from its individual fields.
+
+           :param fields: the fields to merge
+           :return: the global access for the register
+        """
+        access = None
+        for field in fields:
+            if field.access == Access.R:
+                access = Access.RW if access == Access.W else Access.R
+            elif (field.access == Access.W) or \
+                 (field.access == Access.RFWT_ONE_TO_CLEAR):
+                access = Access.RW if access == Access.R else Access.W
+            elif field.access == Access.RW:
+                access = Access.RW
+                return access
+            else:
+                raise ValueError('Invalid access')
+        return access
+
 
 SIS_TEMPLATE = """
 /**
@@ -489,18 +532,14 @@ SIS_TEMPLATE = """
 #ifndef SIFIVE_{{ ucomp }}_H_
 #define SIFIVE_{{ ucomp }}_H_
 
-typedef struct _{{ ucomp }} {
-{% set last_pos = 0 %}
-{% set wordsize = bitsize//32 %}
-{% for name in grpnames %}
-    {%if last_pos %}
+/* following defines should be used for structure members */
+#define __IM   volatile const   /**< Defines 'read only' structure member permissions */
+#define __OM   volatile         /**< Defines 'write only' structure member permissions */
+#define __IOM  volatile         /**< Defines 'read / write' structure member permissions */
 
-    {% endif %}
-    {% if grpsizes[name] == 1 %}
-    uint32_t {{ name }}; /**< {{ grpsizes[name] }} */
-    {% else %}
-    uint32_t {{ name }}[{{ grpsizes[name] }}U]; /**< {{ grpsizes[name] }} */
-    {% endif %}
+typedef struct _{{ ucomp }} {
+{%- for name, (perm, type_, name, desc) in cgroups.items() %}
+    {{perm}} {{type_}} {{name}}{% if desc %}/**< {{desc}} */{% endif -%}
 {% endfor %}
 } {{ ucomp }}_Type;
 
