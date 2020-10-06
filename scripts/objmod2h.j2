@@ -19,6 +19,12 @@ typedef struct _{{ ucomp }} {
     {{perm}} {{type_}} {{name}}{% if desc %}/**< {{desc}} */{% endif -%}
 {% endfor %}
 } {{ ucomp }}_Type;
-
+{% for name, (group, gdesc) in fgroups.items() %}
+/* {{ucomp}} {% if gdesc %}{{gdesc}}{% endif %} */
+    {%- for field in group %}
+        {%- for name, value, desc in field %}
+#define {{name}} {{value}} {% if desc %}/**< {{desc}} */{% endif -%}
+        {% endfor %}
+    {% endfor -%}
+{% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */
-

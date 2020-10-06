@@ -17,8 +17,8 @@ from re import sub as re_sub
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from textwrap import dedent
 from traceback import print_exc
-from typing import (Any, DefaultDict, Dict, List, NamedTuple, OrderedDict,
-                    Optional, TextIO, Tuple)
+from typing import (Any, DefaultDict, Dict, Iterable, List, NamedTuple,
+                    OrderedDict, Optional, TextIO, Tuple)
 try:
     from jinja2 import Environment as JiEnv
 except ImportError:
@@ -59,10 +59,10 @@ class ObjectModelConverter:
     EXTRA_SEP_COUNT = 2
 
     SIS_ACCESS_MAP = {
-        Access.R: ('R/ ', '__IM '),
+        Access.R: ('R/ ', '__IM'),
         Access.RW: ('R/W', '__IOM'),
-        Access.W: (' /W', '__OM '),
-        Access.RFWT_ONE_TO_CLEAR: ('/WC', '__OM '),
+        Access.W: (' /W', '__OM'),
+        Access.RFWT_ONE_TO_CLEAR: ('/WC', '__OM'),
     }
 
     def __init__(self, *names: List[str]):
@@ -427,32 +427,31 @@ class ObjectModelConverter:
         else:
             filename = f'sifive_{name}.h'
 
-        #class hexint(int):
-        #    def __repr__(self):
-        #        return f'0x{self:04x}'
-        #grpsizes = OrderedDict()
-        #for name, group in groups.items():
-        #    fields = list(group.values())
-        #    size = fields[-1].offset + fields[-1].size - fields[0].offset
-        #    grpsizes[name] = hexint(fields[0].offset//8), size
-
-        # constants that may be tweaked, or computed, TBD
-        length = 40
+        # constant that may be tweaked, or computed, TBD
         regbits = 32
-        wx = 3
+
+        # comppute how many hex nibbles are required to encode all byte offsets
+        lastgroup = grpfields[list(grpfields.keys())[-1]]
+        lastfield = lastgroup[list(lastgroup.keys())[-1]][-1]
+        hioffset = lastfield.offset//8
+        encbit = int.bit_length(hioffset)
+        hwx = (encbit + 3) // 4
 
         cgroups = OrderedDict()
+        fgroups = OrderedDict()
         last_pos = 0
         rsv = 0
         type_ = f'uint{regbits}_t'
 
         for name, group in groups.items():
+            gdesc = grpdescs.get(name, '')
             fields = list(group.values())
+            # cgroup generation
             if last_pos:
                 padding = fields[0].offset-last_pos
                 if padding >= regbits:
                     tsize = (padding + regbits - 1)//regbits
-                    rname = f'_RESERVED{rsv}'
+                    rname = f'_reserved{rsv}'
                     rname = f'{rname};' if tsize == 1 else f'{rname}[{tsize}U];'
                     cgroups[rname] = ['     ', type_, rname, '']
                     rsv += 1
@@ -469,34 +468,77 @@ class ObjectModelConverter:
                 tsize >>= 1
             else:
                 rtype = type_
-            padding = ' ' * (length - len(name))
             fmtname = f'{name};' if tsize == 1 else f'{name}[{tsize}U];'
-            padlen = length - (len(type_) + 1 + len(fmtname))
-            padding = ' ' * padlen
-            fmtname = ''.join((fmtname, padding))
             access, perm = self.SIS_ACCESS_MAP[self.merge_access(fields)]
-            gdesc = grpdescs.get(name, '')
             offset = fields[0].offset // 8
-            desc = f'Offset: 0x{offset:0{wx}X} ({access}) {gdesc}'
+            desc = f'Offset: 0x{offset:0{hwx}X} ({access}) {gdesc}'
             cgroups[name] = [perm, rtype, fmtname, desc]
             regsize = (fields[-1].size + regbits -1 ) & ~ (regbits - 1)
             last_pos = fields[-1].offset + regsize
 
+            # fgroup generation
+            base_offset = None
+            fregisters = []
+            for fname, field in group.items():
+                if base_offset is None:
+                    base_offset = field.offset
+                    offset = 0
+                else:
+                    offset = field.offset - base_offset
+                ffield = []
+                fpos = offset & (bitsize - 1)
+                fieldname = f'{ucomp}_{name}_{fname}_Pos'
+                fdesc = field.desc
+                name_prefix = name.split('_', 1)[0]
+                if fdesc.startswith(name_prefix):
+                    fdesc = fdesc[len(name_prefix):].lstrip()
+                ffield.append([fieldname, f'{fpos}U',
+                               f'{ucomp} {name}: {fdesc} Position'])
+                mask = (1 << field.size) - 1
+                maskval = f'{mask}U' if mask < 9 else f'0x{mask:X}U'
+                if field.size < bitsize:
+                    maskval = f'({maskval} << {fieldname})'
+                ffield.append([f'{ucomp}_{name}_{fname}_Msk', maskval,
+                               f'{ucomp} {name}: {fdesc} Mask'])
+                fregisters.append(ffield)
+            fgroups[name] = (fregisters, gdesc)
+
+        # find the largest field of each cgroups column
+        lengths = [0, 0, 0, 0]
+        for cregs in cgroups.values():
+            lengths = [max(a,len(b)) for a,b in zip(lengths, cregs)]
+
+        # apply padding in-place to cgroups columns
+        widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
+        widths[-1] = None
+        for cregs in cgroups.values():
+            cregs[:] = self.pad_columns(cregs, widths)
+
+        # find the largest field of each fgroups column
+        namelen = 0
+        vallen = 0
+        for fregs, _ in fgroups.values():
+            for freg in fregs:
+                for (name, val, _) in freg:
+                    if len(name) > namelen:
+                        namelen = len(name)
+                    if len(val) > vallen:
+                        vallen = len(val)
+        # apply padding in-place to fgroups column
+        widths = (namelen+self.EXTRA_SEP_COUNT,
+                  vallen+self.EXTRA_SEP_COUNT,
+                  None)
+        for fregs, _ in fgroups.values():
+            for freg in fregs:
+                for ffield in freg:
+                    ffield[:] = self.pad_columns(ffield, widths)
+
+        # cgroups = {}
+        # fgroups = {}
+
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
         ofp.write(text)
-        return
-
-        length = (len(ucomp) + max([len(x) for x in grpdescs]) + 1 +
-                  self.EXTRA_SEP_COUNT)
-        for grpname in grpnames:
-            group = reggroups[grpname]
-            regname = sorted(group, key=lambda n: group[n].offset)[0]
-            address = group[regname].offset//8
-            addr_str = f'{ucomp}_REGISTER_{grpname}'
-            desc = groupdesc.get(grpname, '')
-            print(f'/* {desc} */', file=out)
-            print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
     @classmethod
     def merge_access(cls, fields: List[RegField]) -> Access:
@@ -518,6 +560,21 @@ class ObjectModelConverter:
             else:
                 raise ValueError('Invalid access')
         return access
+
+    @classmethod
+    def pad_columns(cls, columns: Iterable[str], widths: Iterable[int]) \
+            -> Tuple[str]:
+        """
+        """
+        outcols = []
+        for col, width in zip(columns, widths):
+            if not width:
+                outcols.append(col)
+                continue
+            colw = len(col)
+            padlen = width - colw
+            outcols.append(f"{col}{' '*padlen}" if padlen > 0 else col)
+        return tuple(outcols)
 
 
 SIS_TEMPLATE = """
@@ -542,10 +599,16 @@ typedef struct _{{ ucomp }} {
     {{perm}} {{type_}} {{name}}{% if desc %}/**< {{desc}} */{% endif -%}
 {% endfor %}
 } {{ ucomp }}_Type;
-
+{% for name, (group, gdesc) in fgroups.items() %}
+/* {{ucomp}} {% if gdesc %}{{gdesc}}{% endif %} */
+    {%- for field in group %}
+        {%- for name, value, desc in field %}
+#define {{name}} {{value}} {% if desc %}/**< {{desc}} */{% endif -%}
+        {% endfor %}
+    {% endfor -%}
+{% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */
 """
-
 
 
 def main(args=None) -> None:
@@ -601,4 +664,4 @@ if __name__ == '__main__':
     if len(argv) > 1:
         main()
     else:
-        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -w 64 hca'.split())
+        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d -w 32 hca'.split())
