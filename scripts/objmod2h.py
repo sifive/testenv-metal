@@ -18,7 +18,7 @@ from sys import exit as sysexit, modules, stdin, stdout, stderr
 from textwrap import dedent
 from traceback import print_exc
 from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
-                    NamedTuple, OrderedDict, Optional, TextIO, Tuple)
+                    NamedTuple, OrderedDict, Optional, TextIO, Tuple, Union)
 try:
     from jinja2 import Environment as JiEnv
 except ImportError:
@@ -47,11 +47,12 @@ class OMComponent:
        :param name: the component name, as defined in the object model
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, width: int = 0):
         self._name = name
+        self._width = width
         self._descriptors: Dict[str, str] = {}
         self._fields: OrderedDict[str, OrderedDict[str, RegField]] = {}
-        self._features: Dict[str, Dict[str, bool]] = {}
+        self._features: Dict[str, Dict[str, Union[int, bool]]] = {}
         self._interrupts: OrderedDict[str, Tuple[str, int]] = {}
 
     @property
@@ -61,6 +62,16 @@ class OMComponent:
            :return: the name
         """
         return self._name
+
+    @property
+    def width(self) -> str:
+        """Return the data bus width.
+
+           :return: the width in bytes
+        """
+        if not self._width:
+            raise RuntimeError('Data bus width not known')
+        return self._width
 
     @property
     def descriptors(self) -> Dict[str, str]:
@@ -83,7 +94,7 @@ class OMComponent:
         return self._fields
 
     @property
-    def features(self) -> Dict[str, Dict[str, bool]]:
+    def features(self) -> Dict[str, Dict[str, Union[bool, int]]]:
         """Return a map of supported features and subfeatures.
 
            :return: a map of subfeature maps.
@@ -178,13 +189,16 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
     EXTRA_SEP_COUNT = 2
     """Extra space count between columns."""
 
-    def generate(self, ofp: TextIO, comp: OMComponent, bitsize: int) -> None:
+    def generate(self, ofp: TextIO, comp: OMComponent,
+                 bitsize: Optional[int] = None) -> None:
         """Generate a header file stream for a component.
 
            :param ofp: the output stream
            :param comp: the component for which to generate the file
            :param bitsize: the max width of register, in bits
         """
+        if bitsize is None:
+            bitsize = comp.width * 8
         newgroups = self.split_registers(comp.fields, bitsize)
         prefix = comp.name.upper()
         if ofp.name and not ofp.name.startswith('<'):
@@ -223,7 +237,8 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
 
     @classmethod
     def _generate_features(cls, out: TextIO, prefix: str,
-                           features: Dict[str, Dict[str, bool]]) -> None:
+                           features: Dict[str, Dict[str, Union[bool, int]]]) \
+            -> None:
         """Generate the definitions of the supported features.
 
            :param out: output stream
@@ -326,7 +341,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
     }
     """Access map for SIS formats."""
 
-    def generate(self, ofp: TextIO, comp: OMComponent, bitsize: int) -> None:
+    def generate(self, ofp: TextIO, comp: OMComponent,
+                 bitsize: Optional[int] = None) -> None:
         """Generate a legacy header file stream for a component.
 
            :param out: the output stream
@@ -341,6 +357,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             template = env.from_string(jfp.read())
         #     grpdescs, grpfields, features, ints = self._comps[name.lower()]
         grpfields = comp.fields
+        if bitsize is None:
+            bitsize = comp.width * 8
         groups = self.split_registers(grpfields, bitsize)
         ucomp = comp.name.upper()
         if ofp.name and not ofp.name.startswith('<'):
@@ -625,9 +643,13 @@ class OMParser:
                 regname = region['name'].lower()
                 if regname not in names:
                     continue
-                comp = OMComponent(regname)
+                width = component.get('beatBytes', 0)
+                comp = OMComponent(regname, width)
                 grpdescs, reggroups = self._parse_region(region)
                 features = self._parse_features(component)
+                print(features)
+                if width:
+                    features['data_bus'] = {'width': width}
                 mreggroups = self._merge_registers(reggroups)
                 ints = self._parse_interrupts(component)
                 comp.descriptors = grpdescs
@@ -864,8 +886,8 @@ def main(args=None) -> None:
                                default=outfmts[-1],
                                help=f'Output format (default: {outfmts[-1]})')
         argparser.add_argument('-w', '--width', type=int,
-                               choices=(8, 16, 32, 64), default=64,
-                               help='Output register width (default: 64)')
+                               choices=(8, 16, 32, 64), default=None,
+                               help='Output register width (default: auto)')
         argparser.add_argument('-d', '--debug', action='store_true',
                                help='Enable debug mode')
 
@@ -897,4 +919,4 @@ if __name__ == '__main__':
     if len(argv) > 1:
         main()
     else:
-        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d -w 32 hca'.split())
+        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
