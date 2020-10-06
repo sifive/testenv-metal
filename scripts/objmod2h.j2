@@ -22,11 +22,11 @@ typedef struct _{{ ucomp }} {
 {%- endfor %}
 } {{ ucomp }}_Type;
 {% for name, (group, gdesc) in fgroups.items() %}
-{%- if name in bitfields %}
+{%- if name in bgroups %}
 /**
  * Structure type to access {{gdesc}} ({{name}})
  */
-{%- set type_, bitfield, padders = bitfields[name] %}
+{%- set type_, bitfield, padders = bgroups[name] %}
 typedef union _{{ucomp}}_{{name}} {
     struct {
         {%- for (btype, bname, bdesc) in bitfield %}
@@ -42,5 +42,11 @@ typedef union _{{ucomp}}_{{name}} {
 #define {{name}} {{value}} {% if desc %}/**< {{desc}} */{% endif -%}
         {% endfor %}
 {% endfor -%}
+{% endfor %}
+/*
+ * Interrupt channels from {{ucomp}}
+ */
+{% for name, channel in interrupts -%}
+#define {{name}} {{channel}}U
 {% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */

@@ -71,7 +71,8 @@ class ObjectModelConverter:
                  Optional[
                      Tuple[Dict[str, str],
                            OrderedDict[str, OrderedDict[str, RegField]]],
-                           Dict[str, Dict[str, bool]]
+                           Dict[str, Dict[str, bool]],
+                           Dict[str, Tuple[str, int]]
                  ]
             ] = {x.lower(): None for x in names}
 
@@ -101,7 +102,8 @@ class ObjectModelConverter:
                 grpdescs, reggroups = self._parse_region(region)
                 features = self._parse_features(component)
                 mreggroups = self._merge_registers(reggroups)
-                self._comps[regname] = (grpdescs, mreggroups, features)
+                ints = self._parse_interrupts(component)
+                self._comps[regname] = (grpdescs, mreggroups, features, ints)
 
     def generate_legacy_header(self, ofp: TextIO, name: str,
                                bitsize: int) -> None:
@@ -203,6 +205,24 @@ class ObjectModelConverter:
                 option = opt[3:]
                 features[sectname][option] = value
         return features
+
+    @classmethod
+    def _parse_interrupts(cls, component: Dict[str, Any]) \
+            -> OrderedDict[str, Tuple[str, int]]:
+        ints = {}
+        for section in component.get('interrupts', []):
+            if not isinstance(section, dict) or '_types' not in section:
+                continue
+            types = section['_types']
+            if 'OMInterrupt' not in types:
+                continue
+            name = section['name']
+            channel = section['numberAtReceiver']
+            parent = section['receiver']
+            ints[name] = (parent, channel)
+        interrupts = OrderedDict(
+            ((i, ints[i]) for i in sorted(ints, key=lambda i: ints[i])))
+        return interrupts
 
     @classmethod
     def _merge_registers(cls,
@@ -417,7 +437,7 @@ class ObjectModelConverter:
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
         try:
-            grpdescs, grpfields, features = self._comps[name.lower()]
+            grpdescs, grpfields, features, ints = self._comps[name.lower()]
         except (KeyError, TypeError) as exc:
             raise ValueError(f'Unknown component name: {name}') from exc
         groups = self._split_registers(grpfields, bitsize)
@@ -540,7 +560,7 @@ class ObjectModelConverter:
                 brange = f'{pos}'
             return f'bit: {brange:>6s}  {desc}'
 
-        bitfields = OrderedDict()
+        bgroups = OrderedDict()
         bflen = 0
         for name, group in grpfields.items():
             fieldcount = len(group)
@@ -576,14 +596,28 @@ class ObjectModelConverter:
                 bits.append([type_, vstr, desc])
                 if len(vstr) > bflen:
                     bflen = len(vstr)
-            bitfields[name] = (type_, bits, [0, 0])
+            bgroups[name] = (type_, bits, [0, 0])
         widths = (len(type_), bflen + self.EXTRA_SEP_COUNT, 0)
         swidth = sum(widths)
-        for _, bitfield, padders in bitfields.values():
+        for _, bitfield, padders in bgroups.values():
             bitfield[:] = [self.pad_columns(bits, widths) for bits in bitfield]
             bpad = ' ' * swidth
             wpad = ' ' * (swidth - 7)
             padders[:] = [bpad, wpad]
+
+        interrupts = []
+        ilen = 0
+        for name, (_, channel) in ints.items():
+            iname = f'{ucomp}_INTERRUPT_{name.upper()}_NUM'
+            if len(iname) > ilen:
+                ilen = len(iname)
+            interrupts.append([iname, channel])
+        widths = (ilen + self.EXTRA_SEP_COUNT, None)
+        for idesc in interrupts:
+            idesc[:] = self.pad_columns(idesc, widths)
+        # cgroups = {}
+        # fgroups = {}
+        # bgroups = {}
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
@@ -653,11 +687,11 @@ typedef struct _{{ ucomp }} {
 {%- endfor %}
 } {{ ucomp }}_Type;
 {% for name, (group, gdesc) in fgroups.items() %}
-{%- if name in bitfields %}
+{%- if name in bgroups %}
 /**
  * Structure type to access {{gdesc}} ({{name}})
  */
-{%- set type_, bitfield, padders = bitfields[name] %}
+{%- set type_, bitfield, padders = bgroups[name] %}
 typedef union _{{ucomp}}_{{name}} {
     struct {
         {%- for (btype, bname, bdesc) in bitfield %}
@@ -674,8 +708,15 @@ typedef union _{{ucomp}}_{{name}} {
         {% endfor %}
 {% endfor -%}
 {% endfor %}
+/*
+ * Interrupt channels from {{ucomp}}
+ */
+{% for name, channel in interrupts -%}
+#define {{name}} {{channel}}U
+{% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */
 """
+
 
 def main(args=None) -> None:
     """Main routine"""
