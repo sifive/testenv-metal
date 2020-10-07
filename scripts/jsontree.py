@@ -23,28 +23,41 @@ class JsonTree:
         width = int(getenv('COLUMNS', '80'))
         pprint(self._root, width=width,depth=depth, stream=out, )
 
-    def show_path(self, out: TextIO, item: str, icase: bool = False) -> None:
-        for result in self._find(item, self._root, icase):
+    def show_path(self, out: TextIO, item: str, icase: bool = False,
+                  showval: bool = False) -> None:
+        for result in self._find(item, self._root, icase, showval):
             path = []
             for node in reversed(result):
+                if showval and node is None:
+                    path.append(node)
+                    continue
                 if isinstance(node, int):
                     path.append(f'[{node}]')
                 else:
-                    path.append(f'.{node}')
+                    if showval and path[-1] is None:
+                        path[-1] = ' = '
+                        path.append(str(node))
+                    else:
+                        path.append(f'.{node}')
             print(''.join(path), file=out)
 
     @classmethod
-    def _find(cls, item: str, node: Any, icase: bool):
+    def _find(cls, item: str, node: Any, icase: bool, showval: bool):
         if isinstance(node, dict):
             for key, value in node.items():
-                for result in cls._find(item, key, icase):
-                    yield result
-                for result in cls._find(item, value, icase):
+                for result in cls._find(item, key, icase, showval):
+                    if showval and isinstance(value, str):
+                        result.append(None)
+                        result.append(value)
+                        yield list(reversed(result))
+                    else:
+                        yield result
+                for result in cls._find(item, value, icase, showval):
                     result.append(str(key))
                     yield result
         elif isinstance(node, list):
             for pos, value in enumerate(node):
-                for result in cls._find(item, value, icase):
+                for result in cls._find(item, value, icase, showval):
                     result.append(pos)
                     yield result
         elif item == node:
@@ -77,6 +90,9 @@ def main(args=None) -> None:
         argparser.add_argument('-I', '--case-insensitive', action='store_true',
                                default=False,
                                help='Case-insensitive match')
+        argparser.add_argument('-V', '--value', action='store_true',
+                               default=False,
+                               help='Show value')
         argparser.add_argument('-d', '--debug', action='store_true',
                                help='Enable debug mode')
 
@@ -98,7 +114,8 @@ def main(args=None) -> None:
                                  f"{args.type}'")
             if args.case_insensitive:
                 element = element.lower()
-            jst.show_path(args.output, element, args.case_insensitive)
+            jst.show_path(args.output, element, args.case_insensitive,
+                          args.value)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)
