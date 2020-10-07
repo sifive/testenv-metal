@@ -405,13 +405,18 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     (fields[0].offset & (bitsize - 1)) == 0:
                 rtype = 'uint64_t'
                 tsize >>= 1
+                gsize = bitsize
             else:
                 rtype = type_
-            fmtname = f'{name};' if tsize == 1 else f'{name}[{tsize}U];'
+                gsize = regbits
+            uname = name.upper()
+            fmtname = f'{uname};' if tsize == 1 else f'{uname}[{tsize}U];'
             access, perm = self.SIS_ACCESS_MAP[self.merge_access(fields)]
             offset = fields[0].offset // 8
-            desc = f'Offset: 0x{offset:0{hwx}X} ({access}) {gdesc}'
-            cgroups[name] = [perm, rtype, fmtname, desc]
+            desc = f'Offset: 0x{offset:0{hwx}X} ({access})'
+            if gdesc:
+                desc = f'{desc} {gdesc}'
+            cgroups[uname] = [perm, rtype, fmtname, desc]
             regsize = (fields[-1].size + regbits -1 ) & ~ (regbits - 1)
             last_pos = fields[-1].offset + regsize
 
@@ -419,6 +424,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             base_offset = None
             fregisters = []
             for fname, field in group.items():
+                ufname = fname.upper()
                 if base_offset is None:
                     base_offset = field.offset
                     offset = 0
@@ -426,21 +432,21 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     offset = field.offset - base_offset
                 ffield = []
                 fpos = offset & (bitsize - 1)
-                fieldname = f'{ucomp}_{name}_{fname}_Pos'
+                fieldname = f'{ucomp}_{uname}_{ufname}_Pos'
                 fdesc = field.desc
                 name_prefix = name.split('_', 1)[0]
                 if fdesc.startswith(name_prefix):
                     fdesc = fdesc[len(name_prefix):].lstrip()
                 ffield.append([fieldname, f'{fpos}U',
-                               f'{ucomp} {name}: {fdesc} Position'])
+                               f'{ucomp} {uname}: {fdesc} Position'])
                 mask = (1 << field.size) - 1
                 maskval = f'{mask}U' if mask < 9 else f'0x{mask:X}U'
                 if field.size < bitsize:
                     maskval = f'({maskval} << {fieldname})'
-                ffield.append([f'{ucomp}_{name}_{fname}_Msk', maskval,
-                               f'{ucomp} {name}: {fdesc} Mask'])
+                ffield.append([f'{ucomp}_{uname}_{ufname}_Msk', maskval,
+                               f'{ucomp} {uname}: {fdesc} Mask'])
                 fregisters.append(ffield)
-            fgroups[name] = (fregisters, gdesc)
+            fgroups[uname] = (fregisters, gdesc)
 
         # find the largest field of each cgroups column
         lengths = [0, 0, 0, 0]
@@ -482,40 +488,55 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         bgroups = OrderedDict()
         bflen = 0
         for name, group in grpfields.items():
+            uname = name.upper()
             fieldcount = len(group)
-            if fieldcount <= 1:
-                continue
             last_pos = 0
             rsv = 0
             bits = []
             base = None
+            bitcount = 0
             for fname, fields in group.items():
+                if fieldcount == 1:
+                    fcsize = sum([f.size for f in fields])
+                    if fcsize >= gsize:
+                        last_pos = gsize
+                        break
+                ufname = fname.upper()
                 for field in fields:
+                    if field.size > gsize:
+                        raise RuntimeError(f'Field size too large: '
+                                           f'{field.size}')
                     if base is None:
                         base = field.offset
                     offset = field.offset-base
                     padding = offset - last_pos
                     if padding > 0:
-                        desc = bitdesc(last_pos, padding, 'Reserved')
+                        bitcount += padding
+                        desc = bitdesc(last_pos, padding, '(reserved)')
                         vstr = f'_reserved{rsv}:{padding};'
                         bits.append([type_, vstr, desc])
                         rsv += 1
                         if len(vstr) > bflen:
                             bflen = len(vstr)
                     desc = bitdesc(offset, field.size, field.desc)
-                    vstr = f'{fname}:{field.size};'
+                    bitcount += field.size
+                    vstr = f'{ufname}:{field.size};'
                     bits.append([type_, vstr, desc])
                     last_pos = offset + field.size
                     if len(vstr) > bflen:
                         bflen = len(vstr)
             padding = regbits - last_pos
             if padding > 0:
-                desc = bitdesc(last_pos, padding, 'Reserved')
+                bitcount += padding
+                desc = bitdesc(last_pos, padding, '(reserved)')
                 vstr = f'_reserved{rsv}:{padding};'
                 bits.append([type_, vstr, desc])
                 if len(vstr) > bflen:
                     bflen = len(vstr)
-            bgroups[name] = (type_, bits, [0, 0])
+            if bitcount > gsize:
+                raise RuntimeError('Generated fields too wide: {bitcount}')
+            if bits:
+                bgroups[uname] = (type_, bits, [0, 0])
         widths = (len(type_), bflen + self.EXTRA_SEP_COUNT, 0)
         swidth = sum(widths)
         for _, bitfield, padders in bgroups.values():
@@ -593,7 +614,8 @@ class OMParser:
        :param names: one or more IP names to extract from the object model
     """
 
-    def __init__(self):
+    def __init__(self, debug=False):
+        self._debug = debug
         self._components: Dict[str, Optional[OMComponent]] = {}
 
     def get(self, name) -> OMComponent:
@@ -614,12 +636,11 @@ class OMParser:
         for name in sorted(self._components):
             yield self._components[name]
 
-    def parse(self, mfp: TextIO, *names: str) -> None:
+    def parse(self, mfp: TextIO, names: List[str]) -> None:
         """Parse an object model text stream.
 
            :param mfp: object model file-like object
         """
-        names = list(*names)
         objmod = json_loads(mfp.read())
         if not isinstance(objmod, list):
             raise ValueError('Invalid format')
@@ -639,13 +660,14 @@ class OMParser:
             if 'registerMap' not in region:
                 continue
             regname = region['name'].lower()
+            # print('Found', regname)
             if regname not in names:
+                # print('Skip', regname, names)
                 continue
             width = component.get('beatBytes', 0)
             comp = OMComponent(regname, width)
             grpdescs, reggroups = self._parse_region(region)
             features = self._parse_features(component)
-            print(features)
             if width:
                 features['data_bus'] = {'width': width}
             mreggroups = self._merge_registers(reggroups)
@@ -656,8 +678,7 @@ class OMParser:
             comp.interrupts = ints
             self._components[regname] = comp
 
-    @classmethod
-    def _parse_region(cls, region: Dict[str, Any]) \
+    def _parse_region(self, region: Dict[str, Any]) \
             -> Tuple[Dict[str, str],
                      OrderedDict[str, OrderedDict[str, List[RegField]]]]:
         """Parse an object model region containing a register map.
@@ -669,31 +690,44 @@ class OMParser:
         """
         regmap = region['registerMap']
         groups = {}
-        for group in regmap["groups"]:
-            name = group['name']
-            desc = group.get('description', '').strip()
-            if desc.lower().endswith(' register'):
-                desc = desc[:-len(' register')]
-            if name not in groups:
-                groups[name] = desc
-            elif not groups[name]:
-                groups[name] = desc
+        try:
+            group = None
+            for group in regmap['groups']:
+                name = group['name']
+                desc = group.get('description', '').strip()
+                if desc.lower().endswith(' register'):
+                    desc = desc[:-len(' register')]
+                if name not in groups:
+                    groups[name] = desc
+                elif not groups[name]:
+                    groups[name] = desc
+        except Exception:
+            if self._debug:
+                pprint(group, stream=stderr)
+            raise
         registers = DefaultDict(dict)
-        for field in  regmap['registerFields']:
-            bitbase = field['bitRange']['base']
-            bitsize = field['bitRange']['size']
-            regfield = field['description']
-            name = regfield['name']
-            if name == 'reserved':
-                continue
-            desc = regfield['description']
-            group = regfield['group']
-            reset = regfield.get('resetValue', None)
-            access_ = list(filter(lambda x: x in Access.__members__,
-                                  regfield['access'].get('_types', '')))
-            access = Access[access_[0]] if access_ else None
-            regfield = RegField(bitbase, bitsize, desc, reset, access)
-            registers[group][name] = regfield
+        try:
+            field = None
+            for field in  regmap['registerFields']:
+                bitbase = field['bitRange']['base']
+                bitsize = field['bitRange']['size']
+                regfield = field['description']
+                name = regfield['name']
+                if name == 'reserved':
+                    continue
+                desc = regfield['description']
+                # missing group?
+                group = regfield.get('group', name)
+                reset = regfield.get('resetValue', None)
+                access_ = list(filter(lambda x: x in Access.__members__,
+                                      regfield['access'].get('_types', '')))
+                access = Access[access_[0]] if access_ else None
+                regfield = RegField(bitbase, bitsize, desc, reset, access)
+                registers[group][name] = regfield
+        except Exception:
+            if self._debug:
+                pprint(field, stream=stderr)
+            raise
         foffsets = {}
         # sort the field by offset for each register group
         for grpname in registers:
@@ -746,7 +780,7 @@ class OMParser:
             types = section['_types']
             if 'OMInterrupt' not in types:
                 continue
-            name = section['name']
+            name = section['name'].replace('@', '_')
             channel = section['numberAtReceiver']
             parent = section['receiver']
             ints[name] = (parent, channel)
@@ -892,9 +926,10 @@ def main(args=None) -> None:
         args = argparser.parse_args(args)
         debug = args.debug
 
-        omp = OMParser()
-        omp.parse(args.input, args.comp)
-        for comp in args.comp:
+        omp = OMParser(debug)
+        components = [c.lower() for c in args.comp]
+        omp.parse(args.input, components)
+        for comp in components:
             omp.get(comp)
         generator = getattr(module, f'OM{args.format.title()}HeaderGenerator')
         for comp in omp:
@@ -920,5 +955,6 @@ if __name__ == '__main__':
         main()
     else:
         # main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
+        # exit(0)
         # main('-i /Users/eblot/Downloads/e24_hca.objectModel.json -d hca'.split())
-        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -d hca'.split())
+        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())
