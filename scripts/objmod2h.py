@@ -12,7 +12,8 @@ from argparse import ArgumentParser, FileType
 from copy import copy
 from enum import Enum
 from json import loads as json_loads
-from os.path import basename
+from os import makedirs
+from os.path import basename, commonprefix, isdir, join as joinpath
 from re import sub as re_sub
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from textwrap import dedent
@@ -166,7 +167,10 @@ class OMHeaderGenerator:
                 mask = (1 << bitsize) - 1
                 for idx in range(0, field.size, bitsize):
                     wsize = idx//bitsize
-                    wreset = (field.reset >> idx) & mask
+                    if field.reset is not None:
+                        wreset = (field.reset >> idx) & mask
+                    else:
+                        wreset = None
                     fregs[f'{regname}_{wsize}'] = RegField(
                         field.offset+idx, min(bitsize, field.size-idx),
                         f'{field.desc} {wsize}', wreset, field.access)
@@ -636,10 +640,12 @@ class OMParser:
         for name in sorted(self._components):
             yield self._components[name]
 
-    def parse(self, mfp: TextIO, names: List[str]) -> None:
+    def parse(self, mfp: TextIO, names: Optional[List[str]] = None) -> None:
         """Parse an object model text stream.
 
            :param mfp: object model file-like object
+           :param names: the component names to parse, or an empty list to
+                         parse all components.
         """
         objmod = json_loads(mfp.read())
         if not isinstance(objmod, list):
@@ -651,18 +657,22 @@ class OMParser:
         if not isinstance(components, list):
             raise ValueError('Invalid format')
         for component in components:
-            self._parse_component(component, names)
+            self._parse_component(component, names or [])
 
-    def _parse_component(self, component: Dict, names: List[str]) -> None:
+    def _parse_component(self, component: Dict[str, Any],
+                         names: List[str]) -> None:
+        """Parse a single compoment
+
+           :param component: the component root to parse
+           :param names: accepted component names (if empty, accept all)
+        """
         for subcomp in component.get('components', []):
             self._parse_component(subcomp, names)
         for region in component.get('memoryRegions', {}):
             if 'registerMap' not in region:
                 continue
             regname = region['name'].lower()
-            # print('Found', regname)
-            if regname not in names:
-                # print('Skip', regname, names)
+            if names and regname not in names:
                 continue
             width = component.get('beatBytes', 0)
             comp = OMComponent(regname, width)
@@ -674,6 +684,7 @@ class OMParser:
             ints = self._parse_interrupts(component)
             comp.descriptors = grpdescs
             comp.fields = mreggroups
+            pprint(mreggroups)
             comp.features = features
             comp.interrupts = ints
             self._components[regname] = comp
@@ -820,7 +831,11 @@ class OMParser:
                         if lreg.offset == breg.offset+nsize:
                             if lreg.access != breg.access:
                                 raise ValueError('Incoherent access modes')
-                            nreset |= lreg.reset << nsize
+                            if lreg.reset is not None:
+                                if nreset is None:
+                                    nreset = lreg.reset << nsize
+                                else:
+                                    nreset |= lreg.reset << nsize
                             nsize += lreg.size
                         else:
                             reg = RegField(breg.offset, nsize, breg.desc,
@@ -906,7 +921,7 @@ def main(args=None) -> None:
         module = modules[__name__]
         argparser = ArgumentParser(description=module.__doc__)
 
-        argparser.add_argument('comp', nargs=1,
+        argparser.add_argument('comp', nargs='*',
                                help='Component(s) to extract from model')
         argparser.add_argument('-i', '--input', type=FileType('rt'),
                                default=stdin,
@@ -914,6 +929,11 @@ def main(args=None) -> None:
         argparser.add_argument('-o', '--output', type=FileType('wt'),
                                default=stdout,
                                help='Output header file')
+        argparser.add_argument('-O', '--dir',
+                               help='Output directory')
+        argparser.add_argument('-l', '--list', action='store_true',
+                               default=False,
+                               help=f'List object model components')
         argparser.add_argument('-f', '--format', choices=outfmts,
                                default=outfmts[-1],
                                help=f'Output format (default: {outfmts[-1]})')
@@ -927,14 +947,32 @@ def main(args=None) -> None:
         debug = args.debug
 
         omp = OMParser(debug)
-        components = [c.lower() for c in args.comp]
-        omp.parse(args.input, components)
-        for comp in components:
-            omp.get(comp)
+        compnames = [c.lower() for c in args.comp]
+        omp.parse(args.input, compnames)
+        if args.list:
+            print('Components:', file=args.output)
+            for comp in omp:
+                print(f' {comp.name}', file=args.output)
+            sysexit(0)
+        count = 0
+        for name in compnames:
+            omp.get(name)
+            count += 1
         generator = getattr(module, f'OM{args.format.title()}HeaderGenerator')
-        for comp in omp:
+        if len(compnames) == 1 or (not compnames and count == 1):
+            comp = omp.get(compnames[0])
             generator().generate(args.output, comp, args.width)
-            break
+        elif args.dir:
+            if not isdir(args.dir):
+                makedirs(args.dir)
+            if not compnames:
+                compnames = [c.name for c in omp]
+            for name in compnames:
+                comp = omp.get(name)
+                filename = joinpath(args.dir, f'sifive_{comp.name}.h')
+                with open(filename, 'wt') as ofp:
+                    print(f'Generating {name} as {filename}', file=args.output)
+                    generator().generate(ofp, comp, args.width)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)
@@ -954,7 +992,8 @@ if __name__ == '__main__':
     if len(argv) > 1:
         main()
     else:
+        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d plic'.split())
         # main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
         # exit(0)
         # main('-i /Users/eblot/Downloads/e24_hca.objectModel.json -d hca'.split())
-        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())
+        #main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())
