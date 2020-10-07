@@ -596,28 +596,23 @@ class OMParser:
     def __init__(self):
         self._components: Dict[str, Optional[OMComponent]] = {}
 
-    def __getitem__(self, name) -> OMComponent:
+    def get(self, name) -> OMComponent:
         """Return a componen from its object model name, if any.
 
-           :raise: KeyError if the component has not been parsed
            :return: the parsed component
         """
-        comp = self._components[name]
-        if comp is None:
-            raise KeyError(f'{name} not parsed')
-        return comp
+        try:
+            return self._components[name]
+        except KeyError as exc:
+            raise ValueError(f"No '{name}' component in object model") from exc
 
     def __iter__(self) -> Iterator[OMComponent]:
         """Return an iterator for all parsed component, ordered by name.
 
            :return: a component iterator
         """
-        names = sorted(self._components)
-        for name in names:
-            comp = self._components[name]
-            if comp is None:
-                continue
-            yield comp
+        for name in sorted(self._components):
+            yield self._components[name]
 
     def parse(self, mfp: TextIO, *names: str) -> None:
         """Parse an object model text stream.
@@ -635,28 +630,31 @@ class OMParser:
         if not isinstance(components, list):
             raise ValueError('Invalid format')
         for component in components:
-            if 'memoryRegions' not in component:
+            self._parse_component(component, names)
+
+    def _parse_component(self, component: Dict, names: List[str]) -> None:
+        for subcomp in component.get('components', []):
+            self._parse_component(subcomp, names)
+        for region in component.get('memoryRegions', {}):
+            if 'registerMap' not in region:
                 continue
-            for region in component['memoryRegions']:
-                if 'registerMap' not in region:
-                    continue
-                regname = region['name'].lower()
-                if regname not in names:
-                    continue
-                width = component.get('beatBytes', 0)
-                comp = OMComponent(regname, width)
-                grpdescs, reggroups = self._parse_region(region)
-                features = self._parse_features(component)
-                print(features)
-                if width:
-                    features['data_bus'] = {'width': width}
-                mreggroups = self._merge_registers(reggroups)
-                ints = self._parse_interrupts(component)
-                comp.descriptors = grpdescs
-                comp.fields = mreggroups
-                comp.features = features
-                comp.interrupts = ints
-                self._components[regname] = comp
+            regname = region['name'].lower()
+            if regname not in names:
+                continue
+            width = component.get('beatBytes', 0)
+            comp = OMComponent(regname, width)
+            grpdescs, reggroups = self._parse_region(region)
+            features = self._parse_features(component)
+            print(features)
+            if width:
+                features['data_bus'] = {'width': width}
+            mreggroups = self._merge_registers(reggroups)
+            ints = self._parse_interrupts(component)
+            comp.descriptors = grpdescs
+            comp.fields = mreggroups
+            comp.features = features
+            comp.interrupts = ints
+            self._components[regname] = comp
 
     @classmethod
     def _parse_region(cls, region: Dict[str, Any]) \
@@ -896,6 +894,8 @@ def main(args=None) -> None:
 
         omp = OMParser()
         omp.parse(args.input, args.comp)
+        for comp in args.comp:
+            omp.get(comp)
         generator = getattr(module, f'OM{args.format.title()}HeaderGenerator')
         for comp in omp:
             generator().generate(args.output, comp, args.width)
@@ -919,4 +919,6 @@ if __name__ == '__main__':
     if len(argv) > 1:
         main()
     else:
-        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
+        # main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
+        # main('-i /Users/eblot/Downloads/e24_hca.objectModel.json -d hca'.split())
+        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -d hca'.split())
