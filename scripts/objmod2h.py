@@ -156,11 +156,7 @@ class OMHeaderGenerator:
             registers = reggroups[gname]
             fregs = OrderedDict()
             for regname in registers:
-                fields = registers[regname]
-                if len(fields) > 1:
-                    # field with "holes"
-                    raise NotImplementedError('Not handled')
-                field = fields[0]
+                field = registers[regname]
                 if field.size <= bitsize:
                     fregs[regname] = field
                     continue
@@ -375,7 +371,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
 
         # comppute how many hex nibbles are required to encode all byte offsets
         lastgroup = grpfields[list(grpfields.keys())[-1]]
-        lastfield = lastgroup[list(lastgroup.keys())[-1]][-1]
+        lastfield = lastgroup[list(lastgroup.keys())[-1]]
         hioffset = lastfield.offset//8
         encbit = int.bit_length(hioffset)
         hwx = (encbit + 3) // 4
@@ -499,36 +495,34 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             bits = []
             base = None
             bitcount = 0
-            for fname, fields in group.items():
+            for fname, field in group.items():
                 if fieldcount == 1:
-                    fcsize = sum([f.size for f in fields])
-                    if fcsize >= gsize:
+                    if field.size >= gsize:
                         last_pos = gsize
                         break
                 ufname = fname.upper()
-                for field in fields:
-                    if field.size > gsize:
-                        raise RuntimeError(f'Field size too large: '
-                                           f'{field.size}')
-                    if base is None:
-                        base = field.offset
-                    offset = field.offset-base
-                    padding = offset - last_pos
-                    if padding > 0:
-                        bitcount += padding
-                        desc = bitdesc(last_pos, padding, '(reserved)')
-                        vstr = f'_reserved{rsv}:{padding};'
-                        bits.append([type_, vstr, desc])
-                        rsv += 1
-                        if len(vstr) > bflen:
-                            bflen = len(vstr)
-                    desc = bitdesc(offset, field.size, field.desc)
-                    bitcount += field.size
-                    vstr = f'{ufname}:{field.size};'
+                if field.size > gsize:
+                    raise RuntimeError(f'Field size too large: '
+                                       f'{field.size}')
+                if base is None:
+                    base = field.offset
+                offset = field.offset-base
+                padding = offset - last_pos
+                if padding > 0:
+                    bitcount += padding
+                    desc = bitdesc(last_pos, padding, '(reserved)')
+                    vstr = f'_reserved{rsv}:{padding};'
                     bits.append([type_, vstr, desc])
-                    last_pos = offset + field.size
+                    rsv += 1
                     if len(vstr) > bflen:
                         bflen = len(vstr)
+                desc = bitdesc(offset, field.size, field.desc)
+                bitcount += field.size
+                vstr = f'{ufname}:{field.size};'
+                bits.append([type_, vstr, desc])
+                last_pos = offset + field.size
+                if len(vstr) > bflen:
+                    bflen = len(vstr)
             padding = regbits - last_pos
             if padding > 0:
                 bitcount += padding
@@ -680,11 +674,10 @@ class OMParser:
             features = self._parse_features(component)
             if width:
                 features['data_bus'] = {'width': width}
-            mreggroups = self._merge_registers(reggroups)
+            mreggroups = self._fuse_fields(reggroups, 32)
             ints = self._parse_interrupts(component)
             comp.descriptors = grpdescs
             comp.fields = mreggroups
-            pprint(mreggroups)
             comp.features = features
             comp.interrupts = ints
             self._components[regname] = comp
@@ -800,58 +793,87 @@ class OMParser:
         return interrupts
 
     @classmethod
-    def _merge_registers(cls,
-        reggroups: OrderedDict[str, OrderedDict[str, RegField]]) \
-            -> OrderedDict[str, OrderedDict[str, RegField]]:
+    def _fuse_fields(cls,
+        reggroups: OrderedDict[str, OrderedDict[str, RegField]],
+        regsize: int) -> OrderedDict[str, OrderedDict[str, RegField]]:
         """Merge 8-bit groups belonging to the same registers.
 
             :param reggroups: register fields (indexed on group, name)
+            :param regsize: width in bits of a register
             :return: a dictionary of groups of register fields
         """
         outregs = OrderedDict()
         for gname, gregs in reggroups.items():  # HW group name
             mregs = OrderedDict()
             # group registers of the same name radix into lists
+            candidates = []
             for fname in sorted(gregs, key=lambda n: gregs[n].offset):
                 bfname = re_sub(r'_\d+', '', fname)  # register name w/o index
-                if bfname not in mregs:
-                    mregs[bfname] = []
-                mregs[bfname].append(gregs[fname])
-            # merge siblings into a single register
-            for mname in mregs:
-                lregs = mregs[mname]
-                if len(lregs) == 1:
+                if not candidates or candidates[-1][0] != bfname:
+                    candidates.append([bfname, []])
+                candidates[-1][1].append(fname)
+            for fusname, fldnames in candidates:
+                if len(fldnames) == 1:
+                    mregs[fldnames[0]] = gregs[fldnames[0]]
+                    # nothing to fuse, single register
                     continue
-                breg = None
-                nsize = None
-                nreset = None
-                nregs = []
-                for lreg in lregs:
+                exp_pos = 0
+                fusion = True
+                for fname in fldnames:
+                    reg = gregs[fname]
+                    if exp_pos == 0 and reg.offset & (regsize - 1) != 0:
+                        fusion = False
+                        # cannot fuse, first field does not start on a register
+                        # boundary
+                        break
+                    if exp_pos and reg.offset != exp_pos:
+                        fusion = False
+                        # cannot fuse, empty space between field detected
+                        break
+                    exp_pos = reg.offset + reg.size
+                if not fusion:
+                    for fname in fldnames:
+                        mregs[fname] = gregs[fname]
+                    break
+                # now attempt to fuse the fields, if possible
+                mregs[fusname] = [gregs[fname] for fname in fldnames]
+                for mname in mregs:
+                    lregs = mregs[mname]
+                    breg = None
+                    nsize = None
+                    nreset = None
+                    for lreg in lregs:
+                        if breg:
+                            if lreg.offset == breg.offset+nsize:
+                                if lreg.access != breg.access:
+                                    raise ValueError('Incoherent access modes')
+                                if lreg.reset is not None:
+                                    if nreset is None:
+                                        nreset = lreg.reset << nsize
+                                    else:
+                                        nreset |= lreg.reset << nsize
+                                nsize += lreg.size
+                            else:
+                                reg = RegField(breg.offset, nsize, breg.desc,
+                                               nreset, breg.access)
+                                nregs.append(reg)
+                                breg = None
+                        if breg is None:
+                            breg = lreg
+                            nsize = lreg.size
+                            nreset = lreg.reset
                     if breg:
-                        if lreg.offset == breg.offset+nsize:
-                            if lreg.access != breg.access:
-                                raise ValueError('Incoherent access modes')
-                            if lreg.reset is not None:
-                                if nreset is None:
-                                    nreset = lreg.reset << nsize
-                                else:
-                                    nreset |= lreg.reset << nsize
-                            nsize += lreg.size
-                        else:
-                            reg = RegField(breg.offset, nsize, breg.desc,
-                                           nreset, breg.access)
-                            nregs.append(reg)
-                            breg = None
-                    if breg is None:
-                        breg = lreg
-                        nsize = lreg.size
-                        nreset = lreg.reset
-                if breg:
-                    reg = RegField(breg.offset, nsize, breg.desc,
-                                   nreset, breg.access)
-                    nregs.append(reg)
-                mregs[mname] = nregs
+                        reg = RegField(breg.offset, nsize, breg.desc,
+                                       nreset, breg.access)
+                        mregs[mname] = reg
             outregs[gname] = mregs
+        #exit(0)
+        #print("------ INPUT ------")
+        #pprint(reggroups)
+        #print('')
+        #print("------ OUTPUT ------")
+        #pprint(outregs)
+        #print('')
         return outregs
 
 
@@ -979,10 +1001,10 @@ def main(args=None) -> None:
         if debug:
             print_exc(chain=False, file=stderr)
         sysexit(1)
-    except SystemExit as exc:
-        if debug:
-            print_exc(chain=True, file=stderr)
-        raise
+    #except SystemExit as exc:
+    #    if debug:
+    #        print_exc(chain=True, file=stderr)
+    #    raise
     except KeyboardInterrupt:
         sysexit(2)
 
@@ -992,8 +1014,8 @@ if __name__ == '__main__':
     if len(argv) > 1:
         main()
     else:
-        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d plic'.split())
-        # main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
+        # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d plic'.split())
+        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
         # exit(0)
         # main('-i /Users/eblot/Downloads/e24_hca.objectModel.json -d hca'.split())
         #main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())
