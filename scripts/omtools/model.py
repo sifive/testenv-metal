@@ -6,7 +6,11 @@
 #pylint: disable-msg=cell-var-from-loop
 
 from enum import Enum
-from typing import (Dict, NamedTuple, OrderedDict, Optional, Tuple, Union)
+from typing import (Dict, List, NamedTuple, OrderedDict, Optional, Tuple, Union)
+
+
+OMNode = Dict[str, Union['OMNode', List, str, int, bool]]
+"""An object model node"""
 
 
 OMAccess = Enum('OMAccess', 'R RW W RFWT_ONE_TO_CLEAR')
@@ -21,7 +25,6 @@ class OMRegField(NamedTuple):
     desc: str
     reset: Optional[int]
     access: Optional[str]
-
 
 
 class OMComponent:

@@ -14,7 +14,7 @@ from re import sub as re_sub
 from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterator, List, OrderedDict,
                     Optional, TextIO, Tuple)
-from .model import OMAccess, OMComponent, OMRegField
+from .model import OMAccess, OMComponent, OMNode, OMRegField
 
 
 class OMParser:
@@ -55,39 +55,50 @@ class OMParser:
                          parse all components.
         """
         objmod = json_loads(mfp.read())
-        if not isinstance(objmod, list):
-            raise ValueError('Invalid format')
-        objs = objmod[0]
-        if not isinstance(objs, dict):
-            raise ValueError('Invalid format')
-        components = objs['components']
-        if not isinstance(components, list):
-            raise ValueError('Invalid format')
-        for component in components:
-            self._parse_component(component, names or [])
+        for device in self._find_descriptors_of_type(objmod, 'OMDevice'):
+            self._parse_device(device, names or [])
 
-    def _parse_component(self, component: Dict[str, Any],
-                         names: List[str]) -> None:
-        """Parse a single compoment
+    @classmethod
+    def _find_descriptors_of_type(cls, root: Any, typename: str) \
+            -> Iterator[OMNode]:
+        for node in cls._find_kv_pair(root, '_types', typename):
+            yield node
 
-           :param component: the component root to parse
-           :param names: accepted component names (if empty, accept all)
+    @classmethod
+    def _find_kv_pair(cls, node: Any, keyname: str, valname: str) \
+            -> Iterator[OMNode]:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == keyname:
+                    if valname in value:
+                        yield node
+                for result in cls._find_kv_pair(value, keyname, valname):
+                    yield result
+        elif isinstance(node, list):
+            for value in node:
+                for result in cls._find_kv_pair(value, keyname, valname):
+                    yield result
+
+    def _parse_device(self, device: OMNode, names: List[str]) -> None:
+        """Parse a single device
+
+           :param device: the device root to parse
+           :param names: accepted device names (if empty, accept all)
         """
-        for subcomp in component.get('components', []):
-            self._parse_component(subcomp, names)
-        for region in component.get('memoryRegions', {}):
+        for region in device.get('memoryRegions', {}):
             if 'registerMap' not in region:
                 continue
             regname = region['name'].lower()
             if names and regname not in names:
                 continue
-            width = component.get('beatBytes', 32)
+            width = device.get('beatBytes', 32)
             comp = OMComponent(regname, width)
             grpdescs, reggroups = self._parse_region(region)
-            features = self._parse_features(component)
+            features = self._parse_features(device)
             if width:
                 features['data_bus'] = {'width': width}
-            ints = self._parse_interrupts(component)
+            # mmap = self._parse_memory_map(device)
+            ints = self._parse_interrupts(device)
             freggroups = self._fuse_fields(reggroups)
             freggroups = self._factorize_fields(freggroups)
             comp.descriptors = grpdescs
@@ -96,7 +107,7 @@ class OMParser:
             comp.interrupts = ints
             self._components[regname] = comp
 
-    def _parse_region(self, region: Dict[str, Any]) \
+    def _parse_region(self, region: OMNode) \
             -> Tuple[Dict[str, str],
                      OrderedDict[str, OrderedDict[str, List[OMRegField]]]]:
         """Parse an object model region containing a register map.
@@ -160,16 +171,15 @@ class OMParser:
         return groups, godict
 
     @classmethod
-    def _parse_features(cls, component: Dict[str, Any]) \
-            -> Dict[str, Dict[str, bool]]:
-        """Parse the supported feature of a component.cls
+    def _parse_features(cls, device: OMNode) -> Dict[str, Dict[str, bool]]:
+        """Parse the supported feature of a device.
 
-           :param component: the component to parse
+           :param device: the device to parse
            :return: a dictionary of supported features, with optional options
         """
         features = {}
-        for sectname in component:
-            section = component[sectname]
+        for sectname in device:
+            section = device[sectname]
             if not isinstance(section, dict) or '_types' not in section:
                 continue
             features[sectname] = {}
@@ -184,15 +194,15 @@ class OMParser:
         return features
 
     @classmethod
-    def _parse_interrupts(cls, component: Dict[str, Any]) \
+    def _parse_interrupts(cls, device: OMNode) \
             -> OrderedDict[str, Tuple[str, int]]:
         """Parse interrupts definitions.
 
-           :param component: the object model compoent to parse
+           :param device: the object model compoent to parse
            :return: an ordered map of (name, (controller, channel))
         """
         ints = {}
-        for section in component.get('interrupts', []):
+        for section in device.get('interrupts', []):
             if not isinstance(section, dict) or '_types' not in section:
                 continue
             types = section['_types']
@@ -205,6 +215,18 @@ class OMParser:
         interrupts = OrderedDict(
             ((i, ints[i]) for i in sorted(ints, key=lambda i: ints[i])))
         return interrupts
+
+    @classmethod
+    def _parse_memory_map(cls, device: OMNode) \
+            -> OrderedDict[str, Tuple[str, int]]:
+        """Parse the memory map of a device.
+
+           :param device: the object model compoent to parse
+           :return:
+        """
+        for addrset in device.get('addressSet', []):
+            base = addrset['base']
+            mask = addrset['mask']
 
     def _fuse_fields(self,
             reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
