@@ -949,6 +949,8 @@ SIS_TEMPLATE = """
 #ifndef SIFIVE_{{ ucomp }}_H_
 #define SIFIVE_{{ ucomp }}_H_
 
+#include <stdint.h>
+
 /* following defines should be used for structure members */
 #define __IM   volatile const   /**< Defines 'read only' structure member permissions */
 #define __OM   volatile         /**< Defines 'write only' structure member permissions */
