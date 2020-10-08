@@ -46,9 +46,12 @@ class JsonTree:
         if isinstance(node, dict):
             for key, value in node.items():
                 for result in cls._find(item, key, icase, showval):
-                    if showval and isinstance(value, str):
+                    if showval and isinstance(value, (int, str, bool)):
                         result.append(None)
-                        result.append(value)
+                        if isinstance(value, int):
+                            result.append(f'{value} / 0x{value:x}')
+                        else:
+                            result.append(value)
                         yield list(reversed(result))
                     else:
                         yield result
