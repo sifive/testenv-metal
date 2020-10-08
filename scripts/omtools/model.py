@@ -27,6 +27,14 @@ class OMRegField(NamedTuple):
     access: Optional[str]
 
 
+class OMMemoryRegion(NamedTuple):
+    """Device memory region."""
+
+    base: int
+    size: int
+    desc: str
+
+
 class OMComponent:
     """Object model component container
 
@@ -40,7 +48,6 @@ class OMComponent:
         self._fields: OrderedDict[str,
                                   Tuple[OrderedDict[str, OMRegField], int]] = {}
         self._features: Dict[str, Dict[str, Union[int, bool]]] = {}
-        self._interrupts: OrderedDict[str, Tuple[str, int]] = {}
 
     @property
     def name(self) -> str:
@@ -88,16 +95,6 @@ class OMComponent:
         """
         return self._features
 
-    @property
-    def interrupts(self) -> OrderedDict[str, Tuple[str, int]]:
-        """Return an ordered map of interrupt channels.
-
-           Order is the channel number (from lowest to highest)
-
-           :return: a map of (name, (controller, channel)).
-        """
-        return self._interrupts
-
     @descriptors.setter
     def descriptors(self, descs: Dict[str, str]) -> None:
         if not isinstance(descs, dict):
@@ -115,9 +112,3 @@ class OMComponent:
         if not isinstance(features, dict):
             raise ValueError('Invalid features')
         self._features = features
-
-    @interrupts.setter
-    def interrupts(self, interrupts: Dict[str, str]) -> None:
-        if not isinstance(interrupts, OrderedDict):
-            raise ValueError('Invalid interrupts')
-        self._interrupts = interrupts

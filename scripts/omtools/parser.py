@@ -14,7 +14,7 @@ from re import sub as re_sub
 from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterator, List, OrderedDict,
                     Optional, TextIO, Tuple)
-from .model import OMAccess, OMComponent, OMNode, OMRegField
+from .model import OMAccess, OMComponent, OMMemoryRegion, OMNode, OMRegField
 
 
 class OMParser:
@@ -28,6 +28,8 @@ class OMParser:
         self._regwidth = regwidth
         self._debug = debug
         self._components: Dict[str, Optional[OMComponent]] = {}
+        self._memorymap: OrderedDict[name, OMMemoryRegion] = {}
+        self._irqmap = self._merge_interrupts(irqs)
 
     def get(self, name) -> OMComponent:
         """Return a componen from its object model name, if any.
@@ -85,6 +87,8 @@ class OMParser:
            :param device: the device root to parse
            :param names: accepted device names (if empty, accept all)
         """
+        memregions: List[Dict[str, OMMemoryRegion]] = []
+        irqs = List[Dict[str, Tuple[str, int]]] = []
         for region in device.get('memoryRegions', {}):
             if 'registerMap' not in region:
                 continue
@@ -97,15 +101,16 @@ class OMParser:
             features = self._parse_features(device)
             if width:
                 features['data_bus'] = {'width': width}
-            # mmap = self._parse_memory_map(device)
-            ints = self._parse_interrupts(device)
+            memregions.append(self._parse_memory_map(device))
+            irqs.append(self._parse_interrupts(device))
             freggroups = self._fuse_fields(reggroups)
             freggroups = self._factorize_fields(freggroups)
             comp.descriptors = grpdescs
             comp.fields = freggroups
             comp.features = features
-            comp.interrupts = ints
             self._components[regname] = comp
+        self._memorymap = self._merge_memory_regions(memregions)
+        self._irqmap = self._merge_interrupts(irqs)
 
     def _parse_region(self, region: OMNode) \
             -> Tuple[Dict[str, str],
@@ -195,11 +200,11 @@ class OMParser:
 
     @classmethod
     def _parse_interrupts(cls, device: OMNode) \
-            -> OrderedDict[str, Tuple[str, int]]:
+            -> Dict[str, Tuple[str, int]]:
         """Parse interrupts definitions.
 
            :param device: the object model compoent to parse
-           :return: an ordered map of (name, (controller, channel))
+           :return: an map of (name, (controller, channel))
         """
         ints = {}
         for section in device.get('interrupts', []):
@@ -212,21 +217,26 @@ class OMParser:
             channel = section['numberAtReceiver']
             parent = section['receiver']
             ints[name] = (parent, channel)
-        interrupts = OrderedDict(
-            ((i, ints[i]) for i in sorted(ints, key=lambda i: ints[i])))
-        return interrupts
+        return ints
 
     @classmethod
     def _parse_memory_map(cls, device: OMNode) \
-            -> OrderedDict[str, Tuple[str, int]]:
+            -> Dict[str, OMMemoryRegion]:
         """Parse the memory map of a device.
 
            :param device: the object model compoent to parse
            :return:
         """
-        for addrset in device.get('addressSet', []):
-            base = addrset['base']
-            mask = addrset['mask']
+        mmap = {}
+        for memregion in device.get('memoryRegions', []):
+            for addrset in memregion.get('addressSets', []):
+                name = memregion['name']
+                mem = OMMemoryRegion(addrset['base'], addrset['mask'],
+                                     memregion.get('description', ''))
+            if name in mmap:
+                raise ValueError(f'Memory region {name} redefined')
+            mmap[name] = mem
+        return mmap
 
     def _fuse_fields(self,
             reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
