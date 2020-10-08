@@ -1,4 +1,4 @@
-"""Object Model components."""
+"""Object Model elements."""
 
 #pylint: disable-msg=too-many-arguments
 #pylint: disable-msg=too-many-locals
@@ -35,10 +35,11 @@ class OMMemoryRegion(NamedTuple):
     desc: str
 
 
-class OMComponent:
-    """Object model component container
+class OMDevice:
+    """Object model device container
 
-       :param name: the component name, as defined in the object model
+       :param name: the device name, as defined in the object model
+       :param width: the maximal register width in bits
     """
 
     def __init__(self, name: str, width: int = 0):
@@ -51,7 +52,7 @@ class OMComponent:
 
     @property
     def name(self) -> str:
-        """Return the name of the component.
+        """Return the name of the device.
 
            :return: the name
         """

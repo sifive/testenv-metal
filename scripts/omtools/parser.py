@@ -13,8 +13,8 @@ from pprint import pprint
 from re import sub as re_sub
 from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterator, List, OrderedDict,
-                    Optional, TextIO, Tuple)
-from .model import OMAccess, OMComponent, OMMemoryRegion, OMNode, OMRegField
+                    Optional, Sequence, TextIO, Tuple)
+from .model import OMAccess, OMDevice, OMMemoryRegion, OMNode, OMRegField
 
 
 class OMParser:
@@ -27,38 +27,45 @@ class OMParser:
     def __init__(self, regwidth: int = 32, debug=False):
         self._regwidth = regwidth
         self._debug = debug
-        self._components: Dict[str, Optional[OMComponent]] = {}
-        self._memorymap: OrderedDict[name, OMMemoryRegion] = {}
-        self._irqmap = self._merge_interrupts(irqs)
+        self._devices: Dict[str, Optional[OMDevice]] = {}
+        self._memorymap: OrderedDict[str, OMMemoryRegion] = {}
+        self._irqmap: OrderedDict[str, int] = {}
 
-    def get(self, name) -> OMComponent:
-        """Return a componen from its object model name, if any.
+    def get(self, name) -> OMDevice:
+        """Return a device from its object model name, if any.
 
-           :return: the parsed component
+           :return: the parsed device
         """
         try:
-            return self._components[name]
+            return self._devices[name]
         except KeyError as exc:
-            raise ValueError(f"No '{name}' component in object model") from exc
+            raise ValueError(f"No '{name}' device in object model") from exc
 
-    def __iter__(self) -> Iterator[OMComponent]:
-        """Return an iterator for all parsed component, ordered by name.
+    def __iter__(self) -> Iterator[OMDevice]:
+        """Return an iterator for all parsed device, ordered by name.
 
-           :return: a component iterator
+           :return: a device iterator
         """
-        for name in sorted(self._components):
-            yield self._components[name]
+        for name in sorted(self._devices):
+            yield self._devices[name]
 
     def parse(self, mfp: TextIO, names: Optional[List[str]] = None) -> None:
         """Parse an object model text stream.
 
            :param mfp: object model file-like object
-           :param names: the component names to parse, or an empty list to
-                         parse all components.
+           :param names: the device names to parse, or an empty list to
+                         parse all devices.
         """
         objmod = json_loads(mfp.read())
-        for device in self._find_descriptors_of_type(objmod, 'OMDevice'):
-            self._parse_device(device, names or [])
+        devmaps: List[Dict[str, OMMemoryRegion]] = []
+        irqs: List[Dict[str, Tuple[str, int]]] = []
+        for node in self._find_descriptors_of_type(objmod, 'OMDevice'):
+            mmap, irqmap = self._parse_device(node, names or [])
+            devmaps.extend(mmap)
+            irqs.extend(irqmap)
+        # pprint(devmaps)
+        self._memorymap = self._merge_memory_regions(devmaps)
+        self._irqmap = self._merge_interrupts(irqs)
 
     @classmethod
     def _find_descriptors_of_type(cls, root: Any, typename: str) \
@@ -81,36 +88,37 @@ class OMParser:
                 for result in cls._find_kv_pair(value, keyname, valname):
                     yield result
 
-    def _parse_device(self, device: OMNode, names: List[str]) -> None:
+    def _parse_device(self, node: OMNode, names: List[str]) \
+            -> Tuple[List[Dict[str, OMMemoryRegion]],
+                     List[Dict[str, Tuple[str, int]]]]:
         """Parse a single device
 
-           :param device: the device root to parse
+           :param node: the device root to parse
            :param names: accepted device names (if empty, accept all)
         """
-        memregions: List[Dict[str, OMMemoryRegion]] = []
-        irqs = List[Dict[str, Tuple[str, int]]] = []
-        for region in device.get('memoryRegions', {}):
+        mmaps: List[Dict[str, OMMemoryRegion]] = []
+        irqs: List[Dict[str, Tuple[str, int]]] = []
+        for region in node.get('memoryRegions', {}):
             if 'registerMap' not in region:
                 continue
             regname = region['name'].lower()
             if names and regname not in names:
                 continue
-            width = device.get('beatBytes', 32)
-            comp = OMComponent(regname, width)
+            width = node.get('beatBytes', 32)
+            device = OMDevice(regname, width)
             grpdescs, reggroups = self._parse_region(region)
-            features = self._parse_features(device)
+            features = self._parse_features(node)
             if width:
                 features['data_bus'] = {'width': width}
-            memregions.append(self._parse_memory_map(device))
-            irqs.append(self._parse_interrupts(device))
+            mmaps.append(self._parse_memory_map(node))
+            irqs.append(self._parse_interrupts(node))
             freggroups = self._fuse_fields(reggroups)
             freggroups = self._factorize_fields(freggroups)
-            comp.descriptors = grpdescs
-            comp.fields = freggroups
-            comp.features = features
-            self._components[regname] = comp
-        self._memorymap = self._merge_memory_regions(memregions)
-        self._irqmap = self._merge_interrupts(irqs)
+            device.descriptors = grpdescs
+            device.fields = freggroups
+            device.features = features
+            self._devices[regname] = device
+        return mmaps, irqs
 
     def _parse_region(self, region: OMNode) \
             -> Tuple[Dict[str, str],
@@ -176,15 +184,15 @@ class OMParser:
         return groups, godict
 
     @classmethod
-    def _parse_features(cls, device: OMNode) -> Dict[str, Dict[str, bool]]:
+    def _parse_features(cls, node: OMNode) -> Dict[str, Dict[str, bool]]:
         """Parse the supported feature of a device.
 
-           :param device: the device to parse
+           :param node: the device node to parse
            :return: a dictionary of supported features, with optional options
         """
         features = {}
-        for sectname in device:
-            section = device[sectname]
+        for sectname in node:
+            section = node[sectname]
             if not isinstance(section, dict) or '_types' not in section:
                 continue
             features[sectname] = {}
@@ -199,38 +207,36 @@ class OMParser:
         return features
 
     @classmethod
-    def _parse_interrupts(cls, device: OMNode) \
-            -> Dict[str, Tuple[str, int]]:
+    def _parse_interrupts(cls, node: OMNode) -> Dict[str, Tuple[str, int]]:
         """Parse interrupts definitions.
 
-           :param device: the object model compoent to parse
+           :param node: the object model node to parse
            :return: an map of (name, (controller, channel))
         """
         ints = {}
-        for section in device.get('interrupts', []):
+        for section in node.get('interrupts', []):
             if not isinstance(section, dict) or '_types' not in section:
                 continue
             types = section['_types']
             if 'OMInterrupt' not in types:
                 continue
-            name = section['name'].replace('@', '_')
+            name = section['name'].replace('@', '_').lower()
             channel = section['numberAtReceiver']
             parent = section['receiver']
             ints[name] = (parent, channel)
         return ints
 
     @classmethod
-    def _parse_memory_map(cls, device: OMNode) \
-            -> Dict[str, OMMemoryRegion]:
+    def _parse_memory_map(cls, node: OMNode) -> Dict[str, OMMemoryRegion]:
         """Parse the memory map of a device.
 
-           :param device: the object model compoent to parse
+           :param node: the object model compoent to parse
            :return:
         """
         mmap = {}
-        for memregion in device.get('memoryRegions', []):
+        for memregion in node.get('memoryRegions', []):
             for addrset in memregion.get('addressSets', []):
-                name = memregion['name']
+                name = memregion['name'].lower()
                 mem = OMMemoryRegion(addrset['base'], addrset['mask'],
                                      memregion.get('description', ''))
             if name in mmap:
@@ -353,3 +359,59 @@ class OMParser:
             else:
                 outregs[gname] = (gregs, 1)
         return outregs
+
+    @classmethod
+    def _merge_memory_regions(cls,
+        memregions: Sequence[Dict[str, OMMemoryRegion]]) \
+            -> OrderedDict[str, OMMemoryRegion]:
+        """Merge device memory map into a general platform map.
+
+           This is a straightforware merge, which simply detects collision
+
+           :param memregions: the device memory maps
+           :return: the platform map
+        """
+        mmap = {}
+        for devmap in memregions:
+            for name, mreg in devmap.items():
+                if name in mmap:
+                    raise ValueError('Memory region {name} redefined')
+                mmap[name] = mreg
+        ommap = OrderedDict()
+        last: Optional[Tuple[str, OMMemoryRegion]] = None
+        for name in sorted(mmap, key=lambda n: mmap[n].base):
+            reg = mmap[name]
+            if last:
+                if last[1].base + last[1].size > reg.base:
+                    raise ValueError(f'Memory regions {last[0]} and {name} '
+                                     f'overlap')
+            ommap[name] = mmap[name]
+            last = (name, mmap[name])
+        return ommap
+
+    @classmethod
+    def _merge_interrupts(cls, irqs: Sequence[Dict[str, Tuple[str, int]]]) \
+        -> OrderedDict[str, int]:
+        """Merge interrup map into a general platform map.
+
+           This is a straightforware merge, which simply detects collision
+
+           :param irqs: the device interrupt maps
+           :return: the platform map
+        """
+        imap = {}
+        for irqmap in irqs:
+            for name, irq in irqmap.items():
+                if name in imap:
+                    raise ValueError('Interrupt {name} redefined')
+                imap[name] = irq
+        oimap = OrderedDict()
+        last: Optional[Tuple[str, Tuple[str, int]]] = None
+        for name in sorted(imap, key=lambda n: imap[n]):
+            irq = imap[name]
+            if last:
+                if last[1] == irq:
+                    raise ValueError(f'IRQ {last[0]} and {name} overlap')
+            oimap[name] = imap[name]
+            last = (name, imap[name])
+        return oimap

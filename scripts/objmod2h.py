@@ -37,7 +37,7 @@ def main(args=None) -> None:
                                help='Output directory')
         argparser.add_argument('-l', '--list', action='store_true',
                                default=False,
-                               help=f'List object model components')
+                               help=f'List object model devices')
         argparser.add_argument('-f', '--format', choices=outfmts,
                                default=outfmts[-1],
                                help=f'Output format (default: {outfmts[-1]})')
@@ -65,7 +65,7 @@ def main(args=None) -> None:
         generator = generators[args.format.title()]
         if len(compnames) == 1 or (not compnames and count == 1):
             comp = omp.get(compnames[0])
-            generator().generate(args.output, comp, args.width)
+            generator().generate_device(args.output, comp, args.width)
         elif args.dir:
             if not isdir(args.dir):
                 makedirs(args.dir)
@@ -76,7 +76,7 @@ def main(args=None) -> None:
                 filename = joinpath(args.dir, f'sifive_{comp.name}.h')
                 with open(filename, 'wt') as ofp:
                     print(f'Generating {name} as {filename}', file=args.output)
-                    generator().generate(ofp, comp, args.width)
+                    generator().generate_device(ofp, comp, args.width)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     if len(argv) > 1:
         main()
     else:
-        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d plic'.split())
-        # main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca -w 32'.split())
+        # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -d plic'.split())
+        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
         # main('-i /Users/eblot/Downloads/e24_hca.objectModel.json -d hca'.split())
         # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())

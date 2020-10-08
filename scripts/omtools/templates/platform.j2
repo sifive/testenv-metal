@@ -1,0 +1,23 @@
+/**
+ * Sysmte platform definitions
+ * @file {{ filename }}
+ *
+ * @note This file has been automatically generated from the platform object model.
+ *
+ * @copyright (c) 2020 SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+#ifndef SIFIVE_PLATFORM_H_
+#define SIFIVE_PLATFORM_H_
+
+#include <stdint.h>
+
+/*
+ * Interrupt channels
+ */
+{% for name, channel in interrupts -%}
+#define {{name}} {{channel}}U
+{% endfor %}
+
+#endif /* SIFIVE_PLATFORM_H_ */

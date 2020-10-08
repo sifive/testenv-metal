@@ -45,11 +45,5 @@ typedef union _{{ucomp}}_{{name}} {
         {% endfor %}
 {% endfor -%}
 {% endfor %}
-/*
- * Interrupt channels from {{ucomp}}
- */
-{% for name, channel in interrupts -%}
-#define {{name}} {{channel}}U
-{% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */
 

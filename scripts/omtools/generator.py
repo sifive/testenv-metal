@@ -9,7 +9,7 @@
 #pylint: disable-msg=cell-var-from-loop
 
 from copy import copy
-from os.path import basename, dirname
+from os.path import basename, dirname, join as joinpath, splitext
 from sys import modules
 from textwrap import dedent
 from typing import (Dict, Iterable, List, OrderedDict, Optional, TextIO, Tuple,
@@ -18,7 +18,7 @@ try:
     from jinja2 import Environment as JiEnv
 except ImportError:
     JiEnv = None
-from .model import OMAccess, OMComponent, OMRegField
+from .model import OMAccess, OMDevice, OMRegField
 
 
 class OMHeaderGenerator:
@@ -48,6 +48,25 @@ class OMHeaderGenerator:
             sname = name.replace('OM', '').replace('HeaderGenerator', '')
             generators[sname] = item
         return generators
+
+    def generate_device(self, ofp: TextIO, device: OMDevice,
+                        bitsize: Optional[int] = None) -> None:
+        """Generate a header file stream for a device.
+
+           :param ofp: the output stream
+           :param device: the device for which to generate the file
+           :param bitsize: the max width of register, in bits
+        """
+        raise NotImplementedError('Device generation is not supported with '
+                                  'this generator')
+
+    def generate_platform(self, ofp: TextIO) -> None:
+        """Generate a header file stream for the platform definitions.
+
+           :param ofp: the output stream
+        """
+        raise NotImplementedError('Device generation is not supported with '
+                                  'this generator')
 
     @classmethod
     def split_registers(cls,
@@ -102,28 +121,28 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
     EXTRA_SEP_COUNT = 2
     """Extra space count between columns."""
 
-    def generate(self, ofp: TextIO, comp: OMComponent,
-                 bitsize: Optional[int] = None) -> None:
-        """Generate a header file stream for a component.
+    def generate_device(self, ofp: TextIO, device: OMDevice,
+                        bitsize: Optional[int] = None) -> None:
+        """Generate a header file stream for a device.
 
            :param ofp: the output stream
-           :param comp: the component for which to generate the file
+           :param device: the device for which to generate the file
            :param bitsize: the max width of register, in bits
         """
         if bitsize is None:
-            bitsize = comp.width * 8
-        newgroups = self.split_registers(comp.fields, bitsize)
-        prefix = comp.name.upper()
+            bitsize = device.width * 8
+        newgroups = self.split_registers(device.fields, bitsize)
+        prefix = device.name.upper()
         if ofp.name and not ofp.name.startswith('<'):
             filename = basename(ofp.name)
         else:
-            filename = f'sifive_{comp.name}.h'
+            filename = f'sifive_{device.name}.h'
         self._generate_prolog(ofp, filename, prefix)
-        self._generate_features(ofp, prefix, comp.features)
-        self._generate_registers(ofp, prefix, newgroups, comp.descriptors)
+        self._generate_features(ofp, prefix, device.features)
+        self._generate_registers(ofp, prefix, newgroups, device.descriptors)
         print('', file=ofp)
         self._generate_fields(ofp, bitsize, prefix, newgroups,
-                             comp.descriptors)
+                             device.descriptors)
         self._generate_epilog(ofp, filename)
 
     @classmethod
@@ -258,29 +277,27 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
     }
     """OMAccess map for SIS formats."""
 
-    def generate(self, ofp: TextIO, comp: OMComponent,
-                 bitsize: Optional[int] = None) -> None:
-        """Generate a legacy header file stream for a component.
+    def generate_device(self, ofp: TextIO, device: OMDevice,
+                        bitsize: Optional[int] = None) -> None:
+        """Generate a legacy header file stream for a device.
 
            :param out: the output stream
-           :param comp: the component for which to generate the file
+           :param device: the device for which to generate the file
            :param bitsize: the max width of register, in bits
         """
         env = JiEnv(trim_blocks=False)
-        # template = env.from_string(modules[__name__].SIS_TEMPLATE.lstrip())
-        from os.path import join as joinpath, splitext
-        jinja = joinpath(dirname(__file__), 'objmod2h.j2')
+        jinja = joinpath(dirname(__file__), 'templates', 'device.j2')
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
-        grpfields = comp.fields
+        grpfields = device.fields
         if bitsize is None:
-            bitsize = comp.width * 8
+            bitsize = device.width * 8
         groups = self.split_registers(grpfields, bitsize)
-        ucomp = comp.name.upper()
+        ucomp = device.name.upper()
         if ofp.name and not ofp.name.startswith('<'):
             filename = basename(ofp.name)
         else:
-            filename = f'sifive_{comp.name}.h'
+            filename = f'sifive_{device.name}.h'
 
         # comppute how many hex nibbles are required to encode all byte offsets
         lastgroup, _ = grpfields[list(grpfields.keys())[-1]]
@@ -297,7 +314,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         type_ = f'uint{regwidth}_t'
 
         for name, (group, repeat) in groups.items():
-            gdesc = comp.descriptors.get(name, '')
+            gdesc = device.descriptors.get(name, '')
             fields = list(group.values())
             # cgroup generation
             if last_pos:
@@ -469,9 +486,14 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             wpad = ' ' * (swidth - 7)
             padders[:] = [bpad, wpad]
 
+        # shallow copy to avoid polluting locals dir
+        text = template.render(copy(locals()))
+        ofp.write(text)
+
+    def _generate_platform(self):
         interrupts = []
         ilen = 0
-        for name, (_, channel) in comp.interrupts.items():
+        for name, (_, channel) in device.interrupts.items():
             iname = f'{ucomp}_INTERRUPT_{name.upper()}_NUM'
             if len(iname) > ilen:
                 ilen = len(iname)
@@ -479,13 +501,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         widths = (ilen + self.EXTRA_SEP_COUNT, None)
         for idesc in interrupts:
             idesc[:] = self.pad_columns(idesc, widths)
-        # cgroups = {}
-        # fgroups = {}
-        # bgroups = {}
 
-        # shallow copy to avoid polluting locals dir
-        text = template.render(copy(locals()))
-        ofp.write(text)
 
     @classmethod
     def merge_access(cls, fields: List[OMRegField]) -> OMAccess:
