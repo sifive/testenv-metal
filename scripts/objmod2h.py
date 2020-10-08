@@ -42,6 +42,7 @@ class RegField(NamedTuple):
     access: Optional[str]
 
 
+
 class OMComponent:
     """Object model component container
 
@@ -52,7 +53,8 @@ class OMComponent:
         self._name = name
         self._width = width
         self._descriptors: Dict[str, str] = {}
-        self._fields: OrderedDict[str, OrderedDict[str, RegField]] = {}
+        self._fields: OrderedDict[str,
+                                  Tuple[OrderedDict[str, RegField], int]] = {}
         self._features: Dict[str, Dict[str, Union[int, bool]]] = {}
         self._interrupts: OrderedDict[str, Tuple[str, int]] = {}
 
@@ -139,12 +141,18 @@ class OMComponent:
 
 class OMHeaderGenerator:
     """Generic header generator (abstract class)
+
+       :param regwidth: the defaut register width
     """
+
+    def __init__(self, regwidth: int = 32):
+        self._regwidth = regwidth
 
     @classmethod
     def split_registers(cls,
-        reggroups: OrderedDict[str, OrderedDict[str, RegField]],
-        bitsize: int) -> OrderedDict[str, OrderedDict[str, RegField]]:
+        reggroups: OrderedDict[str, Tuple[OrderedDict[str, RegField], int]],
+        bitsize: int) \
+            -> OrderedDict[str, Tuple[OrderedDict[str, RegField], int]]:
         """Split register fields into bitsized register words.
 
             :param reggroups: register fields (indexed on group, name)
@@ -153,7 +161,7 @@ class OMHeaderGenerator:
         """
         outgroups = OrderedDict()
         for gname in reggroups:
-            registers = reggroups[gname]
+            registers, repeat = reggroups[gname]
             fregs = OrderedDict()
             for regname in registers:
                 field = registers[regname]
@@ -170,7 +178,7 @@ class OMHeaderGenerator:
                     fregs[f'{regname}_{wsize}'] = RegField(
                         field.offset+idx, min(bitsize, field.size-idx),
                         f'{field.desc} {wsize}', wreset, field.access)
-            outgroups[gname] = fregs
+            outgroups[gname] = (fregs, repeat)
         return outgroups
 
 
@@ -355,7 +363,6 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         jinja = joinpath('.'.join((splitext(__file__)[0], 'j2')))
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
-        #     grpdescs, grpfields, features, ints = self._comps[name.lower()]
         grpfields = comp.fields
         if bitsize is None:
             bitsize = comp.width * 8
@@ -366,11 +373,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         else:
             filename = f'sifive_{comp.name}.h'
 
-        # constant that may be tweaked, or computed, TBD
-        regbits = 32
-
         # comppute how many hex nibbles are required to encode all byte offsets
-        lastgroup = grpfields[list(grpfields.keys())[-1]]
+        lastgroup, _ = grpfields[list(grpfields.keys())[-1]]
         lastfield = lastgroup[list(lastgroup.keys())[-1]]
         hioffset = lastfield.offset//8
         encbit = int.bit_length(hioffset)
@@ -380,22 +384,28 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         fgroups = OrderedDict()
         last_pos = 0
         rsv = 0
-        type_ = f'uint{regbits}_t'
+        regwidth = self._regwidth
+        type_ = f'uint{regwidth}_t'
 
-        for name, group in groups.items():
+        for name, (group, repeat) in groups.items():
             gdesc = comp.descriptors.get(name, '')
             fields = list(group.values())
             # cgroup generation
             if last_pos:
                 padding = fields[0].offset-last_pos
-                if padding >= regbits:
-                    tsize = (padding + regbits - 1)//regbits
+                if padding >= regwidth:
+                    tsize = (padding + regwidth - 1)//regwidth
                     rname = f'_reserved{rsv}'
-                    rname = f'{rname};' if tsize == 1 else f'{rname}[{tsize}U];'
+                    if tsize == 1:
+                        rname = f'{rname};'
+                    elif tsize <= regwidth:
+                        rname = f'{rname}[{tsize}U];'
+                    else:
+                        rname = f'{rname}[0x{tsize:x}U];'
                     cgroups[rname] = ['     ', type_, rname, '']
                     rsv += 1
             size = fields[-1].offset + fields[-1].size - fields[0].offset
-            tsize = (size + regbits - 1)//regbits
+            tsize = (size + regwidth - 1)//regwidth
             # conditions to use 64 bit register
             # - 64 bit should be enable
             # - 32 bit word count should be even
@@ -408,16 +418,22 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 gsize = bitsize
             else:
                 rtype = type_
-                gsize = regbits
+                gsize = regwidth
             uname = name.upper()
-            fmtname = f'{uname};' if tsize == 1 else f'{uname}[{tsize}U];'
+            if repeat == 1:
+                fmtname = f'{uname};' if tsize == 1 else f'{uname}[{tsize}U];'
+            else:
+                if tsize == 1:
+                    fmtname = f'{uname}[{repeat}U];'
+                else:
+                    fmtname = f'{uname}[{tsize}U][{repeat}U];'
             access, perm = self.SIS_ACCESS_MAP[self.merge_access(fields)]
             offset = fields[0].offset // 8
             desc = f'Offset: 0x{offset:0{hwx}X} ({access})'
             if gdesc:
                 desc = f'{desc} {gdesc}'
             cgroups[uname] = [perm, rtype, fmtname, desc]
-            regsize = (fields[-1].size + regbits -1 ) & ~ (regbits - 1)
+            regsize = (fields[-1].size + regwidth -1 ) & ~ (regwidth - 1)
             last_pos = fields[-1].offset + regsize
 
             # fgroup generation
@@ -487,7 +503,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
 
         bgroups = OrderedDict()
         bflen = 0
-        for name, group in grpfields.items():
+        for name, (group, _) in grpfields.items():
             uname = name.upper()
             fieldcount = len(group)
             last_pos = 0
@@ -523,7 +539,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 last_pos = offset + field.size
                 if len(vstr) > bflen:
                     bflen = len(vstr)
-            padding = regbits - last_pos
+            padding = regwidth - last_pos
             if padding > 0:
                 bitcount += padding
                 desc = bitdesc(last_pos, padding, '(reserved)')
@@ -532,7 +548,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 if len(vstr) > bflen:
                     bflen = len(vstr)
             if bitcount > gsize:
-                raise RuntimeError('Generated fields too wide: {bitcount}')
+                raise RuntimeError(f'Generated fields for {name} too wide: {bitcount}')
             if bits:
                 bgroups[uname] = (type_, bits, [0, 0])
         widths = (len(type_), bflen + self.EXTRA_SEP_COUNT, 0)
@@ -609,10 +625,12 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
 class OMParser:
     """JSON object model converter.
 
-       :param names: one or more IP names to extract from the object model
+       :param regwidth: the defaut register width
+       :param debug: set to report more info on errors
     """
 
-    def __init__(self, debug=False):
+    def __init__(self, regwidth: int = 32, debug=False):
+        self._regwidth = regwidth
         self._debug = debug
         self._components: Dict[str, Optional[OMComponent]] = {}
 
@@ -674,10 +692,11 @@ class OMParser:
             features = self._parse_features(component)
             if width:
                 features['data_bus'] = {'width': width}
-            mreggroups = self._fuse_fields(reggroups, 32)
             ints = self._parse_interrupts(component)
+            freggroups = self._fuse_fields(reggroups)
+            freggroups = self._factorize_fields(freggroups)
             comp.descriptors = grpdescs
-            comp.fields = mreggroups
+            comp.fields = freggroups
             comp.features = features
             comp.interrupts = ints
             self._components[regname] = comp
@@ -792,14 +811,12 @@ class OMParser:
             ((i, ints[i]) for i in sorted(ints, key=lambda i: ints[i])))
         return interrupts
 
-    @classmethod
-    def _fuse_fields(cls,
-        reggroups: OrderedDict[str, OrderedDict[str, RegField]],
-        regsize: int) -> OrderedDict[str, OrderedDict[str, RegField]]:
+    def _fuse_fields(self,
+            reggroups: OrderedDict[str, OrderedDict[str, RegField]]) \
+            -> OrderedDict[str, OrderedDict[str, RegField]]:
         """Merge 8-bit groups belonging to the same registers.
 
             :param reggroups: register fields (indexed on group, name)
-            :param regsize: width in bits of a register
             :return: a dictionary of groups of register fields
         """
         outregs = OrderedDict()
@@ -821,7 +838,7 @@ class OMParser:
                 fusion = True
                 for fname in fldnames:
                     reg = gregs[fname]
-                    if exp_pos == 0 and reg.offset & (regsize - 1) != 0:
+                    if exp_pos == 0 and reg.offset & (self._regwidth - 1) != 0:
                         fusion = False
                         # cannot fuse, first field does not start on a register
                         # boundary
@@ -867,13 +884,52 @@ class OMParser:
                                        nreset, breg.access)
                         mregs[mname] = reg
             outregs[gname] = mregs
-        #exit(0)
         #print("------ INPUT ------")
         #pprint(reggroups)
         #print('')
-        #print("------ OUTPUT ------")
-        #pprint(outregs)
-        #print('')
+        # print("------ OUTPUT ------")
+        # pprint(outregs)
+        # print('')
+        # exit(0)
+        return outregs
+
+    def _factorize_fields(self,
+            reggroups: OrderedDict[str, OrderedDict[str, RegField]]) -> \
+            OrderedDict[str, Tuple[OrderedDict[str, RegField], int]]:
+        """Search if identical fields can be factorized.
+           This implementation is quite fragile and should be reworked,
+           as it only works with simple cases.
+
+            :param reggroups: register fields (indexed on group, name)
+            :return: a dictionary of groups of register fields and repeat count
+        """
+        outregs = OrderedDict()
+        for gname, gregs in reggroups.items():  # HW group name
+            factorize = True
+            field0 = None
+            stride = 0
+            for field in gregs.values():
+                if not field0:
+                    field0 = field
+                    stride = field0.offset & (self._regwidth -1)
+                    continue
+                if field.offset & (self._regwidth - 1) != stride:
+                    factorize = False
+                    break
+                if (field.size != field0.size or
+                    field.reset != field0.reset or
+                    field.access != field0.access):
+                    factorize = False
+                    break
+            if factorize:
+                repeat = len(gregs)
+                cname = commonprefix(list(gregs.keys()))
+                cdesc = commonprefix([f.desc for f in gregs.values()])
+                field = RegField(field0.offset, field0.size, cdesc,
+                                 field0.reset, field0.access)
+                outregs[gname] = (OrderedDict(cname=field), repeat)
+            else:
+                outregs[gname] = (gregs, 1)
         return outregs
 
 
@@ -968,7 +1024,7 @@ def main(args=None) -> None:
         args = argparser.parse_args(args)
         debug = args.debug
 
-        omp = OMParser(debug)
+        omp = OMParser(debug=debug)
         compnames = [c.lower() for c in args.comp]
         omp.parse(args.input, compnames)
         if args.list:
@@ -1014,8 +1070,7 @@ if __name__ == '__main__':
     if len(argv) > 1:
         main()
     else:
-        # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d plic'.split())
-        main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
-        # exit(0)
+        main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d plic'.split())
+        # main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca -w 32'.split())
         # main('-i /Users/eblot/Downloads/e24_hca.objectModel.json -d hca'.split())
-        #main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())
+        # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())
