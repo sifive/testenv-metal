@@ -686,7 +686,7 @@ class OMParser:
             regname = region['name'].lower()
             if names and regname not in names:
                 continue
-            width = component.get('beatBytes', 0)
+            width = component.get('beatBytes', 32)
             comp = OMComponent(regname, width)
             grpdescs, reggroups = self._parse_region(region)
             features = self._parse_features(component)
@@ -1021,7 +1021,7 @@ def main(args=None) -> None:
                                help=f'Output format (default: {outfmts[-1]})')
         argparser.add_argument('-w', '--width', type=int,
                                choices=(8, 16, 32, 64), default=None,
-                               help='Output register width (default: auto)')
+                               help='Force register width (default: auto)')
         argparser.add_argument('-d', '--debug', action='store_true',
                                help='Enable debug mode')
 
