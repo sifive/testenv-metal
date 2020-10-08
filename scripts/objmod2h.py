@@ -71,12 +71,18 @@ def main(args=None) -> None:
                 makedirs(args.dir)
             if not compnames:
                 compnames = [c.name for c in omp]
-            for name in compnames:
-                comp = omp.get(name)
-                filename = joinpath(args.dir, f'sifive_{comp.name}.h')
-                with open(filename, 'wt') as ofp:
-                    print(f'Generating {name} as {filename}', file=args.output)
-                    generator().generate_device(ofp, comp, args.width)
+            #for name in compnames:
+            #    comp = omp.get(name)
+            #    filename = joinpath(args.dir, f'sifive_{comp.name}.h')
+            #    with open(filename, 'wt') as ofp:
+            #        print(f'Generating {name} as {filename}', file=args.output)
+            #        generator().generate_device(ofp, comp, args.width)
+            filename = joinpath(args.dir, f'sifive_platform.h')
+            with open(filename, 'wt') as ofp:
+                print(f'Generating platform file as {filename}',
+                      file=args.output)
+                generator().generate_platform(ofp, omp.memory_map,
+                                              omp.interrupt_map)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)

@@ -10,6 +10,7 @@
 
 from copy import copy
 from os.path import basename, dirname, join as joinpath, splitext
+from pprint import pprint
 from sys import modules
 from textwrap import dedent
 from typing import (Dict, Iterable, List, OrderedDict, Optional, TextIO, Tuple,
@@ -18,7 +19,7 @@ try:
     from jinja2 import Environment as JiEnv
 except ImportError:
     JiEnv = None
-from .model import OMAccess, OMDevice, OMRegField
+from .model import OMAccess, OMDevice, OMMemoryRegion, OMRegField
 
 
 class OMHeaderGenerator:
@@ -60,10 +61,14 @@ class OMHeaderGenerator:
         raise NotImplementedError('Device generation is not supported with '
                                   'this generator')
 
-    def generate_platform(self, ofp: TextIO) -> None:
+    def generate_platform(self, ofp: TextIO,
+                          memorymap: OrderedDict[str, OMMemoryRegion],
+                          intmap: OrderedDict[str, Tuple[str, int]]) -> None:
         """Generate a header file stream for the platform definitions.
 
            :param ofp: the output stream
+           :param memory map: the memory map of the platform
+           :param intmap: the interrupt map of the platform
         """
         raise NotImplementedError('Device generation is not supported with '
                                   'this generator')
@@ -279,9 +284,9 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
 
     def generate_device(self, ofp: TextIO, device: OMDevice,
                         bitsize: Optional[int] = None) -> None:
-        """Generate a legacy header file stream for a device.
+        """Generate a SIS header file stream for a device.
 
-           :param out: the output stream
+           :param ofp: the output stream
            :param device: the device for which to generate the file
            :param bitsize: the max width of register, in bits
         """
@@ -490,18 +495,53 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         text = template.render(copy(locals()))
         ofp.write(text)
 
-    def _generate_platform(self):
+    def generate_platform(self, ofp: TextIO,
+                          memorymap: OrderedDict[str, OMMemoryRegion],
+                          intmap: OrderedDict[str, Tuple[str, int]]) \
+            -> None:
+        """Generate a header file stream for the platform.
+
+           :param ofp: the output stream
+           :param memory map: the memory map of the platform
+           :param intmap: the interrupt map of the platform
+        """
+        env = JiEnv(trim_blocks=False)
+        jinja = joinpath(dirname(__file__), 'templates', 'platform.j2')
+        with open(jinja, 'rt') as jfp:
+            template = env.from_string(jfp.read())
+        memoryregions = []
+        pprint(memorymap)
+        mlen = 0
+        for name, memregion in memorymap.items():
+            ucomp = name.upper()
+            properties = []
+            aname = f'{ucomp}_BASE_ADDRESS'
+            properties.append((aname, memregion.base))
+            if len(aname) > mlen:
+                mlen = len(aname)
+            sname = f'{ucomp}_SIZE'
+            properties.append((sname, memregion.size))
+            if len(sname) > mlen:
+                mlen = len(sname)
+            memoryregions.append((memregion.desc, properties))
+        pprint(memoryregions)
+
         interrupts = []
         ilen = 0
-        for name, (_, channel) in device.interrupts.items():
-            iname = f'{ucomp}_INTERRUPT_{name.upper()}_NUM'
-            if len(iname) > ilen:
-                ilen = len(iname)
-            interrupts.append([iname, channel])
+        for name, ints in intmap.items():
+            ucomp = name.upper()
+            for interrupt in ints:
+                iname = f'{ucomp}_INTERRUPT_{interrupt.name.upper()}_NUM'
+                if len(iname) > ilen:
+                    ilen = len(iname)
+                interrupts.append([iname, interrupt.channel])
         widths = (ilen + self.EXTRA_SEP_COUNT, None)
         for idesc in interrupts:
             idesc[:] = self.pad_columns(idesc, widths)
 
+        # shallow copy to avoid polluting locals dir
+        text = template.render(copy(locals()))
+        ofp.write(text)
 
     @classmethod
     def merge_access(cls, fields: List[OMRegField]) -> OMAccess:

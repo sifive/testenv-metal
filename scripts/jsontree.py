@@ -53,6 +53,11 @@ class JsonTree:
                         else:
                             result.append(value)
                         yield list(reversed(result))
+                    elif isinstance(value, list) and \
+                         all([isinstance(v, (int, str, bool)) for v in value]):
+                        result.append(None)
+                        result.append(', '.join([str(v) for v in value]))
+                        yield list(reversed(result))
                     else:
                         yield result
                 for result in cls._find(item, value, icase, showval):

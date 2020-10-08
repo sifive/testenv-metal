@@ -35,6 +35,14 @@ class OMMemoryRegion(NamedTuple):
     desc: str
 
 
+class OMInterrupt(NamedTuple):
+    """Interrupt."""
+
+    name: str
+    channel: int
+    parent: str
+
+
 class OMDevice:
     """Object model device container
 
