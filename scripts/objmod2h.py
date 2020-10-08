@@ -927,7 +927,9 @@ class OMParser:
                 cdesc = commonprefix([f.desc for f in gregs.values()])
                 field = RegField(field0.offset, field0.size, cdesc,
                                  field0.reset, field0.access)
-                outregs[gname] = (OrderedDict(cname=field), repeat)
+                greg = OrderedDict()
+                greg[cname] = field
+                outregs[gname] = (greg, repeat)
             else:
                 outregs[gname] = (gregs, 1)
         return outregs
