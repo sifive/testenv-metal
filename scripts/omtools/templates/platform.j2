@@ -1,6 +1,6 @@
 /**
- * Sysmte platform definitions
- * @file {{ filename }}
+ * System platform definitions
+ * @file sifive_platform.h
  *
  * @note This file has been automatically generated from the platform object model.
  *
@@ -11,13 +11,23 @@
 #ifndef SIFIVE_PLATFORM_H_
 #define SIFIVE_PLATFORM_H_
 
-#include <stdint.h>
+/*
+ * Memory map
+ */
 
+{% for desc, items in memoryregions -%}
+/* {{desc}} */
+{% for name, value in items -%}
+#define {{name}} {{value}}U
+{% endfor %}
+{% endfor %}
 /*
  * Interrupt channels
  */
-{% for name, channel in interrupts -%}
+{%- for interrupts in intdomains -%}
+    {%- for name, channel in interrupts %}
 #define {{name}} {{channel}}U
+    {%- endfor %}
 {% endfor %}
 
 #endif /* SIFIVE_PLATFORM_H_ */

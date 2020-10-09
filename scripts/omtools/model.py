@@ -17,6 +17,14 @@ OMAccess = Enum('OMAccess', 'R RW W RFWT_ONE_TO_CLEAR')
 """Register access types."""
 
 
+class HexInt(int):
+    """Integral number wrapper to help debugging."""
+
+    def __repr__(self):
+        """Represent the integer as an hexadecimal number."""
+        return f'0x{self:x}'
+
+
 class OMRegField(NamedTuple):
     """Register description.
     """
@@ -30,7 +38,8 @@ class OMRegField(NamedTuple):
 class OMMemoryRegion(NamedTuple):
     """Device memory region."""
 
-    base: int
+    name: str
+    base: HexInt
     size: int
     desc: str
 
@@ -39,6 +48,7 @@ class OMInterrupt(NamedTuple):
     """Interrupt."""
 
     name: str
+    instance: HexInt
     channel: int
     parent: str
 

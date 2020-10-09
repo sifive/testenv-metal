@@ -14,8 +14,8 @@ from re import sub as re_sub
 from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterator, List, OrderedDict,
                     Optional, Sequence, TextIO, Tuple)
-from .model import (OMAccess, OMDevice, OMInterrupt, OMMemoryRegion, OMNode,
-                    OMRegField)
+from .model import (HexInt, OMAccess, OMDevice, OMInterrupt, OMMemoryRegion,
+                    OMNode, OMRegField)
 
 
 class OMParser:
@@ -30,7 +30,7 @@ class OMParser:
         self._debug = debug
         self._devices: Dict[str, Optional[OMDevice]] = {}
         self._memorymap: OrderedDict[str, OMMemoryRegion] = OrderedDict()
-        self._intmap: OrderedDict[str, Tuple[str, int]] = OrderedDict()
+        self._intmap: OrderedDict[str, OrderedDict[str, int]] = OrderedDict()
 
     def get(self, name) -> OMDevice:
         """Return a device from its object model name, if any.
@@ -48,7 +48,7 @@ class OMParser:
         return self._memorymap
 
     @property
-    def interrupt_map(self) -> OrderedDict[str, Tuple[str, int]]:
+    def interrupt_map(self) -> OrderedDict[str, OrderedDict[str, int]]:
         """Return the platform interrupt map."""
         return self._intmap
 
@@ -74,9 +74,9 @@ class OMParser:
             dev = self._parse_device(node, names or [])
             if not dev:
                 continue
-            name, mmap, ints, devices = dev
-            if mmap:
-                devmaps.append((name, mmap))
+            name, mmaps, ints, devices = dev
+            if mmaps:
+                devmaps.append((name, mmaps))
             if ints:
                 interrupts.append((name, ints))
             # to be reworked
@@ -110,14 +110,14 @@ class OMParser:
                     yield result
 
     def _parse_device(self, node: OMNode, names: List[str]) \
-            -> Optional[Tuple[str, Dict[str, OMMemoryRegion],
-                              List[OMInterrupt], Dict[str, OMDevice]]]:
+            -> Optional[Tuple[str, List[OMMemoryRegion], List[OMInterrupt],
+                              Dict[str, OMDevice]]]:
         """Parse a single device
 
            :param node: the device root to parse
            :param names: accepted device names (if empty, accept all)
-           :return: a 4-uple of device name, memory region, interrupts and
-                    one or more device/subdevice 
+           :return: a 4-uple of device name, memory regions, interrupts and
+                    one or more device/subdevice
         """
         types = [t.strip() for t in node.get('_types')]
         devtype = types[0]  # from most specialized to less specialized
@@ -143,7 +143,7 @@ class OMParser:
             device.fields = freggroups
             device.features = features
             devices[regname] = device
-        mmaps = self._parse_memory_map(node)  # Dict[str, OMMemoryRegion]
+        mmaps = self._parse_memory_map(node)  # List[OMMemoryRegion]
         irqs = self._parse_interrupts(node)  # List[OMInterrupt]
         return name, mmaps, irqs, devices
 
@@ -234,42 +234,48 @@ class OMParser:
         return features
 
     @classmethod
+    def _parse_memory_map(cls, node: OMNode) -> List[OMMemoryRegion]:
+        """Parse the memory map of a device.
+
+           :param node: the object model compoent to parse
+           :return: a list of memory regions
+        """
+        mmap = []
+        for memregion in node.get('memoryRegions', []):
+            for addrset in memregion.get('addressSets', []):
+                name = memregion['name'].lower()
+                mem = OMMemoryRegion(name, addrset['base'], addrset['mask'],
+                                     memregion.get('description', ''))
+            mmap.append(mem)
+        return mmap
+
+    @classmethod
     def _parse_interrupts(cls, node: OMNode) -> List[OMInterrupt]:
         """Parse interrupts definitions.
 
            :param node: the object model node to parse
-           :return: an map of (name, (controller, channel))
+           :return: a list of device interrupts
         """
         ints = []
+        sections = []
         for section in node.get('interrupts', []):
             if not isinstance(section, dict) or '_types' not in section:
                 continue
             types = section['_types']
             if 'OMInterrupt' not in types:
                 continue
-            name = section['name'].replace('@', '_').lower()
+            sections.append(section)
+        count = len(sections)
+        for pos, section in enumerate(sections):
+            names = section['name'].split('@')
+            name = names[0].lower().replace('-', '_')
+            instance = HexInt(int(names[1], 16) if len(names) > 1 else 0)
             channel = section['numberAtReceiver']
             parent = section['receiver']
-            ints.append(OMInterrupt(name, channel, parent))
+            if count > 1:
+                name = f'{name}{pos}'
+            ints.append(OMInterrupt(name, instance, channel, parent))
         return ints
-
-    @classmethod
-    def _parse_memory_map(cls, node: OMNode) -> Dict[str, OMMemoryRegion]:
-        """Parse the memory map of a device.
-
-           :param node: the object model compoent to parse
-           :return:
-        """
-        mmap = {}
-        for memregion in node.get('memoryRegions', []):
-            for addrset in memregion.get('addressSets', []):
-                name = memregion['name'].lower()
-                mem = OMMemoryRegion(addrset['base'], addrset['mask'],
-                                     memregion.get('description', ''))
-            if name in mmap:
-                raise ValueError(f'Memory region {name} redefined')
-            mmap[name] = mem
-        return mmap
 
     def _fuse_fields(self,
             reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
@@ -389,7 +395,7 @@ class OMParser:
 
     @classmethod
     def _merge_memory_regions(cls,
-        memregions: Sequence[Tuple[str, Dict[str, OMMemoryRegion]]]) \
+        memregions: Sequence[Tuple[str, List[OMMemoryRegion]]]) \
             -> OrderedDict[str, OMMemoryRegion]:
         """Merge device memory map into a general platform map.
 
@@ -400,16 +406,17 @@ class OMParser:
         """
         mmap = {}
         for name, devmap in memregions:
+            iname = name.replace('-', '_')
             if len(devmap) == 1:
                 if name in mmap:
-                    raise ValueError('Memory region {name} redefined')
-                mreg = list(devmap.values())[0]
-                mmap[name] = mreg
+                    raise ValueError(f'Memory region {name} redefined')
+                mmap[iname] = devmap[0]
             else:
-                for subname, mreg in devmap.items():
-                    dname = f'{name}_{subname}'
+                for mreg in devmap:
+                    subname = mreg.desc.replace(' ', '_').lower()
+                    dname = f'{iname}_{subname}'
                     if dname in mmap:
-                        raise ValueError('Memory region {dname} redefined')
+                        raise ValueError(f'Memory region {dname} redefined')
                     mmap[dname] = mreg
         ommap = OrderedDict()
         last: Optional[Tuple[str, OMMemoryRegion]] = None
@@ -426,26 +433,41 @@ class OMParser:
     @classmethod
     def _merge_interrupts(cls,
             interrupts: Sequence[Tuple[str, Sequence[OMInterrupt]]]) \
-        -> OrderedDict[str, int]:
+        -> OrderedDict[str, OrderedDict[str, int]]:
         """Merge interrup map into a general platform map.
 
            This is a straightforware merge, which simply detects collision
 
            :param irqs: the device interrupt maps
-           :return: the platform map
+           :return: the platform interrupt map (parent, (name, irq))
         """
         imap = {}
+        domain = {}
         for name, ints in interrupts:
-            if not name in imap:
-                imap[name] = []
-            imap[name].extend(ints)
+            for interrupt in ints:
+                parent = interrupt.parent.split('@')[0].replace('-', '_')
+                if parent not in domain:
+                    domain[parent] = set()
+                if interrupt.channel in domain[parent]:
+                    raise ValueError(f'Interrupt {interrupt.channel} redefined '
+                                     f'in domain {parent}')
+                domain[parent].add(interrupt.channel)
+            if parent not in imap:
+                imap[parent] = {}
+            if name not in imap[parent]:
+                imap[parent][name] = []
+            imap[parent][name].extend(ints)
+        for intdomain in imap.values():
+            for ints in intdomain.values():
+                ints.sort(key=lambda i: i.channel)
         oimap = OrderedDict()
         last: Optional[Tuple[str, OMInterrupt]] = None
-        for name in sorted(imap, key=lambda n: imap[n]):
-            interrupt = imap[name]
-            if last:
-                if last[1].channel == interrupt:
-                    raise ValueError(f'IRQ {last[0]} and {name} overlap')
-            oimap[name] = imap[name]
-            last = (name, imap[name])
+        for parent in sorted(imap):
+            pimap = imap[parent]
+            for device in sorted(pimap, key=lambda d: pimap[d][0].channel):
+                if parent not in oimap:
+                    oimap[parent] = OrderedDict()
+                if device not in oimap[parent]:
+                    oimap[parent][device] = OrderedDict()
+                oimap[parent][device] = imap[parent][device]
         return oimap

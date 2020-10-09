@@ -61,9 +61,10 @@ class OMHeaderGenerator:
         raise NotImplementedError('Device generation is not supported with '
                                   'this generator')
 
-    def generate_platform(self, ofp: TextIO,
-                          memorymap: OrderedDict[str, OMMemoryRegion],
-                          intmap: OrderedDict[str, Tuple[str, int]]) -> None:
+    def generate_platform(self,
+            ofp: TextIO,
+            memorymap: OrderedDict[str, OMMemoryRegion],
+            intmap: OrderedDict[str, OrderedDict[str, int]]) -> None:
         """Generate a header file stream for the platform definitions.
 
            :param ofp: the output stream
@@ -495,10 +496,10 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         text = template.render(copy(locals()))
         ofp.write(text)
 
-    def generate_platform(self, ofp: TextIO,
-                          memorymap: OrderedDict[str, OMMemoryRegion],
-                          intmap: OrderedDict[str, Tuple[str, int]]) \
-            -> None:
+    def generate_platform(self,
+            ofp: TextIO,
+            memorymap: OrderedDict[str, OMMemoryRegion],
+            intmap: OrderedDict[str, OrderedDict[str, int]]) -> None:
         """Generate a header file stream for the platform.
 
            :param ofp: the output stream
@@ -509,35 +510,43 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         jinja = joinpath(dirname(__file__), 'templates', 'platform.j2')
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
+
         memoryregions = []
-        pprint(memorymap)
         mlen = 0
         for name, memregion in memorymap.items():
             ucomp = name.upper()
             properties = []
             aname = f'{ucomp}_BASE_ADDRESS'
-            properties.append((aname, memregion.base))
+            properties.append([aname, f'0x{memregion.base:08X}'])
             if len(aname) > mlen:
                 mlen = len(aname)
             sname = f'{ucomp}_SIZE'
-            properties.append((sname, memregion.size))
+            properties.append([sname, f'0x{memregion.size+1:08X}'])
             if len(sname) > mlen:
                 mlen = len(sname)
-            memoryregions.append((memregion.desc, properties))
-        pprint(memoryregions)
+            desc = f'{name.title()} {memregion.desc}'
+            memoryregions.append((desc, properties))
+        widths = (mlen + self.EXTRA_SEP_COUNT, None)
+        for _, memregs in memoryregions:
+            for memreg in memregs:
+                memreg[:] = self.pad_columns(memreg, widths)
 
-        interrupts = []
+        intdomains = []
         ilen = 0
-        for name, ints in intmap.items():
-            ucomp = name.upper()
-            for interrupt in ints:
-                iname = f'{ucomp}_INTERRUPT_{interrupt.name.upper()}_NUM'
-                if len(iname) > ilen:
-                    ilen = len(iname)
-                interrupts.append([iname, interrupt.channel])
+        for parent, imap in intmap.items():
+            interrupts = []
+            for name, ints in imap.items():
+                ucomp = name.upper()
+                for interrupt in ints:
+                    iname = f'{ucomp}_INTERRUPT_{interrupt.name.upper()}_NUM'
+                    if len(iname) > ilen:
+                        ilen = len(iname)
+                    interrupts.append([iname, interrupt.channel])
+            intdomains.append(interrupts)
         widths = (ilen + self.EXTRA_SEP_COUNT, None)
-        for idesc in interrupts:
-            idesc[:] = self.pad_columns(idesc, widths)
+        for interrupts in intdomains:
+            for idesc in interrupts:
+                idesc[:] = self.pad_columns(idesc, widths)
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
