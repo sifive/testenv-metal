@@ -69,11 +69,17 @@ class OMParser:
         objmod = json_loads(mfp.read())
         devmaps: List[Tuple[str, Dict[str, OMMemoryRegion]]] = []
         interrupts: List[Tuple[str, List[OMInterrupt]]] = []
+        devkinds = {}
         for path, node in self._find_descriptors_of_type(objmod, 'OMDevice'):
             dev = self._parse_device(path, node, names or [])
             if not dev:
                 continue
-            name, mmaps, ints, devices = dev
+            devname, mmaps, ints, devices = dev
+            if devname not in devkinds:
+                devkinds[devname] = 0
+            else:
+                devkinds[devname] += 1
+            name = f'{devname}{devkinds[devname]}'
             if mmaps:
                 devmaps.append((name, mmaps))
             if ints:
@@ -92,7 +98,7 @@ class OMParser:
             -> Iterator[Tuple[str, OMNode]]:
         for rpath, node in cls._find_kv_pair(root, '_types', typename):
             path = '.'.join(reversed(rpath))
-            print(f'Path: {path}: {node.get("_types")[0]}')
+            # print(f'Path: {path}: {node.get("_types")[0]}')
             yield path, node
 
     @classmethod
@@ -266,7 +272,6 @@ class OMParser:
         """
         ints = []
         sections = []
-        namecount = {}
         for section in node.get('interrupts', []):
             if not isinstance(section, dict) or '_types' not in section:
                 continue
@@ -274,11 +279,6 @@ class OMParser:
             if 'OMInterrupt' not in types:
                 continue
             sections.append(section)
-            name = section['name'].lower().split('@', 1)[0]
-            if name not in namecount:
-                namecount[name] = 1
-            else:
-                namecount[name] += 1
         if not sections:
             return ints
         for pos, section in enumerate(sections):
@@ -287,8 +287,6 @@ class OMParser:
             instance = HexInt(int(names[1], 16) if len(names) > 1 else 0)
             channel = section['numberAtReceiver']
             parent = section['receiver']
-            if namecount[names[0]] > 1:
-                name = f'{name}{pos}'
             ints.append(OMInterrupt(name, instance, channel, parent))
         return ints
 
@@ -423,30 +421,16 @@ class OMParser:
         for name, devmap in memregions:
             iname = name.replace('-', '_')
             if len(devmap) == 1:
-                if iname not in mmap:
-                    mmap[iname] = []
-                mmap[iname].append(devmap[0])
+                mmap[iname] = devmap[0]
             else:
                 for mreg in devmap:
                     subname = mreg.desc.replace(' ', '_').lower()
                     dname = f'{iname}_{subname}'
-                    if dname not in mmap:
-                        mmap[dname] = []
-                    mmap[dname].append(mreg)
-        # sort in-place sibling devices by their base address
-        for devs in mmap.values():
-            devs[:] = sorted(devs, key=lambda d: d.base)
+                    mmap[dname] = mreg
         ommap = OrderedDict()
         # sort devices by address
-        for name in sorted(mmap, key=lambda n: mmap[n][0].base):
-            devices = mmap[name]
-            for pos, dev in enumerate(devices):
-                parts = name.split('_', 1)
-                if len(parts) == 1:
-                    dname = f'{parts[0]}{pos}'
-                else:
-                    dname = f'{parts[0]}{pos}_{parts[1]}'
-                ommap[dname] = dev
+        for name in sorted(mmap, key=lambda n: mmap[n].base):
+            ommap[name] = mmap[name]
         return ommap
 
     @classmethod
@@ -462,7 +446,6 @@ class OMParser:
         """
         imap = {}
         domain = {}
-        pprint(interrupts)
         for name, ints in interrupts:
             for interrupt in ints:
                 # hack ahead:
