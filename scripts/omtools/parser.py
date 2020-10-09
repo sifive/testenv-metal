@@ -28,7 +28,6 @@ class OMParser:
     def __init__(self, regwidth: int = 32, debug=False):
         self._regwidth = regwidth
         self._debug = debug
-        self._devtypes: Dict[str, Set[str]] = {}
         self._devices: Dict[str, Optional[OMDevice]] = {}
         self._memorymap: OrderedDict[str, OMMemoryRegion] = OrderedDict()
         self._intmap: OrderedDict[str, OrderedDict[str, int]] = OrderedDict()
@@ -75,11 +74,6 @@ class OMParser:
             if not dev:
                 continue
             name, mmaps, ints, devices = dev
-            if name not in self._devtypes:
-                self._devtypes[name] = set()
-            if path in self._devtypes[name]:
-                raise ValueError(f'Device {path}.{name} redefined')
-            self._devtypes[name].add(path)
             if mmaps:
                 devmaps.append((name, mmaps))
             if ints:
@@ -155,8 +149,8 @@ class OMParser:
             device.fields = freggroups
             device.features = features
             devices[regname] = device
-        mmaps = self._parse_memory_map(node)  # List[OMMemoryRegion]
-        irqs = self._parse_interrupts(node)  # List[OMInterrupt]
+        mmaps = self._parse_memory_map(node)
+        irqs = self._parse_interrupts(node)
         return name, mmaps, irqs, devices
 
     def _parse_region(self, region: OMNode) \
