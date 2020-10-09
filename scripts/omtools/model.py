@@ -28,7 +28,7 @@ class HexInt(int):
 class OMRegField(NamedTuple):
     """Register description.
     """
-    offset: int
+    offset: HexInt
     size: int
     desc: str
     reset: Optional[int]

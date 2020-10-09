@@ -203,7 +203,8 @@ class OMParser:
                 access_ = list(filter(lambda x: x in OMAccess.__members__,
                                       regfield['access'].get('_types', '')))
                 access = OMAccess[access_[0]] if access_ else None
-                regfield = OMRegField(bitbase, bitsize, desc, reset, access)
+                regfield = OMRegField(HexInt(bitbase), bitsize, desc, reset,
+                                      access)
                 registers[group][name] = regfield
         except Exception:
             if self._debug:
@@ -350,8 +351,8 @@ class OMParser:
                                         nreset |= lreg.reset << nsize
                                 nsize += lreg.size
                             else:
-                                reg = OMRegField(breg.offset, nsize, breg.desc,
-                                                 nreset, breg.access)
+                                reg = OMRegField(HexInt(breg.offset), nsize,
+                                                 breg.desc, nreset, breg.access)
                                 nregs.append(reg)
                                 breg = None
                         if breg is None:
@@ -359,15 +360,64 @@ class OMParser:
                             nsize = lreg.size
                             nreset = lreg.reset
                     if breg:
-                        reg = OMRegField(breg.offset, nsize, breg.desc,
-                                       nreset, breg.access)
+                        reg = OMRegField(HexInt(breg.offset), nsize, breg.desc,
+                                         nreset, breg.access)
                         mregs[mname] = reg
             outregs[gname] = mregs
         return outregs
 
+    def _scatgat_fields(self,
+            reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
+        -> OrderedDict[str, OrderedDict[str, OMRegField]]:
+        """
+        """
+        outfields = DefaultDict(dict)
+        for gname, gregs in reggroups.items():  # HW group name
+            # print('-----', gname)
+            first = None
+            wmask = self._regwidth -1
+            base = 0
+            newfields = DefaultDict(list)
+            fields = []
+            for fname, field in gregs.items():
+                # pprint(field)
+                while True:
+                    if not first:
+                        first = field
+                        base = field.offset & ~wmask
+                    fbase = field.offset-base
+                    foffset = field.offset & wmask
+                    if fbase < self._regwidth:
+                        if fbase + field.size > self._regwidth:
+                            raise ValueError(f'Field {fname} is crossing '
+                                             f'a word boundary')
+                        fields.append((fname, field))
+                        break
+                    newfields[gname].append(fields)
+                    fields = []
+                    first = None
+            if fields:
+                if gname not in newfields:
+                    newfields[gname] = []
+                newfields[gname].append(fields)
+            pprint(newfields)
+            for name, groups in newfields.items():
+                splitted = False
+                for pos, fields in enumerate(groups):
+                    if not splitted and len(fields) < 2:
+                        fname, field = fields[0]
+                        outfields[name][fname] = field
+                        continue
+                    newname = f'{name}_{pos}'
+                    splitted = True
+                    for fpair in fields:
+                        fname, field = fpair
+                        outfields[newname][fname] = field
+        return outfields
+
     def _factorize_fields(self,
-            reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) -> \
-            OrderedDict[str, Tuple[OrderedDict[str, OMRegField], int]]:
+            reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
+        ->  OrderedDict[str, Tuple[OrderedDict[str, OMRegField], int]]:
         """Search if identical fields can be factorized.
            This implementation is quite fragile and should be reworked,
            as it only works with simple cases.
@@ -397,8 +447,8 @@ class OMParser:
                 repeat = len(gregs)
                 cname = commonprefix(list(gregs.keys()))
                 cdesc = commonprefix([f.desc for f in gregs.values()])
-                field = OMRegField(field0.offset, field0.size, cdesc,
-                                 field0.reset, field0.access)
+                field = OMRegField(HexInt(field0.offset), field0.size, cdesc,
+                                   field0.reset, field0.access)
                 greg = OrderedDict()
                 greg[cname] = field
                 outregs[gname] = (greg, repeat)
