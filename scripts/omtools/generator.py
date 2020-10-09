@@ -11,6 +11,7 @@
 from copy import copy
 from os.path import basename, dirname, join as joinpath, splitext
 from pprint import pprint
+from re import match as re_match
 from sys import modules
 from textwrap import dedent
 from typing import (Dict, Iterable, List, OrderedDict, Optional, TextIO, Tuple,
@@ -513,6 +514,15 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
 
         memoryregions = []
         mlen = 0
+        devtypes = {}
+        for uniquename in memorymap:
+            nmo = re_match(r'^(?P<dev>(?P<kind>[a-z]+)(?:\d+))(?:_.*)?', uniquename)
+            if not nmo:
+                raise RuntimeError(f'Unexpected device name {uniquename}')
+            kind = nmo.group('kind')
+            if kind not in devtypes:
+                devtypes[kind] = set()
+            devtypes[kind].add(nmo.group('dev'))
         for name, memregion in memorymap.items():
             ucomp = name.upper()
             properties = []
@@ -521,7 +531,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             if len(aname) > mlen:
                 mlen = len(aname)
             sname = f'{ucomp}_SIZE'
-            properties.append([sname, f'0x{memregion.size+1:08X}'])
+            properties.append([sname, f'0x{memregion.size:08X}'])
             if len(sname) > mlen:
                 mlen = len(sname)
             desc = f'{name.title()} {memregion.desc}'

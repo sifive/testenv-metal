@@ -64,7 +64,7 @@ def main(args=None) -> None:
             count += 1
         generator = generators[args.format.title()]
         if len(compnames) == 1 or (not compnames and count == 1):
-            comp = omp.get(compnames[0])
+            comp = list(omp.get(compnames[0]))[0]
             generator().generate_device(args.output, comp, args.width)
         elif args.dir:
             if not isdir(args.dir):
@@ -72,11 +72,12 @@ def main(args=None) -> None:
             if not compnames:
                 compnames = [c.name for c in omp]
             for name in compnames:
-                comp = omp.get(name)
-                filename = joinpath(args.dir, f'sifive_{comp.name}.h')
-                with open(filename, 'wt') as ofp:
-                    print(f'Generating {name} as {filename}', file=args.output)
-                    generator().generate_device(ofp, comp, args.width)
+                for comp in omp.get(name):
+                    filename = joinpath(args.dir, f'sifive_{comp.name}.h')
+                    with open(filename, 'wt') as ofp:
+                        print(f'Generating {name} as {filename}',
+                              file=args.output)
+                        generator().generate_device(ofp, comp, args.width)
             filename = joinpath(args.dir, f'sifive_platform.h')
             with open(filename, 'wt') as ofp:
                 print(f'Generating platform file as {filename}',
@@ -89,10 +90,6 @@ def main(args=None) -> None:
         if debug:
             print_exc(chain=False, file=stderr)
         sysexit(1)
-    #except SystemExit as exc:
-    #    if debug:
-    #        print_exc(chain=True, file=stderr)
-    #    raise
     except KeyboardInterrupt:
         sysexit(2)
 

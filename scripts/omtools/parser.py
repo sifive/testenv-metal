@@ -10,10 +10,10 @@
 from json import loads as json_loads
 from os.path import commonprefix
 from pprint import pprint
-from re import sub as re_sub
+from re import match as re_match, sub as re_sub
 from sys import stderr
-from typing import (Any, DefaultDict, Dict, Iterator, List, OrderedDict,
-                    Optional, Sequence, TextIO, Tuple)
+from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
+                    OrderedDict, Optional, Sequence, Set, TextIO, Tuple)
 from .model import (HexInt, OMAccess, OMDevice, OMInterrupt, OMMemoryRegion,
                     OMNode, OMRegField)
 
@@ -28,19 +28,19 @@ class OMParser:
     def __init__(self, regwidth: int = 32, debug=False):
         self._regwidth = regwidth
         self._debug = debug
+        self._devtypes: Dict[str, Set[str]] = {}
         self._devices: Dict[str, Optional[OMDevice]] = {}
         self._memorymap: OrderedDict[str, OMMemoryRegion] = OrderedDict()
         self._intmap: OrderedDict[str, OrderedDict[str, int]] = OrderedDict()
 
-    def get(self, name) -> OMDevice:
-        """Return a device from its object model name, if any.
+    def get(self, name) -> Iterable[OMDevice]:
+        """Return evice from its object model name, if any.
 
            :return: the parsed device
         """
-        try:
-            return self._devices[name]
-        except KeyError as exc:
-            raise ValueError(f"No '{name}' device in object model") from exc
+        for dev in self._devices.values():
+            if dev.name == name:
+                yield dev
 
     @property
     def memory_map(self) -> OrderedDict[str, OMMemoryRegion]:
@@ -70,11 +70,16 @@ class OMParser:
         objmod = json_loads(mfp.read())
         devmaps: List[Tuple[str, Dict[str, OMMemoryRegion]]] = []
         interrupts: List[Tuple[str, List[OMInterrupt]]] = []
-        for node in self._find_descriptors_of_type(objmod, 'OMDevice'):
-            dev = self._parse_device(node, names or [])
+        for path, node in self._find_descriptors_of_type(objmod, 'OMDevice'):
+            dev = self._parse_device(path, node, names or [])
             if not dev:
                 continue
             name, mmaps, ints, devices = dev
+            if name not in self._devtypes:
+                self._devtypes[name] = set()
+            if path in self._devtypes[name]:
+                raise ValueError(f'Device {path}.{name} redefined')
+            self._devtypes[name].add(path)
             if mmaps:
                 devmaps.append((name, mmaps))
             if ints:
@@ -90,30 +95,37 @@ class OMParser:
 
     @classmethod
     def _find_descriptors_of_type(cls, root: Any, typename: str) \
-            -> Iterator[OMNode]:
-        for node in cls._find_kv_pair(root, '_types', typename):
-            yield node
+            -> Iterator[Tuple[str, OMNode]]:
+        for rpath, node in cls._find_kv_pair(root, '_types', typename):
+            path = '.'.join(reversed(rpath))
+            print(f'Path: {path}: {node.get("_types")[0]}')
+            yield path, node
 
     @classmethod
     def _find_kv_pair(cls, node: Any, keyname: str, valname: str) \
-            -> Iterator[OMNode]:
+            -> Iterator[Tuple[List[str], OMNode]]:
         if isinstance(node, dict):
             for key, value in node.items():
                 if key == keyname:
                     if valname in value:
-                        yield node
+                        yield [], node
                 for result in cls._find_kv_pair(value, keyname, valname):
+                    path = node.get('_types', ['Unkwown'])[0]
+                    result[0].append(path)
                     yield result
         elif isinstance(node, list):
-            for value in node:
+            for pos, value in enumerate(node):
                 for result in cls._find_kv_pair(value, keyname, valname):
+                    path = f'[{pos}]'
+                    result[0].append(path)
                     yield result
 
-    def _parse_device(self, node: OMNode, names: List[str]) \
+    def _parse_device(self, path: str, node: OMNode, names: List[str]) \
             -> Optional[Tuple[str, List[OMMemoryRegion], List[OMInterrupt],
                               Dict[str, OMDevice]]]:
-        """Parse a single device
+        """Parse a single device.
 
+           :param path: the path to the node
            :param node: the device root to parse
            :param names: accepted device names (if empty, accept all)
            :return: a 4-uple of device name, memory regions, interrupts and
@@ -244,7 +256,9 @@ class OMParser:
         for memregion in node.get('memoryRegions', []):
             for addrset in memregion.get('addressSets', []):
                 name = memregion['name'].lower()
-                mem = OMMemoryRegion(name, addrset['base'], addrset['mask'],
+                mem = OMMemoryRegion(name,
+                                     HexInt(addrset['base']),
+                                     HexInt(addrset['mask']+1),
                                      memregion.get('description', ''))
             mmap.append(mem)
         return mmap
@@ -266,14 +280,16 @@ class OMParser:
             if 'OMInterrupt' not in types:
                 continue
             sections.append(section)
-            name = section['name'].split('@')[0]
+            name = section['name'].lower().split('@', 1)[0]
             if name not in namecount:
                 namecount[name] = 1
             else:
                 namecount[name] += 1
+        if not sections:
+            return ints
         for pos, section in enumerate(sections):
-            names = section['name'].split('@')
-            name = names[0].lower().replace('-', '_')
+            names = section['name'].lower().split('@', 1)
+            name = re_sub(r'[\s\-]', '_', names[0])
             instance = HexInt(int(names[1], 16) if len(names) > 1 else 0)
             channel = section['numberAtReceiver']
             parent = section['receiver']
@@ -400,7 +416,7 @@ class OMParser:
 
     @classmethod
     def _merge_memory_regions(cls,
-        memregions: Sequence[Tuple[str, List[OMMemoryRegion]]]) \
+        memregions: Sequence[Tuple[str, Sequence[OMMemoryRegion]]]) \
             -> OrderedDict[str, OMMemoryRegion]:
         """Merge device memory map into a general platform map.
 
@@ -413,26 +429,30 @@ class OMParser:
         for name, devmap in memregions:
             iname = name.replace('-', '_')
             if len(devmap) == 1:
-                if name in mmap:
-                    raise ValueError(f'Memory region {name} redefined')
-                mmap[iname] = devmap[0]
+                if iname not in mmap:
+                    mmap[iname] = []
+                mmap[iname].append(devmap[0])
             else:
                 for mreg in devmap:
                     subname = mreg.desc.replace(' ', '_').lower()
                     dname = f'{iname}_{subname}'
-                    if dname in mmap:
-                        raise ValueError(f'Memory region {dname} redefined')
-                    mmap[dname] = mreg
+                    if dname not in mmap:
+                        mmap[dname] = []
+                    mmap[dname].append(mreg)
+        # sort in-place sibling devices by their base address
+        for devs in mmap.values():
+            devs[:] = sorted(devs, key=lambda d: d.base)
         ommap = OrderedDict()
-        last: Optional[Tuple[str, OMMemoryRegion]] = None
-        for name in sorted(mmap, key=lambda n: mmap[n].base):
-            reg = mmap[name]
-            if last:
-                if last[1].base + last[1].size > reg.base:
-                    raise ValueError(f'Memory regions {last[0]} and {name} '
-                                     f'overlap')
-            ommap[name] = mmap[name]
-            last = (name, mmap[name])
+        # sort devices by address
+        for name in sorted(mmap, key=lambda n: mmap[n][0].base):
+            devices = mmap[name]
+            for pos, dev in enumerate(devices):
+                parts = name.split('_', 1)
+                if len(parts) == 1:
+                    dname = f'{parts[0]}{pos}'
+                else:
+                    dname = f'{parts[0]}{pos}_{parts[1]}'
+                ommap[dname] = dev
         return ommap
 
     @classmethod
@@ -448,9 +468,22 @@ class OMParser:
         """
         imap = {}
         domain = {}
+        pprint(interrupts)
         for name, ints in interrupts:
             for interrupt in ints:
-                parent = interrupt.parent.split('@')[0].replace('-', '_')
+                # hack ahead:
+                # the right hand side of '@' seems to be the destination if the
+                # source is an interrupt controller, but seems to be the source
+                # if the destination is an interrupt controller!
+                # e.g. a device uses receiver=intc@device_address, while
+                #      a intc use receiver=cpu@cpu_address (!?)
+                # use the length to discriminate cases for now, but there's
+                # something odd to address...
+                pnames = interrupt.parent.split('@', 1)
+                if len(pnames) == 1 or len(pnames[1]) < 4:
+                    parent = interrupt.parent.replace('-', '_')
+                else:
+                    parent = pnames[0].replace('-', '_')
                 if parent not in domain:
                     domain[parent] = set()
                 if interrupt.channel in domain[parent]:
