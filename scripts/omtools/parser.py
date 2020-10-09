@@ -258,6 +258,7 @@ class OMParser:
         """
         ints = []
         sections = []
+        namecount = {}
         for section in node.get('interrupts', []):
             if not isinstance(section, dict) or '_types' not in section:
                 continue
@@ -265,14 +266,18 @@ class OMParser:
             if 'OMInterrupt' not in types:
                 continue
             sections.append(section)
-        count = len(sections)
+            name = section['name'].split('@')[0]
+            if name not in namecount:
+                namecount[name] = 1
+            else:
+                namecount[name] += 1
         for pos, section in enumerate(sections):
             names = section['name'].split('@')
             name = names[0].lower().replace('-', '_')
             instance = HexInt(int(names[1], 16) if len(names) > 1 else 0)
             channel = section['numberAtReceiver']
             parent = section['receiver']
-            if count > 1:
+            if namecount[names[0]] > 1:
                 name = f'{name}{pos}'
             ints.append(OMInterrupt(name, instance, channel, parent))
         return ints
