@@ -145,11 +145,13 @@ class OMParser:
             regname = region['name'].lower()
             width = node.get('beatBytes', 32)
             device = OMDevice(regname, width)
-            grpdescs, reggroups = self._parse_region(region)
+            grpdescs, freggroups = self._parse_region(region)
             features = self._parse_features(node)
             if width:
                 features['data_bus'] = {'width': width}
-            freggroups = self._fuse_fields(reggroups)
+            freggroups = self._fuse_fields(freggroups)
+            if name == 'plic':
+                freggroups = self._scatgat_fields(freggroups)
             freggroups = self._factorize_fields(freggroups)
             device.descriptors = grpdescs
             device.fields = freggroups
@@ -380,7 +382,6 @@ class OMParser:
             newfields = DefaultDict(list)
             fields = []
             for fname, field in gregs.items():
-                # pprint(field)
                 while True:
                     if not first:
                         first = field
@@ -400,7 +401,6 @@ class OMParser:
                 if gname not in newfields:
                     newfields[gname] = []
                 newfields[gname].append(fields)
-            pprint(newfields)
             for name, groups in newfields.items():
                 splitted = False
                 for pos, fields in enumerate(groups):
@@ -450,6 +450,7 @@ class OMParser:
                 field = OMRegField(HexInt(field0.offset), field0.size, cdesc,
                                    field0.reset, field0.access)
                 greg = OrderedDict()
+                cname = cname.rstrip('_')
                 greg[cname] = field
                 outregs[gname] = (greg, repeat)
             else:

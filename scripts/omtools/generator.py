@@ -306,7 +306,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         else:
             filename = f'sifive_{device.name}.h'
 
-        # comppute how many hex nibbles are required to encode all byte offsets
+        # compute how many hex nibbles are required to encode all byte offsets
         lastgroup, _ = grpfields[list(grpfields.keys())[-1]]
         lastfield = lastgroup[list(lastgroup.keys())[-1]]
         hioffset = lastfield.offset//8
@@ -318,6 +318,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         last_pos = 0
         rsv = 0
         regwidth = self._regwidth
+        regmask = regwidth - 1
         type_ = f'uint{regwidth}_t'
 
         for name, (group, repeat) in groups.items():
@@ -327,7 +328,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             if last_pos:
                 padding = fields[0].offset-last_pos
                 if padding >= regwidth:
-                    tsize = (padding + regwidth - 1)//regwidth
+                    # padding bit space, defined as reserved words
+                    tsize = (padding + regmask)//regwidth
                     rname = f'_reserved{rsv}'
                     if tsize == 1:
                         rname = f'{rname};'
@@ -338,7 +340,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     cgroups[rname] = ['     ', type_, rname, '']
                     rsv += 1
             size = fields[-1].offset + fields[-1].size - fields[0].offset
-            tsize = (size + regwidth - 1)//regwidth
+            tsize = (size + regmask)//regwidth
             # conditions to use 64 bit register
             # - 64 bit should be enable
             # - 32 bit word count should be even
@@ -366,21 +368,20 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             if gdesc:
                 desc = f'{desc} {gdesc}'
             cgroups[uname] = [perm, rtype, fmtname, desc]
-            regsize = (fields[-1].size + regwidth -1 ) & ~ (regwidth - 1)
+            regsize = (fields[-1].size + regmask) & ~regmask
             last_pos = fields[-1].offset + regsize
 
             # fgroup generation
             base_offset = None
             fregisters = []
+            bitmask = bitsize - 1
             for fname, field in group.items():
                 ufname = fname.upper()
                 if base_offset is None:
-                    base_offset = field.offset
-                    offset = 0
-                else:
-                    offset = field.offset - base_offset
+                    base_offset = field.offset & ~bitmask
+                offset = field.offset - base_offset
                 ffield = []
-                fpos = offset & (bitsize - 1)
+                fpos = offset & bitmask
                 fieldname = f'{ucomp}_{uname}_{ufname}_Pos'
                 fdesc = field.desc
                 name_prefix = name.split('_', 1)[0]
@@ -402,7 +403,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         for cregs in cgroups.values():
             lengths = [max(a,len(b)) for a,b in zip(lengths, cregs)]
 
-        # apply padding in-place to cgroups columns
+        # space filling in-place to cgroups columns
         widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
         widths[-1] = None
         for cregs in cgroups.values():
@@ -418,7 +419,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                         namelen = len(name)
                     if len(val) > vallen:
                         vallen = len(val)
-        # apply padding in-place to fgroups column
+        # space filling in-place to fgroups column
         widths = (namelen+self.EXTRA_SEP_COUNT,
                   vallen+self.EXTRA_SEP_COUNT,
                   None)
@@ -454,7 +455,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     raise RuntimeError(f'Field size too large: '
                                        f'{field.size}')
                 if base is None:
-                    base = field.offset
+                    base = field.offset & ~regmask
                 offset = field.offset-base
                 padding = offset - last_pos
                 if padding > 0:
