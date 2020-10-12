@@ -12,7 +12,7 @@ from copy import copy
 from os.path import basename, dirname, join as joinpath, splitext
 from pprint import pprint
 from re import match as re_match
-from sys import modules
+from sys import modules, stderr
 from textwrap import dedent
 from typing import (Dict, Iterable, List, OrderedDict, Optional, TextIO, Tuple,
                     Type, Union)
@@ -31,8 +31,9 @@ class OMHeaderGenerator:
 
     ENABLED = False
 
-    def __init__(self, regwidth: int = 32):
+    def __init__(self, regwidth: int = 32, debug: bool = False):
         self._regwidth = regwidth
+        self._debug = debug
 
     @classmethod
     def generators(cls) -> Dict[str, 'OMHeaderGenerator']:
@@ -82,19 +83,24 @@ class OMHeaderGenerator:
             -> OrderedDict[str, Tuple[OrderedDict[str, OMRegField], int]]:
         """Split register fields into bitsized register words.
 
-            :param reggroups: register fields (indexed on group, name)
-            :param bitsize: max width of output registers
-            :return: a dictionary of groups of register fields
+           :param reggroups: register fields (indexed on group, name)
+           :param bitsize: max width of output registers
+           :return: a dictionary of groups of register fields
         """
         outgroups = OrderedDict()
         for gname in reggroups:
             registers, repeat = reggroups[gname]
             fregs = OrderedDict()
-            for regname in registers:
-                field = registers[regname]
+            for fname, field in registers.items():
                 if field.size <= bitsize:
-                    fregs[regname] = field
+                    # default case, the field fits into a word register
+                    fregs[fname] = field
                     continue
+                # a bitfield is larger than a word register
+                if field.offset & (bitsize - 1) != 0:
+                    raise NotImplementedError(
+                        f'Wide unaligned bitfield {gname}.{fname}: '
+                        f'{field.offset}')
                 mask = (1 << bitsize) - 1
                 for idx in range(0, field.size, bitsize):
                     wsize = idx//bitsize
@@ -102,7 +108,7 @@ class OMHeaderGenerator:
                         wreset = (field.reset >> idx) & mask
                     else:
                         wreset = None
-                    fregs[f'{regname}_{wsize}'] = OMRegField(
+                    fregs[f'{fname}_{wsize}'] = OMRegField(
                         field.offset+idx, min(bitsize, field.size-idx),
                         f'{field.desc} {wsize}', wreset, field.access)
             outgroups[gname] = (fregs, repeat)
@@ -467,6 +473,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     if len(vstr) > bflen:
                         bflen = len(vstr)
                 desc = bitdesc(offset, field.size, field.desc)
+
                 bitcount += field.size
                 vstr = f'{ufname}:{field.size};'
                 bits.append([type_, vstr, desc])
@@ -482,8 +489,11 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 if len(vstr) > bflen:
                     bflen = len(vstr)
             if bitcount > gsize:
-                raise RuntimeError(f'Generated fields for {name} too wide: '
-                                   f'{bitcount}')
+                if self._debug:
+                    pprint(grpfields, stream=stderr)
+                devname = device.name
+                raise RuntimeError(f'Fields for {devname}.{name}.{fname} '
+                                   f'too wide: {bitcount}')
             if bits:
                 bgroups[uname] = (type_, bits, [0, 0])
         widths = (len(type_), bflen + self.EXTRA_SEP_COUNT, 0)
