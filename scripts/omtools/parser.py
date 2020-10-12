@@ -158,12 +158,8 @@ class OMParser:
             grpdescs, freggroups = self._parse_region(region)
             features = self._parse_features(node)
             freggroups = self._fuse_fields(freggroups)
-            if name == 'plic':
-                freggroups = self._scatgat_fields(freggroups)
-            if True:
-                freggroups = self._factorize_fields(freggroups)
-            else:
-                freggroups = {n: (v, 1) for n, v in freggroups.items()}
+            freggroups = self._scatgat_fields(freggroups)
+            freggroups = self._factorize_fields(freggroups)
             device.descriptors = grpdescs
             device.fields = freggroups
             device.features = features
@@ -384,29 +380,35 @@ class OMParser:
         """
         """
         outfields = DefaultDict(dict)
+        rwidth = self._regwidth
         for gname, gregs in reggroups.items():  # HW group name
-            # print('-----', gname)
             first = None
-            wmask = self._regwidth -1
+            wmask = rwidth -1
             base = 0
             newfields = DefaultDict(list)
             fields = []
+            skip = False
             for fname, field in gregs.items():
-                while True:
+                while not skip:
                     if not first:
                         first = field
                         base = field.offset & ~wmask
                     fbase = field.offset-base
                     foffset = field.offset & wmask
-                    if fbase < self._regwidth:
-                        if fbase + field.size > self._regwidth:
-                            raise ValueError(f'Field {fname} is crossing '
-                                             f'a word boundary')
+                    if fbase < rwidth:
+                        if fbase + field.size > rwidth:
+                            # crossing a word boundary, skipping
+                            skip = True
+                            break
                         fields.append((fname, field))
                         break
                     newfields[gname].append(fields)
                     fields = []
                     first = None
+            if skip:
+                # cannot modify the fields, simply copy them over
+                outfields[gname] = gregs
+                continue
             if fields:
                 if gname not in newfields:
                     newfields[gname] = []
