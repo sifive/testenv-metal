@@ -10,7 +10,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 
 OMNode = Dict[str, Union['OMNode', List, str, int, bool]]
-"""An object model node"""
+"""An object model node."""
 
 
 OMAccess = Enum('OMAccess', 'R RW W RFWT_ONE_TO_CLEAR')
@@ -33,11 +33,62 @@ class OMPath:
 
     def __init__(self, node: Any):
         self._leaf = node
-        self._heir = []
+        self._heir = []  # root is on right end, leaf on left end
 
     @property
-    def node(self):
+    def node(self) -> OMNode:
+        """Get the node.
+
+           :return: the stored node.
+        """
         return self._leaf
+
+    @property
+    def omtype(self) -> str:
+        """Get the object model type of the node.
+
+           :return: the type as a string.
+        """
+        try:
+            types = self._leaf.get('_types')
+        except (AttributeError, KeyError):
+            return ''
+        omtypes = self.get_om_types()
+        return omtypes[0] if omtypes else ''
+
+    @property
+    def parent(self) -> 'OMPath':
+        """Get the path to the parent node.
+
+           :return: the path to the immediate parent.
+        """
+        parent = OMPath(self._heir[0])
+        for hnode in self._heir[1:]:
+            parent.add_parent(hnode)
+        return parent
+
+    @property
+    def device(self) -> bool:
+        """Tell if the node is an object model device.
+
+           :return: True of the node is an object model device.
+        """
+        return 'OMDevice' in self.get_om_types()
+
+    @property
+    def embedded(self) -> bool:
+        """Tell if the node is a sub-object of an object model node.
+
+           :return: True of the node is sub object.
+        """
+        return self.parent.omtype != ''
+
+    def is_of_kind(self, kind: str) -> bool:
+        """Tell if the node is a specific kind.
+
+           :return: True of the node is of this kind.
+        """
+        return kind in self.get_om_types()
 
     def add_parent(self, node: Any):
         """Add the parent to the current node hierarchy.
@@ -45,6 +96,17 @@ class OMPath:
            :param node: add a new parent
         """
         self._heir.append(node)
+
+    def get_om_types(self) -> List[str]:
+        """Return the list of object model types, if any.
+
+           :return: the list of OM types
+        """
+        try:
+            types = self._leaf.get('_types')
+        except (AttributeError, KeyError):
+            return []
+        return [t for t in types if t.startswith('OM')]
 
     def __str__(self):
         return repr(self)

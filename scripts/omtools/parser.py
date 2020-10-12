@@ -63,7 +63,6 @@ class OMParser:
            :return: a device iterator
         """
         for name in sorted(self._devices):
-            print('yield', name)
             yield self._devices[name]
 
     def parse(self, mfp: TextIO, names: Optional[List[str]] = None) -> None:
@@ -84,6 +83,9 @@ class OMParser:
             raise ValueError(f'Too many xLen values: {xlen}')
         self._xlen = 64
         for path in self._find_node_of_type(objmod, 'OMDevice'):
+            if path.embedded:
+                # for now, ignore sub devices
+                continue
             dev = self._parse_device(path, names or [])
             if not dev:
                 continue
@@ -93,7 +95,6 @@ class OMParser:
             else:
                 devkinds[devname] += 1
             name = f'{devname}{devkinds[devname]}'
-            print(path, name)
             if mmaps:
                 devmaps.append((name, mmaps))
             if ints:
