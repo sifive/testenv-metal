@@ -18,6 +18,42 @@ from .model import (HexInt, OMAccess, OMDevice, OMInterrupt, OMMemoryRegion,
                     OMNode, OMRegField)
 
 
+class OMPath:
+    """Storage to locate a node within an object model.
+
+       :param leaf: the 
+    """
+
+    def __init__(self, node: Any):
+        self._leaf = node
+        self._filo = []
+
+    def add_parent(self, node: Any):
+        self._filo.append(node)
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        obj = self._leaf
+        paths = []
+        for pos, node in enumerate(self._filo):
+            paths.append(self._make_path(obj, node))
+            obj = node
+        return '.'.join(reversed(paths))
+
+    def _make_path(self, obj, node):
+        if isinstance(node, list):
+            for pos, item in enumerate(node):
+                if item == obj:
+                    return f'{[pos]}'
+        if isinstance(node, dict):
+            for name in node:
+                if node[name] == obj:
+                    return name
+        raise ValueError(f'Node {type(node)} not found in parent')
+
+
 class OMParser:
     """JSON object model converter.
 
@@ -63,6 +99,7 @@ class OMParser:
            :return: a device iterator
         """
         for name in sorted(self._devices):
+            print('yield', name)
             yield self._devices[name]
 
     def parse(self, mfp: TextIO, names: Optional[List[str]] = None) -> None:
@@ -76,13 +113,13 @@ class OMParser:
         devmaps: List[Tuple[str, Dict[str, OMMemoryRegion]]] = []
         interrupts: List[Tuple[str, List[OMInterrupt]]] = []
         devkinds = {}
-        for path, node in self._find_descriptors_of_type(objmod, 'OMCore'):
+        for path, node in self._find_node_of_type(objmod, 'OMCore'):
             xlen = {node.get('isa').get('xLen')}
         self._xlen = xlen.pop()
         if xlen:
             raise ValueError(f'Too many xLen values: {xlen}')
         self._xlen = 64
-        for path, node in self._find_descriptors_of_type(objmod, 'OMDevice'):
+        for path, node in self._find_node_of_type(objmod, 'OMDevice'):
             dev = self._parse_device(path, node, names or [])
             if not dev:
                 continue
@@ -92,6 +129,7 @@ class OMParser:
             else:
                 devkinds[devname] += 1
             name = f'{devname}{devkinds[devname]}'
+            print(path, name)
             if mmaps:
                 devmaps.append((name, mmaps))
             if ints:
@@ -106,32 +144,30 @@ class OMParser:
         self._intmap = self._merge_interrupts(interrupts)
 
     @classmethod
-    def _find_descriptors_of_type(cls, root: Any, typename: str) \
-            -> Iterator[Tuple[str, OMNode]]:
-        for rpath, node in cls._find_kv_pair(root, '_types', typename):
-            path = '.'.join(reversed(rpath))
+    def _find_node_of_type(cls, root: Any, typename: str) \
+            -> Iterator[Tuple[OMPath, OMNode]]:
+        for path, node in cls._find_kv_pair(root, '_types', typename):
             yield path, node
 
     @classmethod
     def _find_kv_pair(cls, node: Any, keyname: str, valname: str) \
-            -> Iterator[Tuple[List[str], OMNode]]:
+            -> Iterator[Tuple[OMPath, OMNode]]:
         if isinstance(node, dict):
             for key, value in node.items():
                 if key == keyname:
                     if valname in value:
-                        yield [], node
+                        path = OMPath(value)
+                        yield path, node
                 for result in cls._find_kv_pair(value, keyname, valname):
-                    path = node.get('_types', ['Unkwown'])[0]
-                    result[0].append(path)
+                    result[0].add_parent(value)
                     yield result
         elif isinstance(node, list):
-            for pos, value in enumerate(node):
+            for value in node:
                 for result in cls._find_kv_pair(value, keyname, valname):
-                    path = f'[{pos}]'
-                    result[0].append(path)
+                    result[0].add_parent(value)
                     yield result
 
-    def _parse_device(self, path: str, node: OMNode, names: List[str]) \
+    def _parse_device(self, path: OMPath, node: OMNode, names: List[str]) \
             -> Optional[Tuple[str, List[OMMemoryRegion], List[OMInterrupt],
                               Dict[str, OMDevice]]]:
         """Parse a single device.
