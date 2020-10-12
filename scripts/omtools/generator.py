@@ -14,6 +14,7 @@ from pprint import pprint
 from re import match as re_match
 from sys import modules, stderr
 from textwrap import dedent
+from time import gmtime
 from typing import (Dict, Iterable, List, Optional, TextIO, Tuple, Type, Union)
 try:
     from jinja2 import Environment as JiEnv
@@ -500,6 +501,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             bpad = ' ' * swidth
             wpad = ' ' * (swidth - 7)
             padders[:] = [bpad, wpad]
+        year = gmtime().tm_year
+        cyear = f'2020-{year}' if year > 2020 else '2020'
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
@@ -568,6 +571,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         for interrupts in intdomains:
             for idesc in interrupts:
                 idesc[:] = self.pad_columns(idesc, widths)
+        year = gmtime().tm_year
+        cyear = f'2020-{year}' if year > 2020 else '2020'
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
