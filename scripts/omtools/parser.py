@@ -13,7 +13,7 @@ from pprint import pprint
 from re import match as re_match, sub as re_sub
 from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
-                    OrderedDict, Optional, Sequence, Set, TextIO, Tuple)
+                    Optional, Sequence, Set, TextIO, Tuple)
 from .model import (HexInt, OMAccess, OMDevice, OMInterrupt, OMMemoryRegion,
                     OMNode, OMRegField)
 
@@ -30,8 +30,8 @@ class OMParser:
         self._xlen: Optional[int] = None
         self._debug = debug
         self._devices: Dict[str, Optional[OMDevice]] = {}
-        self._memorymap: OrderedDict[str, OMMemoryRegion] = OrderedDict()
-        self._intmap: OrderedDict[str, OrderedDict[str, int]] = OrderedDict()
+        self._memorymap: Dict[str, OMMemoryRegion] = {}
+        self._intmap: Dict[str, Dict[str, int]] = {}
 
     def get(self, name) -> Iterable[OMDevice]:
         """Return evice from its object model name, if any.
@@ -48,12 +48,12 @@ class OMParser:
         return self._xlen
 
     @property
-    def memory_map(self) -> OrderedDict[str, OMMemoryRegion]:
+    def memory_map(self) -> Dict[str, OMMemoryRegion]:
         """Return the platform memory map."""
         return self._memorymap
 
     @property
-    def interrupt_map(self) -> OrderedDict[str, OrderedDict[str, int]]:
+    def interrupt_map(self) -> Dict[str, Dict[str, int]]:
         """Return the platform interrupt map."""
         return self._intmap
 
@@ -174,7 +174,7 @@ class OMParser:
 
     def _parse_region(self, region: OMNode) \
             -> Tuple[Dict[str, str],
-                     OrderedDict[str, OrderedDict[str, List[OMRegField]]]]:
+                     Dict[str, Dict[str, List[OMRegField]]]]:
         """Parse an object model region containing a register map.
 
             :param region: the region to parse
@@ -228,12 +228,11 @@ class OMParser:
         for grpname in registers:
             group = registers[grpname]
             fnames = sorted(group, key=lambda n: group[n].offset)
-            fodict = OrderedDict(((name, group[name]) for name in fnames))
+            fodict = {name: group[name] for name in fnames}
             foffsets[grpname] = group[fnames[0]].offset
             registers[grpname] = fodict
-        godict = OrderedDict(((name, registers[name])
-                             for name in sorted(registers,
-                                                key=lambda n: foffsets[n])))
+        godict = {name: registers[name]
+                  for name in sorted(registers, key=lambda n: foffsets[n])}
         return groups, godict
 
     @classmethod
@@ -305,16 +304,16 @@ class OMParser:
         return ints
 
     def _fuse_fields(self,
-            reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
-            -> OrderedDict[str, OrderedDict[str, OMRegField]]:
+            reggroups: Dict[str, Dict[str, OMRegField]]) \
+            -> Dict[str, Dict[str, OMRegField]]:
         """Merge 8-bit groups belonging to the same registers.
 
             :param reggroups: register fields (indexed on group, name)
             :return: a dictionary of groups of register fields
         """
-        outregs = OrderedDict()
+        outregs = {}
         for gname, gregs in reggroups.items():  # HW group name
-            mregs = OrderedDict()
+            mregs = {}
             # group registers of the same name radix into lists
             candidates = []
             for fname in sorted(gregs, key=lambda n: gregs[n].offset):
@@ -380,8 +379,8 @@ class OMParser:
         return outregs
 
     def _scatgat_fields(self,
-            reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
-        -> OrderedDict[str, OrderedDict[str, OMRegField]]:
+            reggroups: Dict[str, Dict[str, OMRegField]]) \
+        -> Dict[str, Dict[str, OMRegField]]:
         """
         """
         outfields = DefaultDict(dict)
@@ -427,8 +426,8 @@ class OMParser:
         return outfields
 
     def _factorize_fields(self,
-            reggroups: OrderedDict[str, OrderedDict[str, OMRegField]]) \
-        ->  OrderedDict[str, Tuple[OrderedDict[str, OMRegField], int]]:
+            reggroups: Dict[str, Dict[str, OMRegField]]) \
+        ->  Dict[str, Tuple[Dict[str, OMRegField], int]]:
         """Search if identical fields can be factorized.
            This implementation is quite fragile and should be reworked,
            as it only works with simple cases.
@@ -436,7 +435,7 @@ class OMParser:
            :param reggroups: register fields (indexed on group, name)
            :return: a dictionary of groups of register fields and repeat count
         """
-        outregs = OrderedDict()
+        outregs = {}
         for gname, gregs in reggroups.items():
             factorize = True
             field0 = None
@@ -460,7 +459,7 @@ class OMParser:
                 cdesc = commonprefix([f.desc for f in gregs.values()])
                 field = OMRegField(HexInt(field0.offset), field0.size, cdesc,
                                    field0.reset, field0.access)
-                greg = OrderedDict()
+                greg = {}
                 cname = cname.rstrip('_')
                 greg[cname] = field
                 outregs[gname] = (greg, repeat)
@@ -471,7 +470,7 @@ class OMParser:
     @classmethod
     def _merge_memory_regions(cls,
         memregions: Sequence[Tuple[str, Sequence[OMMemoryRegion]]]) \
-            -> OrderedDict[str, OMMemoryRegion]:
+            -> Dict[str, OMMemoryRegion]:
         """Merge device memory map into a general platform map.
 
            This is a straightforware merge, which simply detects collision
@@ -489,7 +488,7 @@ class OMParser:
                     subname = mreg.desc.replace(' ', '_').lower()
                     dname = f'{iname}_{subname}'
                     mmap[dname] = mreg
-        ommap = OrderedDict()
+        ommap = {}
         # sort devices by address
         for name in sorted(mmap, key=lambda n: mmap[n].base):
             ommap[name] = mmap[name]
@@ -498,7 +497,7 @@ class OMParser:
     @classmethod
     def _merge_interrupts(cls,
             interrupts: Sequence[Tuple[str, Sequence[OMInterrupt]]]) \
-        -> OrderedDict[str, OrderedDict[str, int]]:
+        -> Dict[str, Dict[str, int]]:
         """Merge interrup map into a general platform map.
 
            This is a straightforware merge, which simply detects collision
@@ -537,13 +536,13 @@ class OMParser:
         for intdomain in imap.values():
             for ints in intdomain.values():
                 ints.sort(key=lambda i: i.channel)
-        oimap = OrderedDict()
+        oimap = {}
         for parent in sorted(imap):
             pimap = imap[parent]
             for device in sorted(pimap, key=lambda d: pimap[d][0].channel):
                 if parent not in oimap:
-                    oimap[parent] = OrderedDict()
+                    oimap[parent] = {}
                 if device not in oimap[parent]:
-                    oimap[parent][device] = OrderedDict()
+                    oimap[parent][device] ={}
                 oimap[parent][device] = imap[parent][device]
         return oimap

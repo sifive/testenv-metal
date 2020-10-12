@@ -14,8 +14,7 @@ from pprint import pprint
 from re import match as re_match
 from sys import modules, stderr
 from textwrap import dedent
-from typing import (Dict, Iterable, List, OrderedDict, Optional, TextIO, Tuple,
-                    Type, Union)
+from typing import (Dict, Iterable, List, Optional, TextIO, Tuple, Type, Union)
 try:
     from jinja2 import Environment as JiEnv
 except ImportError:
@@ -65,8 +64,8 @@ class OMHeaderGenerator:
 
     def generate_platform(self,
             ofp: TextIO,
-            memorymap: OrderedDict[str, OMMemoryRegion],
-            intmap: OrderedDict[str, OrderedDict[str, int]]) -> None:
+            memorymap: Dict[str, OMMemoryRegion],
+            intmap: Dict[str, Dict[str, int]]) -> None:
         """Generate a header file stream for the platform definitions.
 
            :param ofp: the output stream
@@ -78,19 +77,19 @@ class OMHeaderGenerator:
 
     @classmethod
     def split_registers(cls,
-        reggroups: OrderedDict[str, Tuple[OrderedDict[str, OMRegField], int]],
+        reggroups: Dict[str, Tuple[Dict[str, OMRegField], int]],
         bitsize: int) \
-            -> OrderedDict[str, Tuple[OrderedDict[str, OMRegField], int]]:
+            -> Dict[str, Tuple[Dict[str, OMRegField], int]]:
         """Split register fields into bitsized register words.
 
            :param reggroups: register fields (indexed on group, name)
            :param bitsize: max width of output registers
            :return: a dictionary of groups of register fields
         """
-        outgroups = OrderedDict()
+        outgroups = {}
         for gname in reggroups:
             registers, repeat = reggroups[gname]
-            fregs = OrderedDict()
+            fregs = {}
             for fname, field in registers.items():
                 if field.size <= bitsize:
                     # default case, the field fits into a word register
@@ -213,7 +212,7 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
     @classmethod
     def _generate_registers(cls,
         out: TextIO, prefix: str,
-        reggroups: OrderedDict[str, OrderedDict[str, List[OMRegField]]],
+        reggroups: Dict[str, Dict[str, List[OMRegField]]],
         groupdesc: Dict[str, str]) -> None:
         """Print out the register addresses (in bytes).
 
@@ -236,7 +235,7 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
     @classmethod
     def _generate_fields(cls,
         out: TextIO, bitsize: int, prefix: str,
-        reggroups: OrderedDict[str, OrderedDict[str, List[OMRegField]]],
+        reggroups: Dict[str, Dict[str, List[OMRegField]]],
         groupdesc: Dict[str, str]) -> None:
         """Print out the register content (offset and mask).
 
@@ -319,8 +318,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         encbit = int.bit_length(hioffset)
         hwx = (encbit + 3) // 4
 
-        cgroups = OrderedDict()
-        fgroups = OrderedDict()
+        cgroups = {}
+        fgroups = {}
         last_pos = 0
         rsv = 0
         regwidth = self._regwidth
@@ -441,7 +440,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 brange = f'{pos}'
             return f'bit: {brange:>6s}  {desc}'
 
-        bgroups = OrderedDict()
+        bgroups = {}
         bflen = 0
         for name, (group, _) in grpfields.items():
             uname = name.upper()
@@ -510,8 +509,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
 
     def generate_platform(self,
             ofp: TextIO,
-            memorymap: OrderedDict[str, OMMemoryRegion],
-            intmap: OrderedDict[str, OrderedDict[str, int]]) -> None:
+            memorymap: Dict[str, OMMemoryRegion],
+            intmap: Dict[str, Dict[str, int]]) -> None:
         """Generate a header file stream for the platform.
 
            :param ofp: the output stream

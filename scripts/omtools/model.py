@@ -6,7 +6,7 @@
 #pylint: disable-msg=cell-var-from-loop
 
 from enum import Enum
-from typing import (Dict, List, NamedTuple, OrderedDict, Optional, Tuple, Union)
+from typing import (Dict, List, NamedTuple, Optional, Tuple, Union)
 
 
 OMNode = Dict[str, Union['OMNode', List, str, int, bool]]
@@ -64,8 +64,8 @@ class OMDevice:
         self._name = name
         self._width = width
         self._descriptors: Dict[str, str] = {}
-        self._fields: OrderedDict[str,
-                                  Tuple[OrderedDict[str, OMRegField], int]] = {}
+        self._fields: Dict[str,
+                                  Tuple[Dict[str, OMRegField], int]] = {}
         self._features: Dict[str, Dict[str, Union[int, bool]]] = {}
 
     @property
@@ -96,7 +96,7 @@ class OMDevice:
         return self._descriptors
 
     @property
-    def fields(self) -> OrderedDict[str, OrderedDict[str, OMRegField]]:
+    def fields(self) -> Dict[str, Dict[str, OMRegField]]:
         """Return an ordered map of registers.
            Each register is an ordered map of register fields.
 
@@ -122,7 +122,7 @@ class OMDevice:
 
     @fields.setter
     def fields(self, fields: Dict[str, str]) -> None:
-        if not isinstance(fields, OrderedDict):
+        if not isinstance(fields, Dict):
             raise ValueError('Invalid fields')
         self._fields = fields
 
