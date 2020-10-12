@@ -15,43 +15,7 @@ from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
                     Optional, Sequence, Set, TextIO, Tuple)
 from .model import (HexInt, OMAccess, OMDevice, OMInterrupt, OMMemoryRegion,
-                    OMNode, OMRegField)
-
-
-class OMPath:
-    """Storage to locate a node within an object model.
-
-       :param leaf: the 
-    """
-
-    def __init__(self, node: Any):
-        self._leaf = node
-        self._filo = []
-
-    def add_parent(self, node: Any):
-        self._filo.append(node)
-
-    def __str__(self):
-        return repr(self)
-
-    def __repr__(self):
-        obj = self._leaf
-        paths = []
-        for pos, node in enumerate(self._filo):
-            paths.append(self._make_path(obj, node))
-            obj = node
-        return '.'.join(reversed(paths))
-
-    def _make_path(self, obj, node):
-        if isinstance(node, list):
-            for pos, item in enumerate(node):
-                if item == obj:
-                    return f'{[pos]}'
-        if isinstance(node, dict):
-            for name in node:
-                if node[name] == obj:
-                    return name
-        raise ValueError(f'Node {type(node)} not found in parent')
+                    OMNode, OMPath, OMRegField)
 
 
 class OMParser:
@@ -113,14 +77,14 @@ class OMParser:
         devmaps: List[Tuple[str, Dict[str, OMMemoryRegion]]] = []
         interrupts: List[Tuple[str, List[OMInterrupt]]] = []
         devkinds = {}
-        for path, node in self._find_node_of_type(objmod, 'OMCore'):
-            xlen = {node.get('isa').get('xLen')}
+        for path in self._find_node_of_type(objmod, 'OMCore'):
+            xlen = {path.node.get('isa').get('xLen')}
         self._xlen = xlen.pop()
         if xlen:
             raise ValueError(f'Too many xLen values: {xlen}')
         self._xlen = 64
-        for path, node in self._find_node_of_type(objmod, 'OMDevice'):
-            dev = self._parse_device(path, node, names or [])
+        for path in self._find_node_of_type(objmod, 'OMDevice'):
+            dev = self._parse_device(path, names or [])
             if not dev:
                 continue
             devname, mmaps, ints, devices = dev
@@ -145,39 +109,39 @@ class OMParser:
 
     @classmethod
     def _find_node_of_type(cls, root: Any, typename: str) \
-            -> Iterator[Tuple[OMPath, OMNode]]:
-        for path, node in cls._find_kv_pair(root, '_types', typename):
-            yield path, node
+            -> Iterator[OMPath]:
+        for path in cls._find_kv_pair(root, '_types', typename):
+            yield path
 
     @classmethod
     def _find_kv_pair(cls, node: Any, keyname: str, valname: str) \
-            -> Iterator[Tuple[OMPath, OMNode]]:
+            -> Iterator[OMPath]:
         if isinstance(node, dict):
             for key, value in node.items():
                 if key == keyname:
                     if valname in value:
-                        path = OMPath(value)
-                        yield path, node
+                        path = OMPath(node)
+                        yield path
                 for result in cls._find_kv_pair(value, keyname, valname):
-                    result[0].add_parent(value)
+                    result.add_parent(node)
                     yield result
         elif isinstance(node, list):
             for value in node:
                 for result in cls._find_kv_pair(value, keyname, valname):
-                    result[0].add_parent(value)
+                    result.add_parent(node)
                     yield result
 
-    def _parse_device(self, path: OMPath, node: OMNode, names: List[str]) \
+    def _parse_device(self, path: OMPath, names: List[str]) \
             -> Optional[Tuple[str, List[OMMemoryRegion], List[OMInterrupt],
                               Dict[str, OMDevice]]]:
         """Parse a single device.
 
            :param path: the path to the node
-           :param node: the device root to parse
            :param names: accepted device names (if empty, accept all)
            :return: a 4-uple of device name, memory regions, interrupts and
                     one or more device/subdevice
         """
+        node = path.node
         types = [t.strip() for t in node.get('_types')]
         devtype = types[0]  # from most specialized to less specialized
         if not devtype.startswith('OM'):

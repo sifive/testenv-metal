@@ -6,7 +6,7 @@
 #pylint: disable-msg=cell-var-from-loop
 
 from enum import Enum
-from typing import (Dict, List, NamedTuple, Optional, Tuple, Union)
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 
 OMNode = Dict[str, Union['OMNode', List, str, int, bool]]
@@ -23,6 +23,50 @@ class HexInt(int):
     def __repr__(self):
         """Represent the integer as an hexadecimal number."""
         return f'0x{self:x}'
+
+
+class OMPath:
+    """Storage to locate a node within an object model.
+
+       :param node: the tracked node
+    """
+
+    def __init__(self, node: Any):
+        self._leaf = node
+        self._heir = []
+
+    @property
+    def node(self):
+        return self._leaf
+
+    def add_parent(self, node: Any):
+        """Add the parent to the current node hierarchy.
+
+           :param node: add a new parent
+        """
+        self._heir.append(node)
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        obj = self._leaf
+        paths = []
+        for pos, node in enumerate(self._heir):
+            paths.append(self._make_path(obj, node))
+            obj = node
+        return '.'.join(reversed(paths))
+
+    def _make_path(self, obj, node):
+        if isinstance(node, list):
+            for pos, item in enumerate(node):
+                if item == obj:
+                    return f'{[pos]}'
+        if isinstance(node, dict):
+            for name in node:
+                if node[name] == obj:
+                    return name
+        raise ValueError(f'Node {type(node)} not found in parent')
 
 
 class OMRegField(NamedTuple):
