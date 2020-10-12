@@ -73,7 +73,7 @@ def main(args=None) -> None:
             if not isdir(args.dir):
                 makedirs(args.dir)
             if not compnames:
-                compnames = [c.name for c in omp]
+                compnames = {c.name for c in omp}
             for name in compnames:
                 for comp in omp.get(name):
                     filename = joinpath(args.dir, f'sifive_{comp.name}.h')
