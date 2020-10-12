@@ -85,7 +85,7 @@ def main(args=None) -> None:
                 #print(f'Generating platform file as {filename}',
                 #      file=args.output)
                 generator().generate_platform(
-                    ofp, omp.memory_map, omp.interrupt_map)
+                    ofp, omp.memory_map, omp.interrupt_map, omp.xlen)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)

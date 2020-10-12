@@ -154,7 +154,7 @@ class OMParser:
             if 'registerMap' not in region:
                 continue
             regname = region['name'].lower()
-            device = OMDevice(regname, self._regwidth)
+            device = OMDevice(regname)
             grpdescs, freggroups = self._parse_region(region)
             features = self._parse_features(node)
             freggroups = self._fuse_fields(freggroups)

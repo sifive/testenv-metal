@@ -65,12 +65,14 @@ class OMHeaderGenerator:
     def generate_platform(self,
             ofp: TextIO,
             memorymap: Dict[str, OMMemoryRegion],
-            intmap: Dict[str, Dict[str, int]]) -> None:
+            intmap: Dict[str, Dict[str, int]],
+            addrsize: int) -> None:
         """Generate a header file stream for the platform definitions.
 
            :param ofp: the output stream
            :param memory map: the memory map of the platform
            :param intmap: the interrupt map of the platform
+           :param addrsize: the size in bits of the address bus
         """
         raise NotImplementedError('Device generation is not supported with '
                                   'this generator')
@@ -134,15 +136,13 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
     """Extra space count between columns."""
 
     def generate_device(self, ofp: TextIO, device: OMDevice,
-                        bitsize: Optional[int] = None) -> None:
+                        bitsize: int) -> None:
         """Generate a header file stream for a device.
 
            :param ofp: the output stream
            :param device: the device for which to generate the file
            :param bitsize: the max width of register, in bits
         """
-        if bitsize is None:
-            bitsize = device.width * 8
         newgroups = self.split_registers(device.fields, bitsize)
         prefix = device.name.upper()
         if ofp.name and not ofp.name.startswith('<'):
@@ -302,8 +302,6 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
         grpfields = device.fields
-        if bitsize is None:
-            bitsize = device.width * 8
         groups = self.split_registers(grpfields, bitsize)
         ucomp = device.name.upper()
         if ofp.name and not ofp.name.startswith('<'):
@@ -510,12 +508,14 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
     def generate_platform(self,
             ofp: TextIO,
             memorymap: Dict[str, OMMemoryRegion],
-            intmap: Dict[str, Dict[str, int]]) -> None:
+            intmap: Dict[str, Dict[str, int]],
+            addrsize: int) -> None:
         """Generate a header file stream for the platform.
 
            :param ofp: the output stream
            :param memory map: the memory map of the platform
            :param intmap: the interrupt map of the platform
+           :param addrsize: the size in bits of the address bus
         """
         env = JiEnv(trim_blocks=False)
         jinja = joinpath(dirname(__file__), 'templates', 'platform.j2')
@@ -525,6 +525,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         memoryregions = []
         mlen = 0
         devtypes = {}
+        addrw = addrsize//4  # two nibbles per byte
         for uniquename in memorymap:
             nmo = re_match(r'^(?P<dev>(?P<kind>[a-z]+)(?:\d+))(?:_.*)?', uniquename)
             if not nmo:
@@ -537,11 +538,11 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             ucomp = name.upper()
             properties = []
             aname = f'{ucomp}_BASE_ADDRESS'
-            properties.append([aname, f'0x{memregion.base:08X}'])
+            properties.append([aname, f'0x{memregion.base:0{addrw}X}'])
             if len(aname) > mlen:
                 mlen = len(aname)
             sname = f'{ucomp}_SIZE'
-            properties.append([sname, f'0x{memregion.size:08X}'])
+            properties.append([sname, f'0x{memregion.size:0{addrw}X}'])
             if len(sname) > mlen:
                 mlen = len(sname)
             desc = f'{name.title()} {memregion.desc}'

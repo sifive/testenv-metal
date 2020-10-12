@@ -60,9 +60,8 @@ class OMDevice:
        :param width: the maximal register width in bits
     """
 
-    def __init__(self, name: str, width: int = 0):
+    def __init__(self, name: str):
         self._name = name
-        self._width = width
         self._descriptors: Dict[str, str] = {}
         self._fields: Dict[str,
                                   Tuple[Dict[str, OMRegField], int]] = {}
@@ -75,16 +74,6 @@ class OMDevice:
            :return: the name
         """
         return self._name
-
-    @property
-    def width(self) -> str:
-        """Return the data bus width.
-
-           :return: the width in bytes
-        """
-        if not self._width:
-            raise RuntimeError('Data bus width not known')
-        return self._width
 
     @property
     def descriptors(self) -> Dict[str, str]:
