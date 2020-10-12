@@ -44,6 +44,8 @@ def main(args=None) -> None:
         argparser.add_argument('-w', '--width', type=int,
                                choices=(8, 16, 32, 64), default=None,
                                help='Force register width (default: auto)')
+        argparser.add_argument('-v', '--verbose', action='count', default=0,
+                               help='Increase verbosity')
         argparser.add_argument('-d', '--debug', action='store_true',
                                help='Enable debug mode')
 
@@ -76,14 +78,23 @@ def main(args=None) -> None:
                 for comp in omp.get(name):
                     filename = joinpath(args.dir, f'sifive_{comp.name}.h')
                     with open(filename, 'wt') as ofp:
-                        #print(f'Generating {name} as {filename}',
-                        #      file=args.output)
+                        if args.verbose:
+                            print(f'Generating {name} as {filename}',
+                                  file=args.output)
                         generator(debug=debug).generate_device(ofp, comp,
                                                                regwidth)
+            if compnames:
+                filename = joinpath(args.dir, f'sifive_defs.h')
+                with open(filename, 'wt') as ofp:
+                    if args.verbose:
+                        print(f'Generating definition file as {filename}',
+                              file=args.output)
+                    generator().generate_definitions(ofp)
             filename = joinpath(args.dir, f'sifive_platform.h')
             with open(filename, 'wt') as ofp:
-                #print(f'Generating platform file as {filename}',
-                #      file=args.output)
+                if args.verbose:
+                    print(f'Generating platform file as {filename}',
+                          file=args.output)
                 generator().generate_platform(
                     ofp, omp.memory_map, omp.interrupt_map, omp.xlen)
 

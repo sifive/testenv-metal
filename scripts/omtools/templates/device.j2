@@ -12,11 +12,7 @@
 #define SIFIVE_{{ ucomp }}_H_
 
 #include <stdint.h>
-
-/* following defines should be used for structure members */
-#define __IM   volatile const   /**< Defines 'read only' structure member permissions */
-#define __OM   volatile         /**< Defines 'write only' structure member permissions */
-#define __IOM  volatile         /**< Defines 'read / write' structure member permissions */
+#include "sifive_defs.h"
 
 typedef struct _{{ ucomp }} {
 {%- for name, (perm, type_, name, desc) in cgroups.items() %}

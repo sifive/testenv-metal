@@ -78,6 +78,14 @@ class OMHeaderGenerator:
         raise NotImplementedError('Device generation is not supported with '
                                   'this generator')
 
+    def generate_definitions(self, ofp: TextIO) -> None:
+        """Generate a header file stream for the common definitions.
+
+           :param ofp: the output stream
+        """
+        raise NotImplementedError('Device generation is not supported with '
+                                  'this generator')
+
     @classmethod
     def split_registers(cls,
         reggroups: Dict[str, Tuple[Dict[str, OMRegField], int]],
@@ -501,8 +509,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             bpad = ' ' * swidth
             wpad = ' ' * (swidth - 7)
             padders[:] = [bpad, wpad]
-        year = gmtime().tm_year
-        cyear = f'2020-{year}' if year > 2020 else '2020'
+        cyear = self.build_year_string()
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
@@ -571,12 +578,29 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         for interrupts in intdomains:
             for idesc in interrupts:
                 idesc[:] = self.pad_columns(idesc, widths)
-        year = gmtime().tm_year
-        cyear = f'2020-{year}' if year > 2020 else '2020'
+        cyear = self.build_year_string()
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
         ofp.write(text)
+
+    def generate_definitions(self, ofp: TextIO) -> None:
+        """Generate a header file stream for the common definitions.
+
+           :param ofp: the output stream
+        """
+        env = JiEnv(trim_blocks=False)
+        jinja = joinpath(dirname(__file__), 'templates', 'definitions.j2')
+        with open(jinja, 'rt') as jfp:
+            template = env.from_string(jfp.read())
+        cyear = self.build_year_string()
+        text = template.render(locals())
+        ofp.write(text)
+
+    @classmethod
+    def build_year_string(cls) -> str:
+        year = gmtime().tm_year
+        return f'2020-{year}' if year > 2020 else '2020'
 
     @classmethod
     def merge_access(cls, fields: List[OMRegField]) -> OMAccess:
