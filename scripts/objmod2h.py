@@ -9,7 +9,7 @@
 
 from argparse import ArgumentParser, FileType
 from os import makedirs
-from os.path import isdir, join as joinpath
+from os.path import basename, isdir, join as joinpath
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from traceback import print_exc
 from omtools.generator import OMHeaderGenerator
@@ -38,6 +38,9 @@ def main(args=None) -> None:
         argparser.add_argument('-l', '--list', action='store_true',
                                default=False,
                                help=f'List object model devices')
+        argparser.add_argument('-t', '--test', action='store_true',
+                               default=False,
+                               help=f'Generate C test file to check files')
         argparser.add_argument('-f', '--format', choices=outfmts,
                                default=outfmts[-1],
                                help=f'Output format (default: {outfmts[-1]})')
@@ -70,6 +73,8 @@ def main(args=None) -> None:
             comp = list(omp.get(compnames[0]))[0]
             generator(debug=debug).generate_device(args.output, comp, regwidth)
         elif args.dir:
+            header_files = []
+            gen = generator(debug=debug)
             if not isdir(args.dir):
                 makedirs(args.dir)
             if not compnames:
@@ -81,22 +86,28 @@ def main(args=None) -> None:
                         if args.verbose:
                             print(f'Generating {name} as {filename}',
                                   file=args.output)
-                        generator(debug=debug).generate_device(ofp, comp,
-                                                               regwidth)
+                        gen.generate_device(ofp, comp, regwidth)
+                    header_files.append(basename(filename))
             if compnames:
                 filename = joinpath(args.dir, f'sifive_defs.h')
                 with open(filename, 'wt') as ofp:
                     if args.verbose:
                         print(f'Generating definition file as {filename}',
                               file=args.output)
-                    generator().generate_definitions(ofp)
+                    gen.generate_definitions(ofp)
+                    header_files.append(basename(filename))
             filename = joinpath(args.dir, f'sifive_platform.h')
             with open(filename, 'wt') as ofp:
                 if args.verbose:
                     print(f'Generating platform file as {filename}',
                           file=args.output)
-                generator().generate_platform(
-                    ofp, omp.memory_map, omp.interrupt_map, omp.xlen)
+                gen.generate_platform(ofp, omp.memory_map, omp.interrupt_map,
+                                      omp.xlen)
+                header_files.append(basename(filename))
+            if args.test:
+                filename = joinpath(args.dir, f'sifive_selftest.c')
+                with open(filename, 'wt') as ofp:
+                    gen.generate_autotest(ofp, header_files)
 
     except (IOError, OSError, ValueError) as exc:
         print('Error: %s' % exc, file=stderr)

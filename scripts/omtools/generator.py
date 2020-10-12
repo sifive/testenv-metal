@@ -597,6 +597,21 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         text = template.render(locals())
         ofp.write(text)
 
+    def generate_autotest(self, ofp: TextIO, header_files: List[str]) -> None:
+        """Generate a C file stream to include all generared files.
+
+           :param ofp: the output stream
+           :param header_files: the file names to include
+        """
+        env = JiEnv(trim_blocks=False)
+        jinja = joinpath(dirname(__file__), 'templates', 'autotest.j2')
+        with open(jinja, 'rt') as jfp:
+            template = env.from_string(jfp.read())
+        cyear = self.build_year_string()
+        filename = ofp.name
+        text = template.render(locals())
+        ofp.write(text)
+
     @classmethod
     def build_year_string(cls) -> str:
         year = gmtime().tm_year

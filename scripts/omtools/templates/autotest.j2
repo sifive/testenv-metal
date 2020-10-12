@@ -1,0 +1,13 @@
+/**
+ * Object model header file self test
+ * @file {{filename}}
+ *
+ * @note This file has been automatically generated from the platform object model.
+ *
+ * @copyright (c) {{cyear}} SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+{% for header in header_files -%}
+#include "{{header}}"
+{% endfor %}
