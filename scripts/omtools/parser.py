@@ -25,8 +25,9 @@ class OMParser:
        :param debug: set to report more info on errors
     """
 
-    def __init__(self, regwidth: int = 32, debug=False):
+    def __init__(self, regwidth: int = 32, debug: bool = False):
         self._regwidth = regwidth
+        self._xlen: Optional[int] = None
         self._debug = debug
         self._devices: Dict[str, Optional[OMDevice]] = {}
         self._memorymap: OrderedDict[str, OMMemoryRegion] = OrderedDict()
@@ -40,6 +41,11 @@ class OMParser:
         for dev in self._devices.values():
             if dev.name == name:
                 yield dev
+
+    @property
+    def xlen(self) -> int:
+        """Return the platform bus width."""
+        return self._xlen
 
     @property
     def memory_map(self) -> OrderedDict[str, OMMemoryRegion]:
@@ -70,6 +76,12 @@ class OMParser:
         devmaps: List[Tuple[str, Dict[str, OMMemoryRegion]]] = []
         interrupts: List[Tuple[str, List[OMInterrupt]]] = []
         devkinds = {}
+        for path, node in self._find_descriptors_of_type(objmod, 'OMCore'):
+            xlen = {node.get('isa').get('xLen')}
+        self._xlen = xlen.pop()
+        if xlen:
+            raise ValueError(f'Too many xLen values: {xlen}')
+        self._xlen = 64
         for path, node in self._find_descriptors_of_type(objmod, 'OMDevice'):
             dev = self._parse_device(path, node, names or [])
             if not dev:

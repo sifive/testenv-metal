@@ -62,10 +62,11 @@ def main(args=None) -> None:
         for name in compnames:
             omp.get(name)
             count += 1
+        regwidth = args.width or omp.xlen
         generator = generators[args.format.title()]
         if len(compnames) == 1 or (not compnames and count == 1):
             comp = list(omp.get(compnames[0]))[0]
-            generator().generate_device(args.output, comp, args.width)
+            generator(debug=debug).generate_device(args.output, comp, regwidth)
         elif args.dir:
             if not isdir(args.dir):
                 makedirs(args.dir)
