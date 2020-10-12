@@ -76,13 +76,14 @@ def main(args=None) -> None:
                 for comp in omp.get(name):
                     filename = joinpath(args.dir, f'sifive_{comp.name}.h')
                     with open(filename, 'wt') as ofp:
-                        print(f'Generating {name} as {filename}',
-                              file=args.output)
-                        generator().generate_device(ofp, comp, args.width)
+                        #print(f'Generating {name} as {filename}',
+                        #      file=args.output)
+                        generator(debug=debug).generate_device(ofp, comp,
+                                                               regwidth)
             filename = joinpath(args.dir, f'sifive_platform.h')
             with open(filename, 'wt') as ofp:
-                print(f'Generating platform file as {filename}',
-                      file=args.output)
+                #print(f'Generating platform file as {filename}',
+                #      file=args.output)
                 generator().generate_platform(
                     ofp, omp.memory_map, omp.interrupt_map)
 
@@ -103,4 +104,4 @@ if __name__ == '__main__':
         # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -d plic'.split())
         main('-i /Users/eblot/Downloads/hcaDUT.objectModel.json -d hca'.split())
         # main('-i /Users/eblot/Downloads/e24_hca.objectModel.json -d hca'.split())
-        # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -w 32 -d UART'.split())
+        # main('-i /Users/eblot/Downloads/s54_fpu_d-arty.objectModel.json -d UART'.split())

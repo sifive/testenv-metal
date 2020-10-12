@@ -110,7 +110,6 @@ class OMParser:
             -> Iterator[Tuple[str, OMNode]]:
         for rpath, node in cls._find_kv_pair(root, '_types', typename):
             path = '.'.join(reversed(rpath))
-            # print(f'Path: {path}: {node.get("_types")[0]}')
             yield path, node
 
     @classmethod
@@ -155,16 +154,16 @@ class OMParser:
             if 'registerMap' not in region:
                 continue
             regname = region['name'].lower()
-            width = node.get('beatBytes', 32)
-            device = OMDevice(regname, width)
+            device = OMDevice(regname, self._regwidth)
             grpdescs, freggroups = self._parse_region(region)
             features = self._parse_features(node)
-            if width:
-                features['data_bus'] = {'width': width}
             freggroups = self._fuse_fields(freggroups)
             if name == 'plic':
                 freggroups = self._scatgat_fields(freggroups)
-            freggroups = self._factorize_fields(freggroups)
+            if True:
+                freggroups = self._factorize_fields(freggroups)
+            else:
+                freggroups = {n: (v, 1) for n, v in freggroups.items()}
             device.descriptors = grpdescs
             device.fields = freggroups
             device.features = features
@@ -434,11 +433,11 @@ class OMParser:
            This implementation is quite fragile and should be reworked,
            as it only works with simple cases.
 
-            :param reggroups: register fields (indexed on group, name)
-            :return: a dictionary of groups of register fields and repeat count
+           :param reggroups: register fields (indexed on group, name)
+           :return: a dictionary of groups of register fields and repeat count
         """
         outregs = OrderedDict()
-        for gname, gregs in reggroups.items():  # HW group name
+        for gname, gregs in reggroups.items():
             factorize = True
             field0 = None
             stride = 0
@@ -539,7 +538,6 @@ class OMParser:
             for ints in intdomain.values():
                 ints.sort(key=lambda i: i.channel)
         oimap = OrderedDict()
-        last: Optional[Tuple[str, OMInterrupt]] = None
         for parent in sorted(imap):
             pimap = imap[parent]
             for device in sorted(pimap, key=lambda d: pimap[d][0].channel):
