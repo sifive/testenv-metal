@@ -14,8 +14,8 @@ from re import match as re_match, sub as re_sub
 from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
                     Optional, Sequence, Set, TextIO, Tuple)
-from .model import (HexInt, OMAccess, OMDevice, OMInterrupt, OMMemoryRegion,
-                    OMNode, OMPath, OMRegField)
+from .model import (HexInt, OMAccess, OMCore, OMDevice, OMInterrupt,
+                    OMMemoryRegion, OMNode, OMPath, OMRegField)
 
 
 class OMParser:
@@ -26,17 +26,25 @@ class OMParser:
     """
 
     def __init__(self, regwidth: int = 32, debug: bool = False):
-        self._regwidth = regwidth
+        self._regwidth: int = regwidth
         self._xlen: Optional[int] = None
-        self._debug = debug
+        self._debug: bool = debug
+        self._cores: Dict[int, OMCore] = {}
         self._devices: Dict[str, Optional[OMDevice]] = {}
         self._memorymap: Dict[str, OMMemoryRegion] = {}
         self._intmap: Dict[str, Dict[str, int]] = {}
 
-    def get(self, name) -> Iterable[OMDevice]:
-        """Return evice from its object model name, if any.
+    def get_core(self, hartid: int) -> OMCore:
+        """Return a core from its hart identifier, if any.
 
-           :return: the parsed device
+           :return: the parsed core
+        """
+        return self._cores[hartid]
+
+    def get_devices(self, name: str) -> Iterable[OMDevice]:
+        """Return devices from their object model name, if any.
+
+           :return: an iterator of all devices of the selected name
         """
         for dev in self._devices.values():
             if dev.name == name:
@@ -57,8 +65,18 @@ class OMParser:
         """Return the platform interrupt map."""
         return self._intmap
 
-    def __iter__(self) -> Iterator[OMDevice]:
-        """Return an iterator for all parsed device, ordered by name.
+    @property
+    def core_iterator(self) -> Iterator[int]:
+        """Return an iterator on parsed hard ids, ordered by id.
+
+           :return: a hart id iterator
+        """
+        for hartid in sorted(self._cores):
+            yield hartid
+
+    @property
+    def device_iterator(self) -> Iterator[OMDevice]:
+        """Return an iterator on parsed device names, ordered by name.
 
            :return: a device iterator
         """
@@ -77,11 +95,14 @@ class OMParser:
         interrupts: List[Tuple[str, List[OMInterrupt]]] = []
         devkinds = {}
         for path in self._find_node_of_type(objmod, 'OMCore'):
-            xlen = {path.node.get('isa').get('xLen')}
-        self._xlen = xlen.pop()
-        if xlen:
-            raise ValueError(f'Too many xLen values: {xlen}')
-        self._xlen = 64
+            core, hartid = self._parse_core(path)
+            self._cores[hartid] = core
+        xlens = set()
+        for core in self._cores.values():
+            xlens.add(core.xlen)
+        if len(xlens) != 1:
+            raise ValueError(f'Incoherent xlen in platfornm: {xlens}')
+        self._xlen = xlens.pop()
         for path in self._find_node_of_type(objmod, 'OMDevice'):
             if path.embedded:
                 # for now, ignore sub devices
@@ -131,6 +152,42 @@ class OMParser:
                 for result in cls._find_kv_pair(value, keyname, valname):
                     result.add_parent(node)
                     yield result
+
+    def _parse_core(self, path: OMPath) -> Tuple[OMCore, int]:
+        """Parse a single core.
+
+           :param path: the path to the node
+        """
+        node = path.node
+        hartids = node['hartIds']
+        if len(hartids) != 1:
+            raise ValueError(f'HartIds not handled {hartids}')
+        isa = node['isa']
+        exts = []
+        xlens = set()
+        iset = None
+        for kname, value in isa.items():
+            if kname == 'baseSpecification':
+                continue
+            if kname == 'xLen':
+                xlens.add(value)
+            if isinstance(value, dict):
+                types =  value.get('_types', None)
+                if not type:
+                    continue
+                if 'OMSpecification' in types:
+                    exts.extend(kname)
+                elif 'OMBaseInstructionSet' in types:
+                    iset = types[0]
+                    imo = re_match(r'RV(?P<xlen>\d+)(?P<ext>\w+)', iset)
+                    if not imo:
+                        raise ValueError(f'Unsupported type: {iset}')
+                    xlens.add(int(imo.group('xlen')))
+                    exts.extend(imo.group('ext').lower())
+        if len(xlens) != 1:
+            raise ValueError(f'xLen issue detected: {xlens}')
+        core = OMCore(xlens.pop(), ''.join(exts))
+        return core, hartids[0]
 
     def _parse_device(self, path: OMPath, names: List[str]) \
             -> Optional[Tuple[str, List[OMMemoryRegion], List[OMInterrupt],

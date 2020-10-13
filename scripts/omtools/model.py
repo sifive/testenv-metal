@@ -141,6 +141,13 @@ class OMRegField(NamedTuple):
     access: Optional[str]
 
 
+class OMCore(NamedTuple):
+    """Core description.
+    """
+    xlen: int
+    isa: str
+
+
 class OMMemoryRegion(NamedTuple):
     """Device memory region."""
 

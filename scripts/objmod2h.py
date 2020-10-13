@@ -65,7 +65,7 @@ def main(args=None) -> None:
             sysexit(0)
         count = 0
         for name in compnames:
-            omp.get(name)
+            omp.get_devices(name)
             count += 1
         regwidth = args.width or omp.xlen
         generator = generators[args.format.title()]
@@ -78,9 +78,11 @@ def main(args=None) -> None:
             if not isdir(args.dir):
                 makedirs(args.dir)
             if not compnames:
-                compnames = {c.name for c in omp}
+                compnames = {c.name for c in omp.device_iterator}
+            # for hartid in omp.core_iterator:
+            #     print(hartid, omp.get_core(hartid))
             for name in compnames:
-                for comp in omp.get(name):
+                for comp in omp.get_devices(name):
                     filename = joinpath(args.dir, f'sifive_{comp.name}.h')
                     with open(filename, 'wt') as ofp:
                         if args.verbose:
