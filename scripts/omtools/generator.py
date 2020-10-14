@@ -318,21 +318,32 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         else:
             filename = f'sifive_{device.name}.h'
 
+        cgroups, fgroups = self._generate_1(device, groups, bitsize)
+        bgroups = self._generate_2(device, groups, bitsize)
+        cyear = self.build_year_string()
+
+        # shallow copy to avoid polluting locals dir
+        text = template.render(copy(locals()))
+        ofp.write(text)
+
+    def _generate_1(self, device, groups, bitsize: int):
         # compute how many hex nibbles are required to encode all byte offsets
+        grpfields = device.fields
         lastgroup, _ = grpfields[list(grpfields.keys())[-1]]
         lastfield = lastgroup[list(lastgroup.keys())[-1]]
         hioffset = lastfield.offset//8
         encbit = int.bit_length(hioffset)
         hwx = (encbit + 3) // 4
 
+        regwidth = self._regwidth
+        regmask = regwidth - 1
+        type_ = f'uint{regwidth}_t'
+        ucomp = device.name.upper()
+
         cgroups = {}
         fgroups = {}
         last_pos = 0
         rsv = 0
-        regwidth = self._regwidth
-        regmask = regwidth - 1
-        type_ = f'uint{regwidth}_t'
-
         for name, (group, repeat) in groups.items():
             gdesc = device.descriptors.get(name, '')
             fields = list(group.values())
@@ -361,10 +372,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     (fields[0].offset & (bitsize - 1)) == 0:
                 rtype = 'uint64_t'
                 tsize >>= 1
-                gsize = bitsize
             else:
                 rtype = type_
-                gsize = regwidth
             uname = name.upper()
             if repeat == 1:
                 fmtname = f'{uname};' if tsize == 1 else f'{uname}[{tsize}U];'
@@ -438,6 +447,9 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             for freg in fregs:
                 for ffield in freg:
                     ffield[:] = self.pad_columns(ffield, widths)
+        return cgroups, fgroups
+
+    def _generate_2(self, device, groups, bitsize: int):
 
         def bitdesc(pos, size, desc):
             if size > 1:
@@ -445,6 +457,11 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             else:
                 brange = f'{pos}'
             return f'bit: {brange:>6s}  {desc}'
+
+        grpfields = device.fields
+        regwidth = self._regwidth
+        regmask = regwidth - 1
+        type_ = f'uint{regwidth}_t'
 
         bgroups = {}
         bflen = 0
@@ -458,11 +475,11 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             bitcount = 0
             for fname, field in group.items():
                 if fieldcount == 1:
-                    if field.size >= gsize:
-                        last_pos = gsize
+                    if field.size >= regwidth:
+                        last_pos = regwidth
                         break
                 ufname = fname.upper()
-                if field.size > gsize:
+                if field.size > regwidth:
                     raise RuntimeError(f'Field size too large: '
                                        f'{field.size}')
                 if base is None:
@@ -493,7 +510,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 bits.append([type_, vstr, desc])
                 if len(vstr) > bflen:
                     bflen = len(vstr)
-            if bitcount > gsize:
+            if bitcount > regwidth:
                 if self._debug:
                     pprint(grpfields, stream=stderr)
                 devname = device.name
@@ -508,11 +525,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             bpad = ' ' * swidth
             wpad = ' ' * (swidth - 7)
             padders[:] = [bpad, wpad]
-        cyear = self.build_year_string()
-
-        # shallow copy to avoid polluting locals dir
-        text = template.render(copy(locals()))
-        ofp.write(text)
+        return bgroups
 
     def generate_platform(self,
             ofp: TextIO,
