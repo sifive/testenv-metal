@@ -261,11 +261,14 @@ class OMDeviceParser:
 
     def _scatgat_fields(self, reggroups: Dict[str, Dict[str, OMRegField]]) \
             -> Dict[str, Dict[str, OMRegField]]:
-        """
+        """Gather and scatter bitfield in register words.
+
+           Bitfields cannot be longer that a register word. Split them into
+           consecutive register words whenever necessary.
         """
         outfields = {}
         rwidth = self._regwidth
-        for gname, gregs in reggroups.items():  # HW group name
+        for gname, gregs in reggroups.items():
             first = None
             wmask = rwidth -1
             base = 0
@@ -290,10 +293,15 @@ class OMDeviceParser:
                     newfields[gname].append(fields)
                     fields = []
                     first = None
+            # cannot modify the fields
             if skip:
-                # cannot modify the fields, simply copy them over
+                # simply copy them over
                 outfields[gname] = gregs
+                # nothing more to do for this group, preserve the insertion
+                # order in the output dictionary
                 continue
+            # the above loop may have left last fields not yet stored into
+            # the new dictionary
             if fields:
                 if gname not in newfields:
                     newfields[gname] = []
@@ -307,7 +315,9 @@ class OMDeviceParser:
                             outfields[name] = {}
                         outfields[name][fname] = field
                         continue
-                    newname = f'{name}_{pos}'
+                    # rename field group with an index suffix if there is
+                    # more than one sub group
+                    newname = f'{name}_{pos}' if len(groups) > 1 else name
                     if newname not in outfields:
                         outfields[newname] = {}
                     splitted = True
