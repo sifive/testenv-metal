@@ -39,15 +39,9 @@ class OMDeviceParser:
         grpdescs, freggroups = self._parse_region(region)
         features = self._parse_features(node)
         freggroups = self._fuse_fields(freggroups)
-        debug = self._debug
-        from deepdiff import DeepDiff
-        old = freggroups
-        self._debug = region['name'].lower() == 'plic'
         freggroups = self._scatgat_fields(freggroups)
-        if self._debug:
-            pprint(DeepDiff(old, freggroups))
         freggroups = self._factorize_fields(freggroups)
-        self._debug = debug
+        # freggroups = self._factorize_dummy_fields(freggroups)
         return grpdescs, features, freggroups
 
     def _parse_region(self, region: OMNode) \
@@ -311,20 +305,10 @@ class OMDeviceParser:
                     newfields[gname] = []
                 newfields[gname].append(fields)
             for name, groups in newfields.items():
-                splitted = False
                 for pos, fields in enumerate(groups):
-                    if not splitted and len(fields) < 2:
-                        fname, field = fields[0]
-                        if name not in outfields:
-                            outfields[name] = {}
-                        outfields[name][fname] = field
-                        continue
-                    # rename field group with an index suffix if there is
-                    # more than one sub group
                     newname = f'{name}_{pos}' if len(groups) > 1 else name
                     if newname not in outfields:
                         outfields[newname] = {}
-                    splitted = True
                     for fpair in fields:
                         fname, field = fpair
                         outfields[newname][fname] = field
@@ -370,4 +354,12 @@ class OMDeviceParser:
                 outregs[gname] = (greg, repeat)
             else:
                 outregs[gname] = (gregs, 1)
+        return outregs
+
+    def _factorize_dummy_fields(self,
+            reggroups: Dict[str, Dict[str, OMRegField]]) \
+        ->  Dict[str, Tuple[Dict[str, OMRegField], int]]:
+        outregs = {}
+        for gname, gregs in reggroups.items():
+            outregs[gname] = (gregs, 1)
         return outregs
