@@ -20,7 +20,7 @@ try:
     from jinja2 import Environment as JiEnv
 except ImportError:
     JiEnv = None
-from .model import OMAccess, OMDevice, OMMemoryRegion, OMRegField
+from .model import OMAccess, OMDeviceMap, OMMemoryRegion, OMRegField
 
 
 class OMHeaderGenerator:
@@ -52,7 +52,7 @@ class OMHeaderGenerator:
             generators[sname] = item
         return generators
 
-    def generate_device(self, ofp: TextIO, device: OMDevice,
+    def generate_device(self, ofp: TextIO, device: OMDeviceMap,
                         bitsize: Optional[int] = None) -> None:
         """Generate a header file stream for a device.
 
@@ -144,7 +144,7 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
     EXTRA_SEP_COUNT = 2
     """Extra space count between columns."""
 
-    def generate_device(self, ofp: TextIO, device: OMDevice,
+    def generate_device(self, ofp: TextIO, device: OMDeviceMap,
                         bitsize: int) -> None:
         """Generate a header file stream for a device.
 
@@ -298,7 +298,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
     }
     """OMAccess map for SIS formats."""
 
-    def generate_device(self, ofp: TextIO, device: OMDevice,
+    def generate_device(self, ofp: TextIO, device: OMDeviceMap,
                         bitsize: Optional[int] = None) -> None:
         """Generate a SIS header file stream for a device.
 

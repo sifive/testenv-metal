@@ -3,7 +3,8 @@ from pprint import pprint
 from re import match as re_match, sub as re_sub
 from sys import stderr
 from typing import DefaultDict, Dict, List, Tuple
-from ..model import (HexInt, OMAccess, OMDevice, OMInterrupt, OMMemoryRegion, OMNode, OMRegField)
+from ..model import (HexInt, OMAccess, OMDeviceMap, OMInterrupt, OMMemoryRegion,
+                     OMNode, OMRegField)
 
 
 class OMDeviceParser:
@@ -12,13 +13,16 @@ class OMDeviceParser:
         self._regwidth = regwidth
         self._debug = debug
 
-    def parse(self, node: OMNode):
+    def parse(self, node: OMNode) \
+            -> Tuple[Dict[str, OMDeviceMap],
+                     List[OMMemoryRegion],
+                     List[OMInterrupt]]:
         devices = {}
         for region in node.get('memoryRegions', {}):
             if 'registerMap' not in region:
                 continue
             regname = region['name'].lower()
-            device = OMDevice(regname)
+            device = OMDeviceMap(regname)
             grpdescs, features, freggroups = self._build_device(node, region)
             device.descriptors = grpdescs
             device.fields = freggroups
@@ -28,7 +32,10 @@ class OMDeviceParser:
         irqs = self._parse_interrupts(node)
         return devices, mmaps, irqs
 
-    def _build_device(self, node: OMNode, region: Dict) -> None:
+    def _build_device(self, node: OMNode, region: Dict) \
+            -> Tuple[Dict[str, str],
+                     Dict[str, Dict[str, bool]],
+                     Dict[str, Tuple[Dict[str, OMRegField], int]]]:
         grpdescs, freggroups = self._parse_region(region)
         features = self._parse_features(node)
         freggroups = self._fuse_fields(freggroups)
@@ -250,9 +257,8 @@ class OMDeviceParser:
             outregs[gname] = mregs
         return outregs
 
-    def _scatgat_fields(self,
-            reggroups: Dict[str, Dict[str, OMRegField]]) \
-        -> Dict[str, Dict[str, OMRegField]]:
+    def _scatgat_fields(self, reggroups: Dict[str, Dict[str, OMRegField]]) \
+            -> Dict[str, Dict[str, OMRegField]]:
         """
         """
         outfields = DefaultDict(dict)

@@ -15,7 +15,7 @@ from re import match as re_match, sub as re_sub
 from sys import stderr
 from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
                     Optional, Sequence, Set, TextIO, Tuple)
-from .model import (HexInt, OMAccess, OMCore, OMDevice, OMInterrupt,
+from .model import (HexInt, OMAccess, OMCore, OMDeviceMap, OMInterrupt,
                     OMMemoryRegion, OMNode, OMPath, OMRegField)
 from .devices import OMDeviceParser
 
@@ -32,7 +32,7 @@ class OMParser:
         self._xlen: Optional[int] = None
         self._debug: bool = debug
         self._cores: Dict[int, OMCore] = {}
-        self._devices: Dict[str, Optional[OMDevice]] = {}
+        self._devices: Dict[str, Optional[OMDeviceMap]] = {}
         self._memorymap: Dict[str, OMMemoryRegion] = {}
         self._intmap: Dict[str, Dict[str, int]] = {}
 
@@ -43,7 +43,7 @@ class OMParser:
         """
         return self._cores[hartid]
 
-    def get_devices(self, name: str) -> Iterable[OMDevice]:
+    def get_devices(self, name: str) -> Iterable[OMDeviceMap]:
         """Return devices from their object model name, if any.
 
            :return: an iterator of all devices of the selected name
@@ -77,7 +77,7 @@ class OMParser:
             yield hartid
 
     @property
-    def device_iterator(self) -> Iterator[OMDevice]:
+    def device_iterator(self) -> Iterator[OMDeviceMap]:
         """Return an iterator on parsed device names, ordered by name.
 
            :return: a device iterator
@@ -193,13 +193,13 @@ class OMParser:
 
     def _parse_device(self, path: OMPath, names: List[str]) \
             -> Optional[Tuple[str, List[OMMemoryRegion], List[OMInterrupt],
-                              Dict[str, OMDevice]]]:
+                              Dict[str, OMDeviceMap]]]:
         """Parse a single device.
 
            :param path: the path to the node
            :param names: accepted device names (if empty, accept all)
            :return: a 4-uple of device name, memory regions, interrupts and
-                    one or more device/subdevice
+                    one or more device maps
         """
         node = path.node
         types = [t.strip() for t in node.get('_types')]
@@ -210,8 +210,8 @@ class OMParser:
         if names and name not in names:
             return None
         devparser = OMDeviceParser(self._regwidth, self._debug)
-        devices, mmaps, irqs = devparser.parse(node)
-        return name, mmaps, irqs, devices
+        devmaps, mmaps, irqs = devparser.parse(node)
+        return name, mmaps, irqs, devmaps
 
     @classmethod
     def _merge_memory_regions(cls,

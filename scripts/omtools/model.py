@@ -162,10 +162,11 @@ class OMInterrupt(NamedTuple):
     parent: str
 
 
-class OMDevice:
-    """Object model device container
+class OMDeviceMap:
+    """Object model device map container, i.e. a register memory region
+       associated with a device. A device may expose one or more OMDeviceMap.
 
-       :param name: the device name, as defined in the object model
+       :param name: the device region name, as defined in the object model
        :param width: the maximal register width in bits
     """
 
