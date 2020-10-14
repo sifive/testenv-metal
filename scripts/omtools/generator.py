@@ -318,15 +318,16 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         else:
             filename = f'sifive_{device.name}.h'
 
-        cgroups, fgroups = self._generate_1(device, groups, bitsize)
-        bgroups = self._generate_2(device, groups, bitsize)
+        cgroups = self._generate_device(device, groups, bitsize)
+        fgroups = self._generate_fields(device, groups, bitsize)
+        bgroups = self._generate_bits(device, groups)
         cyear = self.build_year_string()
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
         ofp.write(text)
 
-    def _generate_1(self, device, groups, bitsize: int):
+    def _generate_device(self, device, groups, bitsize: int):
         # compute how many hex nibbles are required to encode all byte offsets
         grpfields = device.fields
         lastgroup, _ = grpfields[list(grpfields.keys())[-1]]
@@ -338,10 +339,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         regwidth = self._regwidth
         regmask = regwidth - 1
         type_ = f'uint{regwidth}_t'
-        ucomp = device.name.upper()
 
         cgroups = {}
-        fgroups = {}
         last_pos = 0
         rsv = 0
         for name, (group, repeat) in groups.items():
@@ -391,10 +390,30 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             regsize = (fields[-1].size + regmask) & ~regmask
             last_pos = fields[-1].offset + regsize
 
+        # find the largest field of each cgroups column
+        lengths = [0, 0, 0, 0]
+        for cregs in cgroups.values():
+            lengths = [max(a,len(b)) for a,b in zip(lengths, cregs)]
+
+        # space filling in-place to cgroups columns
+        widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
+        widths[-1] = None
+        for cregs in cgroups.values():
+            cregs[:] = self.pad_columns(cregs, widths)
+
+        return cgroups
+
+    def _generate_fields(self, device, groups, bitsize: int):
+        ucomp = device.name.upper()
+
+        fgroups = {}
+        for name, (group, _) in groups.items():
             # fgroup generation
             base_offset = None
             fregisters = []
             bitmask = bitsize - 1
+            uname = name.upper()
+            gdesc = device.descriptors.get(name, '')
             for fname, field in group.items():
                 ufname = fname.upper()
                 if base_offset is None:
@@ -418,17 +437,6 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 fregisters.append(ffield)
             fgroups[uname] = (fregisters, gdesc)
 
-        # find the largest field of each cgroups column
-        lengths = [0, 0, 0, 0]
-        for cregs in cgroups.values():
-            lengths = [max(a,len(b)) for a,b in zip(lengths, cregs)]
-
-        # space filling in-place to cgroups columns
-        widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
-        widths[-1] = None
-        for cregs in cgroups.values():
-            cregs[:] = self.pad_columns(cregs, widths)
-
         # find the largest field of each fgroups column
         namelen = 0
         vallen = 0
@@ -447,9 +455,9 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             for freg in fregs:
                 for ffield in freg:
                     ffield[:] = self.pad_columns(ffield, widths)
-        return cgroups, fgroups
+        return fgroups
 
-    def _generate_2(self, device, groups, bitsize: int):
+    def _generate_bits(self, device, groups):
 
         def bitdesc(pos, size, desc):
             if size > 1:
