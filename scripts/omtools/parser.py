@@ -20,6 +20,11 @@ from .model import (HexInt, OMAccess, OMCore, OMDeviceMap, OMInterrupt,
 from .devices import OMDeviceParser
 
 
+class DiscardedItemError(ValueError):
+    """Special error to discard a non-fatal but unsupported object model item.
+    """
+
+
 class OMParser:
     """JSON object model converter.
 
@@ -109,7 +114,11 @@ class OMParser:
             if path.embedded:
                 # for now, ignore sub devices
                 continue
-            dev = self._parse_device(path, names or [])
+            try:
+                dev = self._parse_device(path, names or [])
+            except DiscardedItemError as exc:
+                print(exc, file=stderr)
+                continue
             if not dev:
                 continue
             devname, mmaps, ints, devices = dev
@@ -205,7 +214,7 @@ class OMParser:
         types = [t.strip() for t in node.get('_types')]
         devtype = types[0]  # from most specialized to less specialized
         if not devtype.startswith('OM'):
-            raise ValueError(f'Unexpected device types: {devtype}')
+            raise DiscardedItemError(f'Unexpected device types: {devtype}')
         name = devtype[2:].lower()
         if names and name not in names:
             return None
