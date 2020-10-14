@@ -70,7 +70,7 @@ class OMDeviceParser:
             if self._debug:
                 pprint(group, stream=stderr)
             raise
-        registers = DefaultDict(dict)
+        registers = {}
         try:
             field = None
             for field in  regmap['registerFields']:
