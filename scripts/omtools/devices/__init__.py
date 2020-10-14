@@ -39,11 +39,15 @@ class OMDeviceParser:
         grpdescs, freggroups = self._parse_region(region)
         features = self._parse_features(node)
         freggroups = self._fuse_fields(freggroups)
+        debug = self._debug
         from deepdiff import DeepDiff
         old = freggroups
+        self._debug = region['name'].lower() == 'plic'
         freggroups = self._scatgat_fields(freggroups)
-        pprint(DeepDiff(old, freggroups))
+        if self._debug:
+            pprint(DeepDiff(old, freggroups))
         freggroups = self._factorize_fields(freggroups)
+        self._debug = debug
         return grpdescs, features, freggroups
 
     def _parse_region(self, region: OMNode) \
