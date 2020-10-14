@@ -2,7 +2,7 @@ from os.path import commonprefix
 from pprint import pprint
 from re import match as re_match, sub as re_sub
 from sys import stderr
-from typing import DefaultDict, Dict, List, Tuple
+from typing import Dict, List, Tuple
 from ..model import (HexInt, OMAccess, OMDeviceMap, OMInterrupt, OMMemoryRegion,
                      OMNode, OMRegField)
 
@@ -89,6 +89,8 @@ class OMDeviceParser:
                 access = OMAccess[access_[0]] if access_ else None
                 regfield = OMRegField(HexInt(bitbase), bitsize, desc, reset,
                                       access)
+                if group not in registers:
+                    registers[group] = {}
                 registers[group][name] = regfield
         except Exception:
             if self._debug:
@@ -242,10 +244,7 @@ class OMDeviceParser:
                                         nreset |= lreg.reset << nsize
                                 nsize += lreg.size
                             else:
-                                reg = OMRegField(HexInt(breg.offset), nsize,
-                                                 breg.desc, nreset, breg.access)
-                                nregs.append(reg)
-                                breg = None
+                                raise NotImplementedError('Unsupported')
                         if breg is None:
                             breg = lreg
                             nsize = lreg.size
@@ -261,13 +260,13 @@ class OMDeviceParser:
             -> Dict[str, Dict[str, OMRegField]]:
         """
         """
-        outfields = DefaultDict(dict)
+        outfields = {}
         rwidth = self._regwidth
         for gname, gregs in reggroups.items():  # HW group name
             first = None
             wmask = rwidth -1
             base = 0
-            newfields = DefaultDict(list)
+            newfields = {}
             fields = []
             skip = False
             for fname, field in gregs.items():
@@ -283,6 +282,8 @@ class OMDeviceParser:
                             break
                         fields.append((fname, field))
                         break
+                    if gname not in newfields:
+                        newfields[gname] = []
                     newfields[gname].append(fields)
                     fields = []
                     first = None
@@ -299,9 +300,13 @@ class OMDeviceParser:
                 for pos, fields in enumerate(groups):
                     if not splitted and len(fields) < 2:
                         fname, field = fields[0]
+                        if name not in outfields:
+                            outfields[name] = {}
                         outfields[name][fname] = field
                         continue
                     newname = f'{name}_{pos}'
+                    if newname not in outfields:
+                        outfields[newname] = {}
                     splitted = True
                     for fpair in fields:
                         fname, field = fpair
