@@ -337,20 +337,19 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             gdesc = device.descriptors.get(name, '')
             fields = list(group.values())
             # cgroup generation
-            if last_pos:
-                padding = fields[0].offset-last_pos
-                if padding >= regwidth:
-                    # padding bit space, defined as reserved words
-                    tsize = (padding + regmask)//regwidth
-                    rname = f'_reserved{rsv}'
-                    if tsize == 1:
-                        rname = f'{rname};'
-                    elif tsize <= regwidth:
-                        rname = f'{rname}[{tsize}U];'
-                    else:
-                        rname = f'{rname}[0x{tsize:x}U];'
-                    cgroups[rname] = ['     ', type_, rname, '']
-                    rsv += 1
+            padding = fields[0].offset-last_pos
+            if padding >= regwidth:
+                # padding bit space, defined as reserved words
+                tsize = (padding + regmask)//regwidth
+                rname = f'_reserved{rsv}'
+                if tsize == 1:
+                    rname = f'{rname};'
+                elif tsize <= regwidth:
+                    rname = f'{rname}[{tsize}U];'
+                else:
+                    rname = f'{rname}[0x{tsize:x}U];'
+                cgroups[rname] = ['     ', type_, rname, '']
+                rsv += 1
             size = fields[-1].offset + fields[-1].size - fields[0].offset
             tsize = (size + regmask)//regwidth
             # conditions to use 64 bit register
