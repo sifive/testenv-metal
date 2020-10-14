@@ -60,7 +60,7 @@ def main(args=None) -> None:
         omp.parse(args.input, compnames)
         if args.list:
             print('Components:', file=args.output)
-            for comp in omp:
+            for comp in omp.device_iterator:
                 print(f' {comp.name}', file=args.output)
             sysexit(0)
         count = 0
@@ -70,7 +70,7 @@ def main(args=None) -> None:
         regwidth = args.width or omp.xlen
         generator = generators[args.format.title()]
         if len(compnames) == 1 or (not compnames and count == 1):
-            comp = list(omp.get(compnames[0]))[0]
+            comp = list(omp.get_devices(compnames[0]))[0]
             generator(debug=debug).generate_device(args.output, comp, regwidth)
         elif args.dir:
             header_files = []
@@ -80,7 +80,7 @@ def main(args=None) -> None:
             if not compnames:
                 compnames = {c.name for c in omp.device_iterator}
             # for hartid in omp.core_iterator:
-            #     print(hartid, omp.get_core(hartid))
+            #   print(hartid, omp.get_core(hartid))
             for name in compnames:
                 for comp in omp.get_devices(name):
                     filename = joinpath(args.dir, f'sifive_{comp.name}.h')

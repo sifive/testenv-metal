@@ -49,10 +49,6 @@ class OMPath:
 
            :return: the type as a string.
         """
-        try:
-            types = self._leaf.get('_types')
-        except (AttributeError, KeyError):
-            return ''
         omtypes = self.get_om_types()
         return omtypes[0] if omtypes else ''
 
@@ -114,7 +110,7 @@ class OMPath:
     def __repr__(self):
         obj = self._leaf
         paths = []
-        for pos, node in enumerate(self._heir):
+        for node in self._heir:
             paths.append(self._make_path(obj, node))
             obj = node
         return '.'.join(reversed(paths))
