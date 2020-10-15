@@ -8,10 +8,12 @@
 #pylint: disable-msg=cell-var-from-loop
 
 from argparse import ArgumentParser, FileType
-from os import makedirs
-from os.path import basename, isdir, join as joinpath
+from importlib import import_module
+from os import listdir, makedirs
+from os.path import basename, dirname, isdir, isfile, join as joinpath, splitext
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from traceback import print_exc
+from typing import Type
 from omtools.generator import OMHeaderGenerator
 from omtools.parser import OMParser
 
@@ -74,16 +76,40 @@ def main(args=None) -> None:
             generator(debug=debug).generate_device(args.output, comp, regwidth)
         elif args.dir:
             header_files = []
-            gen = generator(test=args.test, debug=debug)
+            defgen = generator(test=args.test, debug=debug)
             if not isdir(args.dir):
                 makedirs(args.dir)
             if not compnames:
                 compnames = {c.name for c in omp.device_iterator}
             # for hartid in omp.core_iterator:
             #   print(hartid, omp.get_core(hartid))
+            genmod = dirname(modules[OMHeaderGenerator.__module__].__file__)
+            devpath = joinpath(genmod, 'devices')
+            devmods = [splitext(f)[0] for f in listdir(devpath)
+                        if isfile(joinpath(devpath, f)) and
+                        not f.startswith('_')]
+            # specialized generators
+            devgens: Dict[name, generator] = {}
+            for modname in devmods:
+                devmod = import_module(f'omtools.devices.{modname}')
+                for dname in dir(devmod):
+                    item = getattr(devmod, dname)
+                    if not isinstance(item, Type):
+                        continue
+                    if not issubclass(item, generator) or item == generator:
+                        continue
+                    try:
+                        devname = getattr(item, 'DEVICE')
+                    except AttributeError:
+                        continue
+                    devgens[devname] = item
             for name in compnames:
                 for comp in omp.get_devices(name):
                     filename = joinpath(args.dir, f'sifive_{comp.name}.h')
+                    if comp.name in devgens:
+                        gen = devgens[comp.name](test=args.test, debug=debug)
+                    else:
+                        gen = defgen
                     with open(filename, 'wt') as ofp:
                         if args.verbose:
                             print(f'Generating {name} as {filename}',
