@@ -358,6 +358,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         last_pos = 0
         rsv = 0
         for name, (group, repeat) in groups.items():
+            # print(name)
             gdesc = device.descriptors.get(name, '')
             fields = list(group.values())
             # cgroup generation
@@ -453,8 +454,10 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 fieldname = f'{ucomp}_{uname}_{ufname}_Pos'
                 fdesc = field.desc
                 name_prefix = name.split('_', 1)[0]
-                if fdesc.startswith(name_prefix):
+                if fdesc.lower().startswith(name_prefix):
                     fdesc = fdesc[len(name_prefix):].lstrip()
+                if fdesc:
+                    fdesc = ''.join((fdesc[0].upper(), fdesc[1:]))
                 ffield.append([fieldname, f'{fpos}U',
                                f'{ucomp} {uname}: {fdesc} Position'])
                 mask = (1 << field.size) - 1

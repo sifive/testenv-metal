@@ -59,7 +59,7 @@ class OMDeviceParser:
         try:
             group = None
             for group in regmap['groups']:
-                name = group['name']
+                name = group['name'].lower()
                 desc = group.get('description', '').strip()
                 if desc.lower().endswith(' register'):
                     desc = desc[:-len(' register')]
@@ -78,12 +78,11 @@ class OMDeviceParser:
                 bitbase = field['bitRange']['base']
                 bitsize = field['bitRange']['size']
                 regfield = field['description']
-                name = regfield['name']
+                name = regfield['name'].lower()
                 if name == 'reserved':
                     continue
                 desc = regfield['description']
-                # missing group?
-                group = regfield.get('group', name)
+                group = regfield.get('group', name).lower()
                 reset = regfield.get('resetValue', None)
                 access_ = list(filter(lambda x: x in OMAccess.__members__,
                                       regfield['access'].get('_types', '')))
