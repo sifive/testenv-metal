@@ -390,7 +390,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             gdesc = descriptors.get(name, '')
             fields = list(group.values())
             # cgroup generation
-            padding = fields[0].offset-last_pos
+            padding = (fields[0].offset & ~regmask) - last_pos
             if padding >= regwidth:
                 # padding bit space, defined as reserved words
                 tsize = (padding + regmask)//regwidth
@@ -414,10 +414,12 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     (fields[0].offset & (bitsize - 1)) == 0:
                 rtype = 'uint64_t'
                 tsize >>= 1
-                regsizes[name] = bitsize
+                slotsize = bitsize
             else:
                 rtype = type_
-                regsizes[name] = regwidth
+                slotsize = regwidth
+            regsizes[name] = slotsize
+            slotmask = slotsize - 1
             uname = name.upper()
             if repeat == 1:
                 fmtname = f'{uname};' if tsize == 1 else f'{uname}[{tsize}U];'
@@ -432,8 +434,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             if gdesc:
                 desc = f'{desc} {gdesc}'
             cgroups.append([perm, rtype, fmtname, desc])
-            regsize = (fields[-1].size + regmask) & ~regmask
-            last_pos = fields[-1].offset + regsize
+            size = ((fields[-1].size + slotmask) & ~slotmask) * repeat
+            last_pos = fields[-1].offset + size
 
         # find the largest field of each cgroups column
         lengths = [0, 0, 0, 0]

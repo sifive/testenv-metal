@@ -53,5 +53,4 @@ class OMSi5SisPlicHeaderGenerator(OMSi5SisHeaderGenerator):
                 fcount = 0
                 fdesc = ''
             newgroups[name] = (group, repeat)
-        # pprint(newgroups, sort_dicts=False)
         return device, newgroups
