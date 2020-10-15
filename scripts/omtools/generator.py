@@ -327,7 +327,21 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         text = template.render(copy(locals()))
         ofp.write(text)
 
-    def _generate_device(self, device, groups, bitsize: int):
+    def _generate_device(self,
+            device: OMDeviceMap,
+            groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
+            bitsize: int) -> List[str]:
+        """Generate device structure as Jinja data.
+
+           Output string are padded with space chars for proper alignments,
+           as this feature is hard if not impossible to achieve with Jinja.
+
+           :param device: the device map
+           :param groups: the device registers
+           :param int: maximum size in bits of registers
+           :return: 4-item list of register access mode, register type,
+                    register name, description
+        """
         # compute how many hex nibbles are required to encode all byte offsets
         grpfields = device.fields
         lastgroup, _ = grpfields[list(grpfields.keys())[-1]]
@@ -340,7 +354,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         regmask = regwidth - 1
         type_ = f'uint{regwidth}_t'
 
-        cgroups = {}
+        cgroups: List[str] = []
         last_pos = 0
         rsv = 0
         for name, (group, repeat) in groups.items():
@@ -358,7 +372,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     rname = f'{rname}[{tsize}U];'
                 else:
                     rname = f'{rname}[0x{tsize:x}U];'
-                cgroups[rname] = ['     ', type_, rname, '']
+                cgroups.append(['', type_, rname, ''])
                 rsv += 1
             size = fields[-1].offset + fields[-1].size - fields[0].offset
             tsize = (size + regmask)//regwidth
@@ -386,27 +400,42 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             desc = f'Offset: 0x{offset:0{hwx}X} ({access})'
             if gdesc:
                 desc = f'{desc} {gdesc}'
-            cgroups[uname] = [perm, rtype, fmtname, desc]
+            cgroups.append([perm, rtype, fmtname, desc])
             regsize = (fields[-1].size + regmask) & ~regmask
             last_pos = fields[-1].offset + regsize
 
         # find the largest field of each cgroups column
         lengths = [0, 0, 0, 0]
-        for cregs in cgroups.values():
-            lengths = [max(a,len(b)) for a,b in zip(lengths, cregs)]
+        for cregs in cgroups:
+            lengths = [max(a,len(b)) for a, b in zip(lengths, cregs)]
 
         # space filling in-place to cgroups columns
         widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
         widths[-1] = None
-        for cregs in cgroups.values():
+        for cregs in cgroups:
             cregs[:] = self.pad_columns(cregs, widths)
 
         return cgroups
 
-    def _generate_fields(self, device, groups, bitsize: int):
+    def _generate_fields(self,
+            device: OMDeviceMap,
+            groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
+            bitsize: int) -> Dict[str, Tuple[List[str], str]]:
+        """Generate register definitions as Jinja data.
+
+           Output string are padded with space chars for proper alignments,
+           as this feature is hard if not impossible to achieve with Jinja.
+
+           :param device: the device map
+           :param groups: the device registers
+           :param int: maximum size in bits of registers
+           :return: a map of register name, 2-uple of
+                     * list of 3-item list of bf name, bf mask, bf desc,
+                     * register description
+        """
         ucomp = device.name.upper()
 
-        fgroups = {}
+        fgroups: Dict[str, Tuple[List[str], str]] = {}
         for name, (group, _) in groups.items():
             # fgroup generation
             base_offset = None
@@ -457,8 +486,24 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     ffield[:] = self.pad_columns(ffield, widths)
         return fgroups
 
-    def _generate_bits(self, device, groups):
+    def _generate_bits(self,
+            device: OMDeviceMap,
+            groups: Dict[str, Tuple[Dict[str, OMRegField], int]]) \
+        -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
+        """Generate register bitfield descriptions as Jinja data.
+           Registers which are made of meaningful bitfields are described as
+           integer bitfields.
 
+           Output string are padded with space chars for proper alignments,
+           as this feature is hard if not impossible to achieve with Jinja.
+
+           :param device: the device map
+           :param groups: the device registers
+           :return: a map of bitfield name, list of a 3-uple of
+                     * the containing register type,
+                     * a 3-item list of the bf type, the bf name, the bf desc
+                     * a 2-item list of padding string for the bf and the reg.
+        """
         def bitdesc(pos, size, desc):
             if size > 1:
                 brange = f'{pos}..{pos+size-1}'
@@ -471,7 +516,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         regmask = regwidth - 1
         type_ = f'uint{regwidth}_t'
 
-        bgroups = {}
+        bgroups: Dict[str, List[Tuple[str, List[str], List[str]]]] = {}
         bflen = 0
         for name, (group, _) in grpfields.items():
             uname = name.upper()

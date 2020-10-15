@@ -15,7 +15,7 @@
 #include "sifive_defs.h"
 
 typedef struct _{{ ucomp }} {
-{%- for name, (perm, type_, name, desc) in cgroups.items() %}
+{%- for perm, type_, name, desc in cgroups %}
     {{perm}} {{type_}} {{name}}{%- if desc -%}/**< {{desc}} */{%- endif -%}
 {%- endfor %}
 } {{ ucomp }}_Type;
