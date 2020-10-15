@@ -31,8 +31,14 @@ typedef union _{{ucomp}}_{{name}} {
         {{btype}} {{bname}} /**< {{bdesc}} */
         {%- endfor %}
     } b; {{padders[0]}} /**< Structure used for bit access */
+{%- if not enable_assertion %}
     {{type_}} w; {{padders[1]}} /**< Structure used for word access */
+{%- endif %}
 } {{ucomp}}_{{name}}_Type;
+{% if enable_assertion %}
+/* Assert the size of generated {{ucomp}}_{{name}} bitfield is valid */
+ASSERT_COMPILE(sizeof({{ucomp}}_{{name}}_Type) == sizeof(uint{{tgroups[name]}}_t));
+{% endif -%}
 {% endif %}
 /* {{ucomp}} {% if gdesc %}{{gdesc}}{% endif %} */
     {%- for field in group %}

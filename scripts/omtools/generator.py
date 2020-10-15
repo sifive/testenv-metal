@@ -27,12 +27,16 @@ class OMHeaderGenerator:
     """Generic header generator (abstract class)
 
        :param regwidth: the defaut register width
+       :param test: whether to generate additional sanity check code
+       :param debug: whether to show traceback on error
     """
 
     ENABLED = False
 
-    def __init__(self, regwidth: int = 32, debug: bool = False):
+    def __init__(self, regwidth: int = 32, test: bool = False,
+                 debug: bool = False):
         self._regwidth = regwidth
+        self._test = test
         self._debug = debug
 
     @classmethod
@@ -321,6 +325,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         cgroups, regwidths = self._generate_device(device, groups, bitsize)
         fgroups = self._generate_fields(device, groups, regwidths)
         bgroups = self._generate_bits(device, groups, regwidths)
+        tgroups = {name: regwidths[name.lower()] for name in bgroups.keys()}
+        enable_assertion = self._test
         cyear = self.build_year_string()
 
         # shallow copy to avoid polluting locals dir
@@ -524,6 +530,19 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 brange = f'{pos}'
             return f'bit: {brange:>6s}  {desc}'
 
+        def makebf(name: str, rewgwidth: int, pos: int, size: int) \
+                -> Tuple[str, str]:
+            for pwr in (8, 4, 2, 1):
+                bsize = 8 * pwr
+                # print(size, bsize)
+                if size == bsize:
+                    bmask = bsize - 1
+                    if not (pos & bmask):
+                        tstr = f'uint{bsize}_t'
+                        vstr = f'{name};'
+                        return tstr, vstr
+            return f'uint{rewgwidth}_t', f'{name}:{size};'
+
         grpfields = device.fields
 
         bgroups: Dict[str, List[Tuple[str, List[str], List[str]]]] = {}
@@ -555,16 +574,19 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 if padding > 0:
                     bitcount += padding
                     desc = bitdesc(last_pos, padding, '(reserved)')
-                    vstr = f'_reserved{rsv}:{padding};'
-                    bits.append([type_, vstr, desc])
+                    tstr, vstr = makebf(f'_reserved{rsv}', regwidth,
+                                        last_pos, padding)
+                    # vstr = f'_reserved{rsv}:{padding};'
+                    bits.append([tstr, vstr, desc])
                     rsv += 1
                     if len(vstr) > bflen:
                         bflen = len(vstr)
                 desc = bitdesc(offset, field.size, field.desc)
-
                 bitcount += field.size
-                vstr = f'{ufname}:{field.size};'
-                bits.append([type_, vstr, desc])
+                tstr, vstr = makebf(ufname, regwidth,
+                                    offset, field.size)
+                # vstr = f'{ufname}:{field.size};'
+                bits.append([tstr, vstr, desc])
                 last_pos = offset + field.size
                 if len(vstr) > bflen:
                     bflen = len(vstr)
@@ -572,8 +594,10 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             if padding > 0:
                 bitcount += padding
                 desc = bitdesc(last_pos, padding, '(reserved)')
-                vstr = f'_reserved{rsv}:{padding};'
-                bits.append([type_, vstr, desc])
+                tstr, vstr = makebf(f'_reserved{rsv}', regwidth,
+                                    last_pos, padding)
+                # vstr = f'_reserved{rsv}:{padding};'
+                bits.append([tstr, vstr, desc])
                 if len(vstr) > bflen:
                     bflen = len(vstr)
             if bitcount > regwidth:
@@ -672,6 +696,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
         cyear = self.build_year_string()
+        enable_assertion = self._test
         text = template.render(locals())
         ofp.write(text)
 

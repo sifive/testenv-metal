@@ -74,7 +74,7 @@ def main(args=None) -> None:
             generator(debug=debug).generate_device(args.output, comp, regwidth)
         elif args.dir:
             header_files = []
-            gen = generator(debug=debug)
+            gen = generator(test=args.test, debug=debug)
             if not isdir(args.dir):
                 makedirs(args.dir)
             if not compnames:
