@@ -286,7 +286,7 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
 
 
 class OMSi5SisHeaderGenerator(OMHeaderGenerator):
-    """SiFive SIS headeer generator.
+    """SiFive SIS header generator.
     """
 
     ENABLED = bool(JiEnv)
@@ -316,25 +316,45 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             template = env.from_string(jfp.read())
         grpfields = device.fields
         groups = self.split_registers(grpfields, bitsize)
-        ucomp = device.name.upper()
+        devname = device.name
+        descs = device.descriptors
         if ofp.name and not ofp.name.startswith('<'):
             filename = basename(ofp.name)
         else:
             filename = f'sifive_{device.name}.h'
 
-        cgroups, regwidths = self._generate_device(device, groups, bitsize)
-        fgroups = self._generate_fields(device, groups, regwidths)
-        bgroups = self._generate_bits(device, groups, regwidths)
+        device, groups = self._transform_groups(device, groups, bitsize)
+        cgroups, regwidths = self._generate_device(devname, descs, groups,
+                                                   bitsize)
+        fgroups = self._generate_fields(devname, descs, groups, regwidths)
+        bgroups = self._generate_bits(devname, groups, regwidths)
         tgroups = {name: regwidths[name.lower()] for name in bgroups.keys()}
         enable_assertion = self._test
+        ucomp = devname.upper()
         cyear = self.build_year_string()
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
         ofp.write(text)
 
+    def _transform_groups(self, device: OMDeviceMap,
+                          groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
+                          bitsize: int) \
+            -> Dict[str, Tuple[Dict[str, OMRegField], int]]:
+        """Group transformer.
+
+           This method can be overloaded with specialized generator to tweak
+           how registers and bitfields are presented
+
+           :param device: the device for which to generate the file
+           :param groups: the device registers
+           :param bitsize: the max width of register, in bits
+           :return: the new group registers
+        """
+        return device, groups
+
     def _generate_device(self,
-            device: OMDeviceMap,
+            devname: str, descriptors: Dict[str, str],
             groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
             bitsize: int) -> Tuple[List[str], Dict[str, int]]:
         """Generate device structure as Jinja data.
@@ -342,7 +362,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
            Output string are padded with space chars for proper alignments,
            as this feature is hard if not impossible to achieve with Jinja.
 
-           :param device: the device map
+           :param devname: the device name
+           :param descriptors: the register descriptors
            :param groups: the device registers
            :param int: maximum size in bits of registers
            :return: a 2-uple of:
@@ -350,8 +371,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     * a dictionay of reg name, reg size
         """
         # compute how many hex nibbles are required to encode all byte offsets
-        grpfields = device.fields
-        lastgroup, _ = grpfields[list(grpfields.keys())[-1]]
+        lastgroup, _ = groups[list(groups.keys())[-1]]
         lastfield = lastgroup[list(lastgroup.keys())[-1]]
         hioffset = lastfield.offset//8
         encbit = int.bit_length(hioffset)
@@ -367,7 +387,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         rsv = 0
         for name, (group, repeat) in groups.items():
             # print(name)
-            gdesc = device.descriptors.get(name, '')
+            gdesc = descriptors.get(name, '')
             fields = list(group.values())
             # cgroup generation
             padding = fields[0].offset-last_pos
@@ -429,7 +449,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         return cgroups, regsizes
 
     def _generate_fields(self,
-            device: OMDeviceMap,
+            devname: str, descriptors: Dict[str, str],
             groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
             regwidths: Dict[str, int]) -> Dict[str, Tuple[List[str], str]]:
         """Generate register definitions as Jinja data.
@@ -437,14 +457,15 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
            Output string are padded with space chars for proper alignments,
            as this feature is hard if not impossible to achieve with Jinja.
 
-           :param device: the device map
+           :param devname: the device name
+           :param descriptors: the register descriptors
            :param groups: the device registers
            :param regwidths: size in bits of each register
            :return: a map of register name, 2-uple of
                      * list of 3-item list of bf name, bf mask, bf desc,
                      * register description
         """
-        ucomp = device.name.upper()
+        ucomp = devname.upper()
 
         fgroups: Dict[str, Tuple[List[str], str]] = {}
         for name, (group, _) in groups.items():
@@ -454,7 +475,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             bitsize = regwidths['']
             bitmask = bitsize - 1
             uname = name.upper()
-            gdesc = device.descriptors.get(name, '')
+            gdesc = descriptors.get(name, '')
             for fname, field in group.items():
                 regwidth = regwidths[name]
                 regmask = regwidth - 1
@@ -504,7 +525,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         return fgroups
 
     def _generate_bits(self,
-            device: OMDeviceMap,
+            devname: str,
             groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
             regwidths: Dict[str, int]) \
         -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
@@ -515,7 +536,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
            Output string are padded with space chars for proper alignments,
            as this feature is hard if not impossible to achieve with Jinja.
 
-           :param device: the device map
+           :param devname: the device name
            :param groups: the device registers
            :param regwidths: size in bits of each register
            :return: a map of bitfield name, list of a 3-uple of
@@ -543,11 +564,9 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                         return tstr, vstr
             return f'uint{rewgwidth}_t', f'{name}:{size};'
 
-        grpfields = device.fields
-
         bgroups: Dict[str, List[Tuple[str, List[str], List[str]]]] = {}
         bflen = 0
-        for name, (group, _) in grpfields.items():
+        for name, (group, _) in groups.items():
             uname = name.upper()
             fieldcount = len(group)
             last_pos = 0
@@ -602,10 +621,12 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     bflen = len(vstr)
             if bitcount > regwidth:
                 if self._debug:
-                    pprint(grpfields, stream=stderr)
-                devname = device.name
-                raise RuntimeError(f'Fields for {devname}.{name}.{fname} '
-                                   f'too wide: {bitcount}')
+                    pprint(groups[name], stream=stderr)
+                    print(f'Fields for {devname}.{name}.{fname} '
+                          f'too wide: {bitcount}', file=stderr)
+                    # there may be a better way to handle this
+                    # TBC
+                continue
             if bits:
                 bgroups[uname] = (type_, bits, [0, 0])
         widths = (len(type_), bflen + self.EXTRA_SEP_COUNT, 0)
@@ -639,7 +660,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         devtypes = {}
         addrw = addrsize//4  # two nibbles per byte
         for uniquename in memorymap:
-            nmo = re_match(r'^(?P<dev>(?P<kind>[a-z]+)(?:\d+))(?:_.*)?', uniquename)
+            nmo = re_match(r'^(?P<dev>(?P<kind>[a-z]+)(?:\d+))(?:_.*)?',
+                           uniquename)
             if not nmo:
                 raise RuntimeError(f'Unexpected device name {uniquename}')
             kind = nmo.group('kind')

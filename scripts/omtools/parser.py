@@ -8,7 +8,6 @@
 #pylint: disable-msg=cell-var-from-loop
 
 from json import loads as json_loads
-from importlib import import_module
 from os.path import commonprefix
 from pprint import pprint
 from re import match as re_match, sub as re_sub
