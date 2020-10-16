@@ -20,7 +20,8 @@ try:
     from jinja2 import Environment as JiEnv
 except ImportError:
     JiEnv = None
-from .model import OMAccess, OMDeviceMap, OMMemoryRegion, OMRegField
+from .model import (OMAccess, OMDeviceMap, OMMemoryRegion, OMRegField,
+                    OMRegStruct)
 
 
 class OMHeaderGenerator:
@@ -388,9 +389,21 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         for name, (group, repeat) in groups.items():
             # print(name)
             gdesc = descriptors.get(name, '')
-            fields = list(group.values())
+            if name == 'enables':
+                print(fields)
+            if isinstance(group, OMRegStruct):
+                f_field = group.first_field
+                l_field = group.last_field
+            else:
+                fields = list(group.values())
+                f_field = fields[0]
+                l_field = fields[-1]
             # cgroup generation
-            padding = (fields[0].offset & ~regmask) - last_pos
+            try:
+                padding = (f_field.offset & ~regmask) - last_pos
+            except AttributeError:
+                pprint(fields)
+                raise
             if padding >= regwidth:
                 # padding bit space, defined as reserved words
                 tsize = (padding + regmask)//regwidth
@@ -403,7 +416,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                     rname = f'{rname}[0x{tsize:x}U];'
                 cgroups.append(['', type_, rname, ''])
                 rsv += 1
-            size = fields[-1].offset + fields[-1].size - fields[0].offset
+            size = l_field.offset + l_field.size - f_field.offset
             tsize = (size + regmask)//regwidth
             # conditions to use 64 bit register
             # - 64 bit should be enable
@@ -411,7 +424,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             # - register should be aligned on a 64-bit boundary
             #   (assuming the structure is always aligned on 64-bit as well)
             if bitsize == 64 and (tsize & 1) == 0 and \
-                    (fields[0].offset & (bitsize - 1)) == 0:
+                    (f_field.offset & (bitsize - 1)) == 0:
                 rtype = 'uint64_t'
                 tsize >>= 1
                 slotsize = bitsize
@@ -429,12 +442,12 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
                 else:
                     fmtname = f'{uname}[{tsize}U][{repeat}U];'
             access, perm = self.SIS_ACCESS_MAP[self.merge_access(fields)]
-            offset = fields[0].offset // 8
+            offset = f_field.offset // 8
             desc = f'Offset: 0x{offset:0{hwx}X} ({access})'
             if gdesc:
                 desc = f'{desc} {gdesc}'
             cgroups.append([perm, rtype, fmtname, desc])
-            size = ((fields[-1].size + slotmask) & ~slotmask) * repeat
+            size = ((l_field.size + slotmask) & ~slotmask) * repeat
             last_pos = fields[-1].offset + size
 
         # find the largest field of each cgroups column
@@ -448,6 +461,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         for cregs in cgroups:
             cregs[:] = self.pad_columns(cregs, widths)
 
+        if devname == 'plic':
+            pprint(cgroups)
         return cgroups, regsizes
 
     def _generate_fields(self,

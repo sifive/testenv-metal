@@ -230,3 +230,21 @@ class OMDeviceMap:
         if not isinstance(features, dict):
             raise ValueError('Invalid features')
         self._features = features
+
+
+class OMRegStruct(list):
+    """A struct of registers.
+    """
+
+    @property
+    def first_field(self):
+        for v in self[0].values():
+            return v
+
+    @property
+    def last_field(self):
+        last = self[-1]
+        for n in reversed(last):
+            v = last[n]
+            return v
+

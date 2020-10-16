@@ -1,9 +1,9 @@
 from copy import deepcopy
-from os.path import commonprefix
+from difflib import SequenceMatcher
 from pprint import pprint
 from typing import Dict, List, Optional, Tuple
 from ..generator import OMSi5SisHeaderGenerator
-from ..model import OMDeviceMap, OMRegField
+from ..model import HexInt, OMAccess, OMDeviceMap, OMRegField, OMRegStruct
 
 
 class OMSi5SisPlicHeaderGenerator(OMSi5SisHeaderGenerator):
@@ -41,12 +41,8 @@ class OMSi5SisPlicHeaderGenerator(OMSi5SisHeaderGenerator):
             stride: Optional[int] = None) -> bool:
         if len(regs_a) != len(regs_b):
             return False
-        offset = 0
         for reg_a, reg_b in zip(regs_a, regs_b):
-            offset += stride
-            # pprint(reg_a)
-            # pprint(reg_b)
-            if not cls.compare_regfield(reg_a, reg_b, offset):
+            if not cls.compare_regfield(reg_a, reg_b, stride):
                 return False
         return True
 
@@ -55,59 +51,136 @@ class OMSi5SisPlicHeaderGenerator(OMSi5SisHeaderGenerator):
                           bitsize: int) -> \
             Tuple[OMDeviceMap, Dict[str, Tuple[Dict[str, OMRegField], int]]]:
         newgroups = {}
-        gfirst = None
-        gcount = 0
+        gfirsts = []
+        seqcount = 0
         gdescs = []
-        blocknames = 'priority enables'.split()
+        gseq = 0
+        gcount = 0
+        stride = None
+        blocknames = {
+            'priority': 1,
+            'enables': 0
+        }
         in_block = ''
-        D = device.name == 'plic'
-        def debug(*args):
-            if D:
-                print(*args)
-        def pdebug(*args):
-            if D:
-                pprint(*args, sort_dicts=False)
+        regsize = 32
+        regmask = regsize-1
         for name, (group, repeat) in groups.items():
+            D = name.startswith('enables')
+            def debug(*args):
+                if D:
+                    print(*args)
+            def pdebug(obj):
+                if D:
+                    pprint(obj, sort_dicts=False)
             if in_block:
                 if not name.startswith(in_block):
                     if gcount:
-                        ngroup = [OMRegField(f.offset, f.size, d.strip(),
-                                             f.reset, f.access)
-                                  for f, d in zip(gfirst, gdesc)]
-                        newgroups[bname] = ({bname: ngroup}, gcount)
-                        debug(f'block commit w/ {bname}')
-                        pdebug(newgroups[bname])
-                        gfirst = None
+                        if seqcount == 1:
+                            ngroup = {f'{bname}_{idx}':
+                                        OMRegField(f.offset, f.size, d,
+                                                   f.reset, f.access)
+                                      for idx, (f, d) in
+                                        enumerate(zip(gfirsts[0], gdescs[0]))}
+                            if len(ngroup) == 1:
+                                ngroup = {bname: ngroup.popitem()[1]}
+                            newgroups[bname] = (ngroup, gcount)
+                        else:
+                            struct = OMRegStruct()
+                            spos = 0
+                            for gfirst, gdesc in zip(gfirsts, gdescs):
+                                ngroup = {}
+                                for f, d in zip(gfirst, gdesc):
+                                    reg = OMRegField(f.offset, f.size, d,
+                                                     f.reset, f.access)
+                                    ngroup[f'{bname}_{spos}'] = reg
+                                    spos += 1
+                                struct.append(ngroup)
+                            first = gfirsts[0][0].offset & ~regmask
+                            last = (gfirsts[-1][-1].offset + regmask) & ~regmask
+                            gsize = last-first
+                            padding = stride-gsize
+                            if padding >= regsize:
+                                preg = OMRegField(HexInt(gsize), padding, '',
+                                                  None, OMAccess.R)
+                                struct.append({'reserved': preg})
+                            print(f'WITH STRIDE {stride:x}')
+                            newgroups[bname] = (struct, gcount)
+                        print(f'block commit w/ {bname}')
+                        # pprint(newgroups[bname])
+                        post_handler = getattr(self, f'_post_{bname}_handler',
+                                               None)
+                        if post_handler:
+                            post_handler(blocknames, newgroups[bname])
+                        pprint(blocknames)
+                        gfirsts = []
+                        gdescs = []
+                        seqcount = 0
+                        gseq = 0
                         gcount = 0
-                        gdesc = []
+                        stride = None
                     in_block = None
             if not in_block:
                 for bname in blocknames:
                     if name.startswith(bname):
                         debug(f'block enter w/ {bname}')
                         in_block = bname
+                        seqcount = blocknames[bname]
+                        if not seqcount:
+                            raise RuntimeError(f'Invalid seq for {bname}')
                         break
                 else:
                     debug(f'find no new block from {name}')
             if in_block:
-                if len(group) != 1:
-                    pdebug(group)
-                #    raise ValueError(f'Unexpected {bname} field count: '
-                #                     f'{len(group)}')
-                fname = commonprefix(tuple(group)).rstrip('_')
-                debug(f'fname {fname}')
-                if not gfirst:
+                if len(gfirsts) < seqcount:
+                    # build the first group
                     gfirst = list(group.values())
+                    gfirsts.append(gfirst)
+                    gdescs.append([f.desc for f in gfirst])
                     gcount = 1
-                    gdesc = [f.desc for f in gfirst]
+                    gseq = 0
                     continue
-                # sanity check: all grouped register should be identical
                 gregs = list(group.values())
-                if not self.compare_regfield_group(gfirst, gregs, gcount * 32):
-                    raise ValueError(f'Unexpected {bname} deviation')
-                gdesc = [commonprefix((d, f.desc))
-                         for d, f in zip(gdesc, gregs)]
-                gcount += 1
+                # sanity check: all grouped registers should be identical
+                if not self.compare_regfield_group(
+                    gfirsts[gseq], gregs, gcount * stride if stride else None):
+                    raise ValueError(f'Unexpected {bname}:{gseq} deviation')
+                gdescs[gseq] = [self.common_desc(d, f.desc)
+                                for d, f in zip(gdescs[gseq], gregs)]
+                gseq += 1
+                if gseq == seqcount:
+                    if gcount == 1:
+                        first_field = gfirsts[-1][0]
+                        field = gregs[0]
+                        stride = field.offset - first_field.offset
+                        print(f'STRIDE {bname} 0x{stride:x}')
+                    gcount += 1
+                    gseq = 0
                 continue
             newgroups[name] = (group, repeat)
+        print('INPUT--------------')
+        pprint(groups['enables_0_0'], sort_dicts=False)
+        print('OUTPUT-------------')
+        pprint(newgroups['enables'], sort_dicts=False)
+        print('-------------------')
         return device, newgroups
+
+    @classmethod
+    def common_desc(cls, desc1: str, desc2: str) -> str:
+        """Find the common description from two description strings.
+
+           :param desc1: first description string
+           :param desc2: second description string
+           :return: common description
+        """
+        matcher = SequenceMatcher(None, desc1, desc2)
+        match = matcher.find_longest_match(0, len(desc1), 0, len(desc2))
+        desc = desc1[match.a:match.a+match.size].strip()
+        return desc
+
+    def _post_priority_handler(self, blocknames, groups):
+        # there is one register defined for each priority
+        priority_count = groups[1]
+        # enables requires one bit per priority
+        enables_seqs = (priority_count+self._regwidth-1)//self._regwidth
+        # count of successive enable registers to store all bits
+        blocknames['enables'] = enables_seqs
