@@ -17,7 +17,7 @@ fi
 
 CONF="$1"
 CONFPATH="$(dirname $0)/../conf/${CONF}.conf"
-test -f "${CONFPATH}" || die "Invalid Docker configuration"
+test -f "${CONFPATH}" || die "Invalid Docker configuration '${CONF}'"
 
 volumes() {
     VOLUMES=""
