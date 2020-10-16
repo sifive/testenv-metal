@@ -56,6 +56,13 @@ static const uint8_t _LONG_BUF_HASH[64u] = {
     0x8D, 0xA6, 0xD6, 0x42
 };
 
+#ifdef SIFIVE_HCA_0_5_X_H
+// this does not exist in HCA v0.5, but we do need it to recover from
+// explicitly invalid requests, so QEMU v0.5 does support it
+#define HCA_REGISTER_CR_INVLDFIFOS_OFFSET 6u
+#define HCA_REGISTER_CR_INVLDFIFOS_MASK   1u
+#endif // SIFIVE_HCA_0_5_X_H
+
 //-----------------------------------------------------------------------------
 // Variables
 //-----------------------------------------------------------------------------
@@ -303,14 +310,21 @@ _test_sha_dma_unaligned_poll(const uint8_t * buf, size_t buflen) {
     }
 
     // be sure to leave the IFIFO empty, or other tests would fail
-    // as there is not HCA reset for now, the easiest way is to change the
-    // mode. Note that this may not reflect the way the actual HW behaves..
-    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
-                  HCA_REGISTER_CR_IFIFOTGT_OFFSET,
-                  HCA_REGISTER_CR_IFIFOTGT_MASK);
+    // as there is not HCA reset for now, invalidate the FIFOs
     _hca_updreg32(METAL_SIFIVE_HCA_CR, 1,
-                  HCA_REGISTER_CR_IFIFOTGT_OFFSET,
-                  HCA_REGISTER_CR_IFIFOTGT_MASK);
+                  HCA_REGISTER_CR_INVLDFIFOS_OFFSET,
+                  HCA_REGISTER_CR_INVLDFIFOS_MASK);
+    _hca_updreg32(METAL_SIFIVE_HCA_CR, 0,
+                  HCA_REGISTER_CR_INVLDFIFOS_OFFSET,
+                  HCA_REGISTER_CR_INVLDFIFOS_MASK);
+
+    // sanity check
+    hca_cr = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_CR);
+    TEST_ASSERT_EQUAL_MESSAGE(hca_cr & HCA_CR_IFIFO_EMPTY_BIT,
+                              HCA_CR_IFIFO_EMPTY_BIT,
+                              "FIFO in is not empty");
+    TEST_ASSERT_EQUAL_MESSAGE(hca_cr & HCA_CR_IFIFO_FULL_BIT, 0u,
+                              "FIFO in is full");
 }
 
 static void
