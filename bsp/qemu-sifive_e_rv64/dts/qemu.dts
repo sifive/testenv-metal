@@ -16,6 +16,7 @@
             riscv,isa = "rv64imac";
             reg = <0x0 0x0>;
             timebase-frequency = <32768>;
+            resetvec = <0x1004>;
             hardware-exec-breakpoint-count = <4>;
             // the following definitions are required by Freedom-E-SDk tools
             sifive,dtim = <&dtim>;
