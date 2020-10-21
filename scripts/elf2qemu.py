@@ -13,7 +13,9 @@ from bisect import bisect
 from os.path import isfile, join as joinpath, split
 from re import compile as re_compile
 from subprocess import run
-from sys import argv, stdin, stderr
+from sys import argv, exit as sysexit, modules, stdin, stderr
+from typing import TextIO
+
 
 class Elf2Qemu:
     """Augment QEMU "in_asm" debug output with function/file/line information
@@ -129,7 +131,7 @@ def main() -> None:
     debug = False
     try:
         module = modules[__name__]
-        argparser = ArgumentParser(description=module.__doc__)
+        argparser = ArgumentParser(description=module.__doc__.split('\n')[0])
 
         argparser.add_argument('elf', nargs=1,
                                help='ELF file')
@@ -138,7 +140,7 @@ def main() -> None:
         argparser.add_argument('-d', '--debug', action='store_true',
                                help='Enable debug mode')
 
-        args = argparser.parse_args(args)
+        args = argparser.parse_args()
         debug = args.debug
 
         e2q = Elf2Qemu(args.elf[0], args.path)
