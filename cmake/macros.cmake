@@ -217,13 +217,6 @@ MACRO (enable_metal)
 ENDMACRO ()
 
 #-----------------------------------------------------------------------------
-# Build and use SiFive metal framework
-#-----------------------------------------------------------------------------
-MACRO (enable_coverage)
-  ADD_DEFINITIONS (-fprofile-instr-generate -fcoverage-mapping)
-ENDMACRO ()
-
-#-----------------------------------------------------------------------------
 # Build and use Unity unit test framework
 #-----------------------------------------------------------------------------
 MACRO (enable_unity)
