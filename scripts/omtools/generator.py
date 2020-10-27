@@ -19,6 +19,7 @@ from typing import (Dict, Iterable, List, Optional, TextIO, Tuple, Type, Union)
 try:
     from jinja2 import Environment as JiEnv
 except ImportError:
+    print(f'Jinja disabled', file=stderr)
     JiEnv = None
 from .model import (OMAccess, OMDeviceMap, OMMemoryRegion, OMRegField,
                     OMRegStruct)
@@ -51,7 +52,7 @@ class OMHeaderGenerator:
             if not issubclass(item, cls) or item == cls:
                 continue
             if not item.ENABLED:
-                print(f'no {name}')
+                print(f'{name} disabled')
                 continue
             sname = name.replace('OM', '').replace('HeaderGenerator', '')
             generators[sname] = item
