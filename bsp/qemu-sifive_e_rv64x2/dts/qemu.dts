@@ -155,7 +155,7 @@
             compatible = "sifive,hca-0.5";
             interrupt-parent = <&plic>;
             interrupts = <53 54>;
-            sifive,phyaddr = <34>;
+            sifive,phyaddrwidth = <34>;
             reg = <0x0 0x10070000 0x0 0x1000>;
             reg-names = "control";
         };
