@@ -32,16 +32,16 @@ UTEST_TESTS=$(cat ${UTEST_STATUS} | cut -d'|' -f3)
 UTEST_FAILURES=$(cat ${UTEST_STATUS} | cut -d'|' -f4)
 UTEST_IGNORED=$(cat ${UTEST_STATUS} | cut -d'|' -f5)
 
-echo "::set-env name=BUILD_SESSIONS::${BUILD_SESSIONS}"
-echo "::set-env name=BUILD_FAILURES::${BUILD_FAILURES}"
-echo "::set-env name=BUILD_ERRORS::${BUILD_ERRORS}"
-echo "::set-env name=BUILD_WARNINGS::${BUILD_WARNINGS}"
+echo "BUILD_SESSIONS=${BUILD_SESSIONS}" >> $GITHUB_ENV
+echo "BUILD_FAILURES=${BUILD_FAILURES}" >> $GITHUB_ENV
+echo "BUILD_ERRORS=${BUILD_ERRORS}" >> $GITHUB_ENV
+echo "BUILD_WARNINGS=${BUILD_WARNINGS}" >> $GITHUB_ENV
 
-echo "::set-env name=UTEST_SESSIONS::${UTEST_SESSIONS}"
-echo "::set-env name=UTEST_ABORTS::${UTEST_ABORTS}"
-echo "::set-env name=UTEST_TESTS::${UTEST_TESTS}"
-echo "::set-env name=UTEST_FAILURES::${UTEST_FAILURES}"
-echo "::set-env name=UTEST_IGNORED::${UTEST_IGNORED}"
+echo "UTEST_SESSIONS=${UTEST_SESSIONS}" >> $GITHUB_ENV
+echo "UTEST_ABORTS=${UTEST_ABORTS}" >> $GITHUB_ENV
+echo "UTEST_TESTS=${UTEST_TESTS}" >> $GITHUB_ENV
+echo "UTEST_FAILURES=${UTEST_FAILURES}" >> $GITHUB_ENV
+echo "UTEST_IGNORED=${UTEST_IGNORED}" >> $GITHUB_ENV
 
 set +e
 
@@ -96,23 +96,23 @@ fi
 echo ""
 
 if [ -n "${ERR_MSG}" ]; then
-    echo "::set-env name=SLACK_TITLE::${ERR_MSG} :scream:"
-    echo "::set-env name=SLACK_COLOR::#DC143C"
+    echo "SLACK_TITLE=${ERR_MSG} :scream:" >> $GITHUB_ENV
+    echo "SLACK_COLOR=#DC143C" >> $GITHUB_ENV
 elif [ -n "${WARN_MSG}" ]; then
-    echo "::set-env name=SLACK_TITLE::${WARN_MSG} :worried:"
-    echo "::set-env name=SLACK_COLOR::#FFA500"
+    echo "SLACK_TITLE=${WARN_MSG} :worried:" >> $GITHUB_ENV
+    echo "SLACK_COLOR=#FFA500" >> $GITHUB_ENV
 else
-    echo "::set-env name=SLACK_TITLE::Success :thumbsup:"
-    echo "::set-env name=SLACK_COLOR::#32CD32"
+    echo "SLACK_TITLE=Success :thumbsup:" >> $GITHUB_ENV
+    echo "SLACK_COLOR=#32CD32" >> $GITHUB_ENV
 fi
 
 if [ "${GH_EVENT}" = "pull_request" ]; then
     SHORT_SHA="$(echo ${GH_SHAS} | cut -d: -f2 | cut -c-8)"
     REF=$(echo ${GH_REF} | cut -c2-)
-    echo "::set-env name=SLACK_MESSAGE::${REF}"
+    echo "SLACK_MESSAGE=${REF}" >> $GITHUB_ENV
 else
     SHORT_SHA="$(echo ${GH_SHAS} | cut -d: -f1 | cut -c-8)"
 fi
 
 FOOTER="${SHORT_SHA}: ${UTEST_TESTS} test passed, ${UTEST_IGNORED} test ignored"
-echo "::set-env name=SLACK_FOOTER::${FOOTER}"
+echo "SLACK_FOOTER=${FOOTER}" >> $GITHUB_ENV
