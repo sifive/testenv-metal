@@ -6,6 +6,10 @@ die() {
     exit 1
 }
 
+echo "dock.sh" >&2
+echo "GITHUB_ENV [${GITHUB_ENV}]" >&2
+echo "GITHUB_PATH [${GITHUB_PATH}]" >&2
+
 SCRIPT_DIR=$(dirname $0)
 NAME=`basename $PWD`
 OPTS=""
