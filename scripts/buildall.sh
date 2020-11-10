@@ -140,9 +140,9 @@ fi
 
 if [ ${GHA} -ne 0 ]; then
     echo ""
-    echo "::set-env name=BUILD_SESSIONS::${TOTAL}"
-    echo "::set-env name=BUILD_FAILURES::${FAILURES}"
-    echo "::set-env name=BUILD_WARNINGS::${WARNCOUNT}"
-    echo "::set-env name=BUILD_ERRORS::${ERRCOUNT}"
+    echo "BUILD_SESSIONS=${TOTAL}" >> $GITHUB_ENV
+    echo "BUILD_FAILURES=${FAILURES}" >> $GITHUB_ENV
+    echo "BUILD_WARNINGS=${WARNCOUNT}" >> $GITHUB_ENV
+    echo "BUILD_ERRORS=${ERRCOUNT}" >> $GITHUB_ENV
     echo ""
 fi
