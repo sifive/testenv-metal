@@ -36,6 +36,9 @@ $NAME [-h] [-a] [-g] [-r] [-s] [dts] ...
 EOT
 }
 
+echo "buildall.sh" >&2
+echo "GITHUB_ENV [${GITHUB_ENV}]" >&2
+
 SA=0
 ABORT=0
 GHA=0

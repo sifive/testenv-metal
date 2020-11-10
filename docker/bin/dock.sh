@@ -8,10 +8,10 @@ die() {
 
 echo "dock.sh" >&2
 echo "GITHUB_ENV [${GITHUB_ENV}]" >&2
-echo "GITHUB_PATH [${GITHUB_PATH}]" >&2
 
 SCRIPT_DIR=$(dirname $0)
-NAME=`basename $PWD`
+NAME=$(basename $PWD)
+LOCAL_ENV=$(basename ${GITHUB_ENV})
 OPTS=""
 
 if [ "$1" = "-t" ]; then
@@ -88,10 +88,17 @@ docker run \
     --name ${NAME} \
     ${OPTS} \
     --env PATH=${IMGPATH} \
+    --env GITHUB_ENV=/tmp/${NAME}/${LOCAL_ENV} \
     --mount type=bind,source=${PWD},target=/tmp/${NAME} \
     ${DOCKOPTS} \
     --workdir=/tmp/${NAME} ${BASE} \
     ${ARGS}
 DOCKER_RC=$?
+
+if [ -s "${LOCAL_ENV}" ]; then
+    cat ${LOCAL_ENV} >> ${GITHUB_ENV}
+else
+    echo "Unable to locate environment result file" >&2
+fi
 
 exit ${DOCKER_RC}
