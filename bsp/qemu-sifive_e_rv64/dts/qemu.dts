@@ -29,17 +29,17 @@
         };
     };
 
-    resetrom: rom@1000 {
+    msel: rom@1000 {
         device_type = "memory";
+        compatible = "sifive,msel";
         reg = <0x0 0x00001000 0x0 0x1000>;
-        qemu,ram = <0x01>;
         read-only;
     };
 
     maskrom: rom@10000 {
         device_type = "memory";
+        compatible = "sifive,maskrom";
         reg = <0x0 0x00010000 0x0 0x2000>;
-        qemu,ram = <0x01>;
         read-only;
     };
 
@@ -58,7 +58,7 @@
     soc {
         #address-cells = <2>;
         #size-cells = <2>;
-        compatible = "qemu:system-memory";
+        compatible = "simple-bus";
         ranges;
 
         test@12000 {
