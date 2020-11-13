@@ -97,5 +97,5 @@ if [ -s "${LOCAL_ENV}" ]; then
 else
     echo "Unable to locate environment result file ${LOCAL_ENV}" >&2
 fi
-å
+
 exit ${DOCKER_RC}
