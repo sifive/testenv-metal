@@ -14,7 +14,7 @@ BUILDS="debug release"
 . ${SCRIPT_DIR}/funcs.sh
 
 cleanup() {
-    echo "GITHUB_ENV ${GITHUB_ENV}"
+    echo "GITHUB_ENV ${GITHUB_ENV} GITHUB_CI ${GITHUB_CI}"
     if [ -n "${GITHUB_ENV}" -a -s "${GITHUB_ENV}" -a -z "${CI}" ]; then
         echo "deleting GITHUB_ENV"
         cat ${GITHUB_ENV}

@@ -62,5 +62,5 @@ if [ -z "${GITHUB_ENV}" -a -z "${CI}" ]; then
     # when the scripts are run outside a GitHub Actions context,
     # this value is not defined
     export GITHUB_ENV=$(mktemp)
-    echo "GITHUB_ENV ${GITHUB_ENV} CI ${CI}"
+    echo "GITHUB_ENV ${GITHUB_ENV} GITHUB_CI ${GITHUB_CI}"
 fi
