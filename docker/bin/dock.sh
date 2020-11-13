@@ -113,6 +113,7 @@ DOCKER_RC=$?
 
 if [ -s "${LOCAL_ENV}" ]; then
     cat ${LOCAL_ENV} >> ${GITHUB_ENV}
+    rm ${LOCAL_ENV}
 else
     echo "Unable to locate environment result file ${LOCAL_ENV}" >&2
 fi
