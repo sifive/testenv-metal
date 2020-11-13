@@ -100,6 +100,9 @@ trap cleanup EXIT
 
 ${DTC} ${DTS} > ${TMPDIR}/qemu.dtb
 
+# log QEMU version
+${QEMU} --version | head -1
+
 QEMU_GLOBAL_OPTS="-machine sifive_fdt -nographic -dtb ${TMPDIR}/qemu.dtb"
 for ut in ${UNIT_TESTS}; do
     info "- running UT [$(basename ${ut})]"
