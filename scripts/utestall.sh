@@ -14,10 +14,8 @@ BUILDS="debug release"
 . ${SCRIPT_DIR}/funcs.sh
 
 cleanup() {
-    echo "GITHUB_ENV ${GITHUB_ENV}"
     if [ ${FAKE_GITHUB_ENV} -ne 0 ]; then
         if [ -f "${GITHUB_ENV}" ]; then
-            echo "deleting FAKE GITHUB_ENV"
             cat ${GITHUB_ENV}
             rm "${GITHUB_ENV}"
         fi

@@ -63,7 +63,6 @@ if [ -z "${GITHUB_ENV}" ]; then
     # this value is not defined
     export GITHUB_ENV=$(mktemp)
     export FAKE_GITHUB_ENV=1
-    echo "GITHUB_ENV ${GITHUB_ENV}"
 else
     export FAKE_GITHUB_ENV=0
 fi
