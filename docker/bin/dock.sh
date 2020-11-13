@@ -6,6 +6,25 @@ die() {
     exit 1
 }
 
+cleanup() {
+    if [ ${FAKE_GITHUB_ENV} -ne 0 ]; then
+        if [ -f "${GITHUB_ENV}" ]; then
+            cat ${GITHUB_ENV}
+            rm "${GITHUB_ENV}"
+        fi
+    fi
+}
+
+if [ -z "${GITHUB_ENV}" ]; then
+    # when the scripts are run outside a GitHub Actions context,
+    # this value is not defined
+    export GITHUB_ENV=$(mktemp)
+    trap cleanup EXIT
+    export FAKE_GITHUB_ENV=1
+else
+    export FAKE_GITHUB_ENV=0
+fi
+
 SCRIPT_DIR=$(dirname $0)
 NAME=$(basename $PWD)
 LOCAL_ENV=$(basename ${GITHUB_ENV})
@@ -94,8 +113,9 @@ DOCKER_RC=$?
 
 if [ -s "${LOCAL_ENV}" ]; then
     cat ${LOCAL_ENV} >> ${GITHUB_ENV}
+    rm ${LOCAL_ENV}
 else
     echo "Unable to locate environment result file ${LOCAL_ENV}" >&2
 fi
-å
+
 exit ${DOCKER_RC}

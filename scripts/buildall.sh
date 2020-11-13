@@ -19,7 +19,15 @@ cleanup() {
     if [ -n "${REPORTLOG}" -a -f "${REPORTLOG}" ]; then
         rm "${REPORTLOG}"
     fi
+    if [ ${FAKE_GITHUB_ENV} -ne 0 ]; then
+        if [ -f "${GITHUB_ENV}" ]; then
+            cat ${GITHUB_ENV}
+            rm "${GITHUB_ENV}"
+        fi
+    fi
 }
+
+trap cleanup EXIT
 
 usage() {
     NAME=`basename $0`
@@ -55,7 +63,6 @@ while [ $# -gt 0 ]; do
             ;;
         -r)
             REPORTLOG=$(mktemp)
-            trap cleanup EXIT
             OPTS="${OPTS} -r ${REPORTLOG}"
             ;;
         -s)

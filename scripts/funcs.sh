@@ -57,3 +57,12 @@ die() {
 abspath() {
     echo "$(cd "$(dirname "$1")"; pwd)/$(basename "$1")"
 }
+
+if [ -z "${GITHUB_ENV}" ]; then
+    # when the scripts are run outside a GitHub Actions context,
+    # this value is not defined
+    export GITHUB_ENV=$(mktemp)
+    export FAKE_GITHUB_ENV=1
+else
+    export FAKE_GITHUB_ENV=0
+fi
