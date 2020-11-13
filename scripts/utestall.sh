@@ -13,6 +13,17 @@ BUILDS="debug release"
 
 . ${SCRIPT_DIR}/funcs.sh
 
+cleanup() {
+    echo "GITHUB_ENV ${GITHUB_ENV}"
+    if [ -n "${GITHUB_ENV}" -a -s "${GITHUB_ENV}" -a -z "${CI}" ]; then
+        echo "deleting GITHUB_ENV"
+        cat ${GITHUB_ENV}
+        rm "${GITHUB_ENV}"
+    fi
+}
+
+trap cleanup EXIT
+
 usage() {
     NAME=`basename $0`
     cat <<EOT
