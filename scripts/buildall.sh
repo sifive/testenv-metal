@@ -19,11 +19,13 @@ cleanup() {
     if [ -n "${REPORTLOG}" -a -f "${REPORTLOG}" ]; then
         rm "${REPORTLOG}"
     fi
-    echo "GITHUB_ENV ${GITHUB_ENV} GITHUB_CI ${GITHUB_CI}"
-    if [ -n "${GITHUB_ENV}" -a -s "${GITHUB_ENV}" -a -z "${CI}" ]; then
-        echo "deleting GITHUB_ENV"
-        cat ${GITHUB_ENV}
-        rm "${GITHUB_ENV}"
+    echo "GITHUB_ENV ${GITHUB_ENV}"
+    if [ ${FAKE_GITHUB_ENV} -ne 0 ]; then
+        if [ -f "${GITHUB_ENV}" ]; then
+            echo "deleting FAKE GITHUB_ENV"
+            cat ${GITHUB_ENV}
+            rm "${GITHUB_ENV}"
+        fi
     fi
 }
 
