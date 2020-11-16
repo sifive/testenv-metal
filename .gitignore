@@ -20,6 +20,7 @@
 /return_fail
 *.specs
 build*/
+*.pyc
 
 # Tested environments
 scl-metal
