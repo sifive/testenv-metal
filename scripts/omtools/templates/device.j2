@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include "sifive_defs.h"
 
+/* clang-format off */
+
 typedef struct _{{ ucomp }} {
 {%- for perm, type_, name, desc in cgroups %}
     {{perm}} {{type_}} {{name}}{%- if desc -%}/**< {{desc}} */{%- endif -%}
@@ -40,11 +42,11 @@ typedef union _{{ucomp}}_{{name}} {
 ASSERT_COMPILE(sizeof({{ucomp}}_{{name}}_Type) == sizeof(uint{{tgroups[name]}}_t));
 {% endif -%}
 {% endif %}
-/* {{ucomp}} {% if gdesc %}{{gdesc}}{% endif %} */
     {%- for field in group %}
-        {%- for name, value, desc in field %}
-#define {{name}} {{value}} {% if desc %}/**< {{desc}} */{% endif -%}
-        {% endfor %}
+/* {{ucomp}} {{field[0][2]}} */
+        {%- for name, value, _ in field %}
+#define {{name}} {{value}}
+        {%- endfor %}
 {% endfor -%}
 {% endfor %}
 #endif /* SIFIVE_{{ ucomp }}_H_ */

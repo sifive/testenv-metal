@@ -529,22 +529,21 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                 offset = field.offset - base_offset
                 ffield = []
                 fpos = offset & regmask
-                fieldname = f'{ucomp}_{uname}_{ufname}_Pos'
                 fdesc = field.desc
                 name_prefix = name.split('_', 1)[0]
                 if fdesc.lower().startswith(name_prefix):
                     fdesc = fdesc[len(name_prefix):].lstrip()
                 if fdesc:
                     fdesc = ''.join((fdesc[0].upper(), fdesc[1:]))
-                ffield.append([fieldname, f'{fpos}U',
-                               f'{ucomp} {uname}: {fdesc} Position'])
+                fdesc = f'{gdesc}: {fdesc}'
+                fieldname = f'{ucomp}_{uname}_{ufname}_Pos'
+                ffield.append([fieldname, f'{fpos}U', fdesc])
                 mask = (1 << field.size) - 1
                 maskval = f'{mask}U' if mask < 9 else f'0x{mask:X}U'
                 if field.size < regwidth:
                     if fpos or len(group) > 1:
                         maskval = f'({maskval} << {fieldname})'
-                ffield.append([f'{ucomp}_{uname}_{ufname}_Msk', maskval,
-                               f'{ucomp} {uname}: {fdesc} Mask'])
+                ffield.append([f'{ucomp}_{uname}_{ufname}_Msk', maskval, fdesc])
                 fregisters.append(ffield)
             fgroups[uname] = (fregisters, gdesc)
 
@@ -559,8 +558,7 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                     if len(val) > vallen:
                         vallen = len(val)
         # space filling in-place to fgroups column
-        widths = (namelen+self.EXTRA_SEP_COUNT, vallen+self.EXTRA_SEP_COUNT
-                  if self.HAS_TRAILING_DESC else None, None)
+        widths = (namelen+self.EXTRA_SEP_COUNT, None, None)
         for fregs, _ in fgroups.values():
             for freg in fregs:
                 for ffield in freg:
