@@ -2,15 +2,15 @@ from copy import deepcopy
 from difflib import SequenceMatcher
 from pprint import pprint
 from typing import Dict, List, Optional, Tuple
-from ..generator import OMSi5SisHeaderGenerator
+from ..generator import OMSifiveSisHeaderGenerator
 from ..model import HexInt, OMAccess, OMDeviceMap, OMRegField, OMRegStruct
 
 
-class OMSi5SisPlicHeaderGenerator(OMSi5SisHeaderGenerator):
+class OMSi5SisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
     """SiFive SIS header generator fpr PLIC interrupt controller.
     """
 
-    DEVICE = 'plic'
+    # DEVICE = 'plic'
 
     def __init__(self, regwidth: int = 32, test: bool = False,
                  debug: bool = False):

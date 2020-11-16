@@ -21,6 +21,7 @@ try:
 except ImportError:
     print(f'Jinja disabled', file=stderr)
     JiEnv = None
+from . import classproperty
 from .model import (OMAccess, OMDeviceMap, OMMemoryRegion, OMRegField,
                     OMRegStruct)
 
@@ -41,7 +42,7 @@ class OMHeaderGenerator:
         self._test = test
         self._debug = debug
 
-    @classmethod
+    @classproperty
     def generators(cls) -> Dict[str, 'OMHeaderGenerator']:
         """Generate a map of supported generators."""
         generators = {}
@@ -287,7 +288,7 @@ class OMLegacyHeaderGenerator(OMHeaderGenerator):
             print('', file=out)
 
 
-class OMSi5SisHeaderGenerator(OMHeaderGenerator):
+class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
     """SiFive SIS header generator.
     """
 
@@ -313,7 +314,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
            :param bitsize: the max width of register, in bits
         """
         env = JiEnv(trim_blocks=False)
-        jinja = joinpath(dirname(__file__), 'templates', 'device.j2')
+        jinja = self.get_template('device')
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
         grpfields = device.fields
@@ -338,6 +339,11 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
         ofp.write(text)
+
+    @classmethod
+    def get_template(cls, template: str) -> str:
+        """Provide the path to the Jinja template file."""
+        return joinpath(dirname(__file__), 'templates', f'{template}.j2')
 
     def _transform_groups(self, device: OMDeviceMap,
                           groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
@@ -669,7 +675,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
            :param addrsize: the size in bits of the address bus
         """
         env = JiEnv(trim_blocks=False)
-        jinja = joinpath(dirname(__file__), 'templates', 'platform.j2')
+        jinja = self.get_template('platform')
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
 
@@ -732,7 +738,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
            :param ofp: the output stream
         """
         env = JiEnv(trim_blocks=False)
-        jinja = joinpath(dirname(__file__), 'templates', 'definitions.j2')
+        jinja = self.get_template('definitions')
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
         cyear = self.build_year_string()
@@ -747,7 +753,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
            :param header_files: the file names to include
         """
         env = JiEnv(trim_blocks=False)
-        jinja = joinpath(dirname(__file__), 'templates', 'autotest.j2')
+        jinja = self.get_template('autotest')
         with open(jinja, 'rt') as jfp:
             template = env.from_string(jfp.read())
         cyear = self.build_year_string()
@@ -803,3 +809,17 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             padlen = width - colw
             outcols.append(f"{col}{' '*padlen}" if padlen > 0 else col)
         return tuple(outcols)
+
+
+class OMMetalSisHeaderGenerator(OMSifiveSisHeaderGenerator):
+    """SiFive SIS header generator for Metal.
+
+       Same output which try to limit line to 80 char columns.
+    """
+
+    @classmethod
+    def get_template(cls, template: str) -> str:
+        """Provide the path to the Jinja template file."""
+        if template in ('device', 'definitions'):
+            template = f'{template}_narrow'
+        return joinpath(dirname(__file__), 'templates', f'{template}.j2')

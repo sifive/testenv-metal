@@ -13,7 +13,7 @@ from os import listdir, makedirs
 from os.path import basename, dirname, isdir, isfile, join as joinpath, splitext
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from traceback import print_exc
-from typing import Type
+from typing import Dict, Type
 from omtools.generator import OMHeaderGenerator
 from omtools.parser import OMParser
 
@@ -21,8 +21,9 @@ from omtools.parser import OMParser
 def main(args=None) -> None:
     """Main routine"""
     debug = False
-    generators = OMHeaderGenerator.generators()
-    outfmts = [x.lower() for x in generators]
+    generators = OMHeaderGenerator.generators
+    generators = {x.lower(): generators[x] for x in generators}
+    default_gen = list(generators)[-1]
     try:
         module = modules[__name__]
         argparser = ArgumentParser(description=module.__doc__)
@@ -43,9 +44,9 @@ def main(args=None) -> None:
         argparser.add_argument('-t', '--test', action='store_true',
                                default=False,
                                help=f'Generate C test file to check files')
-        argparser.add_argument('-f', '--format', choices=outfmts,
-                               default=outfmts[-1],
-                               help=f'Output format (default: {outfmts[-1]})')
+        argparser.add_argument('-f', '--format', choices=generators,
+                               default=default_gen,
+                               help=f'Output format (default: {default_gen})')
         argparser.add_argument('-w', '--width', type=int,
                                choices=(8, 16, 32, 64), default=None,
                                help='Force register width (default: auto)')
@@ -70,7 +71,7 @@ def main(args=None) -> None:
             omp.get_devices(name)
             count += 1
         regwidth = args.width or omp.xlen
-        generator = generators[args.format.title()]
+        generator = generators[args.format]
         if len(compnames) == 1 or (not compnames and count == 1):
             comp = list(omp.get_devices(compnames[0]))[0]
             generator(debug=debug).generate_device(args.output, comp, regwidth)
