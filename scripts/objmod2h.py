@@ -29,7 +29,7 @@ def configure_logger(verbosity: int, debug: bool) -> None:
     loglevel = min(ERROR, loglevel)
     if debug:
         formatter = Formatter('%(asctime)s.%(msecs)03d %(levelname)-7s '
-                              '%(name)-16s %(funcName)s[%(lineno)4d] '
+                              '%(name)-12s %(funcName)s[%(lineno)4d] '
                               '%(message)s', '%H:%M:%S')
     else:
         formatter = Formatter('%(message)s')

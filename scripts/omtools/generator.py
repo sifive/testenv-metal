@@ -305,6 +305,9 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
     }
     """OMAccess map for SIS formats."""
 
+    HAS_TRAILING_DESC = True
+    """Comments may be appended to the current line (vs. prefixing it)."""
+
     def generate_device(self, ofp: TextIO, device: OMDeviceMap,
                         bitsize: int) -> None:
         """Generate a SIS header file stream for a device.
@@ -342,8 +345,22 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
 
     @classmethod
     def get_template(cls, template: str) -> str:
-        """Provide the path to the Jinja template file."""
+        """Provide the path to the Jinja template file.
+
+           :param template: the template kind
+           :return: the pathname to the Jinja file.
+        """
         return joinpath(dirname(__file__), 'templates', f'{template}.j2')
+
+    @classmethod
+    def get_reserved_group_info(cls, offset: int, hwx: int) -> Tuple[str, str]:
+        """Provide the comment string to generate for reserved/padding regs.
+
+           :param offset: the offset of the register
+           :param hwx: the count of hexa char to use for the offset
+           :return: the permission string and the comment string
+        """
+        return '', ''
 
     def _transform_groups(self, device: OMDeviceMap,
                           groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
@@ -421,7 +438,8 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                     rname = f'{rname}[{tsize}U];'
                 else:
                     rname = f'{rname}[0x{tsize:x}U];'
-                cgroups.append(['', type_, rname, ''])
+                perm, desc = self.get_reserved_group_info(last_pos//8, hwx)
+                cgroups.append([perm, type_, rname, desc])
                 rsv += 1
             size = l_field.offset + l_field.size - f_field.offset
             tsize = (size + regmask)//regwidth
@@ -455,7 +473,7 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                 desc = f'{desc} {gdesc}'
             cgroups.append([perm, rtype, fmtname, desc])
             size = ((l_field.size + slotmask) & ~slotmask) * repeat
-            last_pos = fields[-1].offset + size
+            last_pos = (fields[-1].offset + size) & ~slotmask
 
         # find the largest field of each cgroups column
         lengths = [0, 0, 0, 0]
@@ -465,6 +483,8 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
         # space filling in-place to cgroups columns
         widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
         widths[-1] = None
+        if not self.HAS_TRAILING_DESC:
+            widths[-2] = None
         for cregs in cgroups:
             cregs[:] = self.pad_columns(cregs, widths)
 
@@ -539,9 +559,8 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                     if len(val) > vallen:
                         vallen = len(val)
         # space filling in-place to fgroups column
-        widths = (namelen+self.EXTRA_SEP_COUNT,
-                  vallen+self.EXTRA_SEP_COUNT,
-                  None)
+        widths = (namelen+self.EXTRA_SEP_COUNT, vallen+self.EXTRA_SEP_COUNT
+                  if self.HAS_TRAILING_DESC else None, None)
         for fregs, _ in fgroups.values():
             for freg in fregs:
                 for ffield in freg:
@@ -653,7 +672,8 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                 continue
             if bits:
                 bgroups[uname] = (type_, bits, [0, 0])
-        widths = (len(type_), bflen + self.EXTRA_SEP_COUNT, 0)
+        widths = (len(type_), bflen + self.EXTRA_SEP_COUNT
+                  if self.HAS_TRAILING_DESC else 0, 0)
         swidth = sum(widths)
         for _, bitfield, padders in bgroups.values():
             bitfield[:] = [self.pad_columns(bits, widths) for bits in bitfield]
@@ -817,9 +837,16 @@ class OMMetalSisHeaderGenerator(OMSifiveSisHeaderGenerator):
        Same output which try to limit line to 80 char columns.
     """
 
+    HAS_TRAILING_DESC = False
+
     @classmethod
     def get_template(cls, template: str) -> str:
         """Provide the path to the Jinja template file."""
         if template in ('device', 'definitions'):
             template = f'{template}_narrow'
         return joinpath(dirname(__file__), 'templates', f'{template}.j2')
+
+    @classmethod
+    def get_reserved_group_info(cls, offset: int, hwx: int) -> Tuple[str, str]:
+        return cls.SIS_ACCESS_MAP[OMAccess.R][1], f'Offset: 0x{offset:0{hwx}X}'
+

@@ -1,3 +1,4 @@
+from logging import getLogger
 from os.path import commonprefix
 from pprint import pprint
 from re import match as re_match, sub as re_sub
@@ -12,6 +13,7 @@ class OMDeviceParser:
     def __init__(self, regwidth: int, debug: bool = False):
         self._regwidth = regwidth
         self._debug = debug
+        self._log = getLogger('om.parser')
 
     def parse(self, node: OMNode) \
             -> Tuple[Dict[str, OMDeviceMap],
@@ -74,7 +76,10 @@ class OMDeviceParser:
         registers = {}
         try:
             field = None
-            for field in  regmap['registerFields']:
+            # some register fields have no groups...
+            # try to associate them with the previous group, if any
+            lastgroup = (None, 0)
+            for field in regmap['registerFields']:
                 bitbase = field['bitRange']['base']
                 bitsize = field['bitRange']['size']
                 regfield = field['description']
@@ -82,7 +87,26 @@ class OMDeviceParser:
                 if name == 'reserved':
                     continue
                 desc = regfield['description']
-                group = regfield.get('group', name).lower()
+                try:
+                    group = regfield['group'].lower()
+                    lastgroup = (group, bitbase+bitsize)
+                except KeyError:
+                    group = None
+                    if lastgroup[0]:
+                        groupend = ((lastgroup[1] + self._regwidth - 1) &
+                                    ~(self._regwidth - 1))
+                        remwidth = groupend-lastgroup[1]
+                        if bitbase < groupend and bitsize <= remwidth:
+                            group = lastgroup[0]
+                            self._log.info('No group in %s for field %s, use '
+                                           'pre-existing group %s',
+                                           region['name'].upper(), name, group)
+                    if group is None:
+                        group = name
+                        lastgroup = (group, bitbase+bitsize)
+                        self._log.warning('No group in %s for field %s, create '
+                                          'fake group %s (OM is incomplete)',
+                                          region['name'].upper(), name, group)
                 reset = regfield.get('resetValue', None)
                 access_ = list(filter(lambda x: x in OMAccess.__members__,
                                       regfield['access'].get('_types', '')))
