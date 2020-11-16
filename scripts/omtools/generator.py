@@ -390,8 +390,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         for name, (group, repeat) in groups.items():
             # print(name)
             gdesc = descriptors.get(name, '')
-            if name == 'enables':
-                print(fields)
+            #if name == 'enables':
+            #    print(fields)
             if isinstance(group, OMRegStruct):
                 f_field = group.first_field
                 l_field = group.last_field
@@ -403,7 +403,7 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
             try:
                 padding = (f_field.offset & ~regmask) - last_pos
             except AttributeError:
-                pprint(fields)
+                # pprint(fields)
                 raise
             if padding >= regwidth:
                 # padding bit space, defined as reserved words
@@ -462,8 +462,8 @@ class OMSi5SisHeaderGenerator(OMHeaderGenerator):
         for cregs in cgroups:
             cregs[:] = self.pad_columns(cregs, widths)
 
-        if devname == 'plic':
-            pprint(cgroups)
+        #if devname == 'plic':
+        #    pprint(cgroups)
         return cgroups, regsizes
 
     def _generate_fields(self,
