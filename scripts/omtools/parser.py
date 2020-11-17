@@ -16,7 +16,7 @@ from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
                     Optional, Sequence, Set, TextIO, Tuple)
 from .model import (HexInt, OMAccess, OMCore, OMDeviceMap, OMInterrupt,
                     OMMemoryRegion, OMNode, OMPath, OMRegField)
-from .devices import OMDeviceParser
+from .devices.generic import OMDeviceParser
 
 
 class DiscardedItemError(ValueError):
