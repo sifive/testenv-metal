@@ -7,16 +7,18 @@
 #pylint: disable-msg=too-many-statements
 #pylint: disable-msg=cell-var-from-loop
 
+from importlib import import_module
 from json import loads as json_loads
 from os.path import commonprefix
 from pprint import pprint
 from re import match as re_match, sub as re_sub
-from sys import stderr
+from sys import modules, stderr
 from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
-                    Optional, Sequence, Set, TextIO, Tuple)
-from .model import (HexInt, OMAccess, OMCore, OMDeviceMap, OMInterrupt,
-                    OMMemoryRegion, OMNode, OMPath, OMRegField)
-from .devices.generic import OMDeviceParser
+                    Optional, Sequence, Set, TextIO, Tuple, Type)
+from .om.devices import Devices
+from .om.model import (HexInt, OMAccess, OMCore, OMDeviceMap, OMInterrupt,
+                       OMMemoryRegion, OMNode, OMPath, OMRegField)
+from .om.parser import OMDeviceParser
 
 
 class DiscardedItemError(ValueError):
@@ -31,6 +33,8 @@ class OMParser:
        :param debug: set to report more info on errors
     """
 
+    _DEVICE_PARSERS: Dict[str, OMDeviceParser] = {}
+
     def __init__(self, regwidth: int = 32, debug: bool = False):
         self._regwidth: int = regwidth
         self._xlen: Optional[int] = None
@@ -39,6 +43,34 @@ class OMParser:
         self._devices: Dict[str, Optional[OMDeviceMap]] = {}
         self._memorymap: Dict[str, OMMemoryRegion] = {}
         self._intmap: Dict[str, Dict[str, int]] = {}
+
+    @classmethod
+    def get_parser(cls, name: str) -> OMDeviceParser:
+        """Return the parser for the specified device.
+
+           :param name: the device to parse
+           :return: the device parser
+        """
+        if not cls._DEVICE_PARSERS:
+            for modname in Devices.modules:
+                devmod = import_module(modname)
+                for name in dir(devmod):
+                    item = getattr(devmod, name)
+                    if not isinstance(item, Type):
+                        continue
+                    if not issubclass(item, OMDeviceParser):
+                        continue
+                    sname = name.replace('OM', '').replace('DeviceParser', '')
+                    cls._DEVICE_PARSERS[sname.lower()] = item
+            # default parser
+            cls._DEVICE_PARSERS[''] = OMDeviceParser
+        name = name.lower()
+        try:
+            # device specific parser
+            return cls._DEVICE_PARSERS[name.lower()]
+        except KeyError:
+            # default parser
+            return cls._DEVICE_PARSERS['']
 
     def get_core(self, hartid: int) -> OMCore:
         """Return a core from its hart identifier, if any.
@@ -217,7 +249,7 @@ class OMParser:
         name = devtype[2:].lower()
         if names and name not in names:
             return None
-        devparser = OMDeviceParser(self._regwidth, self._debug)
+        devparser = OMParser.get_parser(name)(self._regwidth, self._debug)
         devmaps, mmaps, irqs = devparser.parse(node)
         return name, mmaps, irqs, devmaps
 

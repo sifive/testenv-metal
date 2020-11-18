@@ -15,7 +15,7 @@ from os.path import basename, dirname, isdir, isfile, join as joinpath, splitext
 from sys import exit as sysexit, modules, stdin, stdout, stderr
 from traceback import print_exc
 from typing import Dict, Type
-from omtools.generator import OMHeaderGenerator
+from omtools.om.generator import OMHeaderGenerator
 from omtools.parser import OMParser
 
 
@@ -29,7 +29,7 @@ def configure_logger(verbosity: int, debug: bool) -> None:
     loglevel = min(ERROR, loglevel)
     if debug:
         formatter = Formatter('%(asctime)s.%(msecs)03d %(levelname)-7s '
-                              '%(name)-12s %(funcName)s[%(lineno)4d] '
+                              '%(name)-16s %(funcName)s[%(lineno)4d] '
                               '%(message)s', '%H:%M:%S')
     else:
         formatter = Formatter('%(message)s')
@@ -107,43 +107,23 @@ def main(args=None) -> None:
             generator(debug=debug).generate_device(args.output, comp, regwidth)
         elif args.dir:
             header_files = []
-            defgen = generator(test=args.test, debug=debug)
             if not isdir(args.dir):
                 makedirs(args.dir)
             if not compnames:
                 compnames = {c.name for c in omp.device_iterator}
-            # for hartid in omp.core_iterator:
-            #   print(hartid, omp.get_core(hartid))
-            genmod = dirname(modules[OMHeaderGenerator.__module__].__file__)
-            devpath = joinpath(genmod, 'devices')
-            devmods = [splitext(f)[0] for f in listdir(devpath)
-                        if isfile(joinpath(devpath, f)) and
-                        not f.startswith('_')]
-            # specialized generators
-            devgens: Dict[name, generator] = {}
-            for modname in devmods:
-                devmod = import_module(f'omtools.devices.{modname}')
-                for dname in dir(devmod):
-                    item = getattr(devmod, dname)
-                    if not isinstance(item, Type):
-                        continue
-                    if not issubclass(item, generator) or item == generator:
-                        continue
-                    try:
-                        devname = getattr(item, 'DEVICE')
-                    except AttributeError:
-                        continue
-                    devgens[devname] = item
             for name in compnames:
+                gen = generator.get_generator(name)(test=args.test, debug=debug)
                 for comp in omp.get_devices(name):
                     filename = joinpath(args.dir, f'sifive_{comp.name}.h')
-                    if comp.name in devgens:
-                        gen = devgens[comp.name](test=args.test, debug=debug)
-                    else:
-                        gen = defgen
                     with open(filename, 'wt') as ofp:
                         log.info('Generating %s as %s', name, filename)
-                        gen.generate_device(ofp, comp, regwidth)
+                        try:
+                            gen.generate_device(ofp, comp, regwidth)
+                        except Exception:
+                            log.error('Cannot generate header for device %s '
+                                      'with generator %s',
+                                      name, gen.__class__.__name__)
+                            raise
                     header_files.append(basename(filename))
             if compnames:
                 filename = joinpath(args.dir, f'sifive_defs.h')

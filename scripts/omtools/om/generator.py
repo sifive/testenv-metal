@@ -9,7 +9,10 @@
 #pylint: disable-msg=cell-var-from-loop
 
 from copy import copy
-from os.path import basename, dirname, join as joinpath, splitext
+from importlib import import_module
+from logging import getLogger
+from os import pardir
+from os.path import basename, dirname, join as joinpath, realpath, splitext
 from pprint import pprint
 from re import match as re_match
 from sys import modules, stderr
@@ -19,9 +22,9 @@ from typing import (Dict, Iterable, List, Optional, TextIO, Tuple, Type, Union)
 try:
     from jinja2 import Environment as JiEnv
 except ImportError:
-    print(f'Jinja disabled', file=stderr)
     JiEnv = None
-from . import classproperty
+from .. import classproperty
+from .devices import Devices
 from .model import (OMAccess, OMDeviceMap, OMMemoryRegion, OMRegField,
                     OMRegStruct)
 
@@ -35,6 +38,7 @@ class OMHeaderGenerator:
     """
 
     ENABLED = False
+    _DEVICE_GENERATORS = None
 
     def __init__(self, regwidth: int = 32, test: bool = False,
                  debug: bool = False):
@@ -50,14 +54,46 @@ class OMHeaderGenerator:
             item = getattr(modules[__name__], name)
             if not isinstance(item, Type):
                 continue
-            if not issubclass(item, cls) or item == cls:
+            if not issubclass(item, cls) or \
+                    item == cls:
                 continue
             if not item.ENABLED:
-                print(f'{name} disabled')
+                getLogger('om.headergen').warning('Generator %s disabled', name)
                 continue
             sname = name.replace('OM', '').replace('HeaderGenerator', '')
             generators[sname] = item
         return generators
+
+    @classmethod
+    def get_generator(cls, name: str) -> 'OMHeaderGenerator':
+        """Get the generator for a specific device, or fallback to the
+           default generator if none exists
+        """
+        if cls._DEVICE_GENERATORS is None:
+            # this generator does not support device-specific generators
+            return cls
+        if not cls._DEVICE_GENERATORS:
+            # this generator supports device-specific generators, but they
+            # are not loaded yet
+            for modname in Devices.modules:
+                devmod = import_module(modname)
+                for name in dir(devmod):
+                    item = getattr(devmod, name)
+                    if not isinstance(item, Type):
+                        continue
+                    if not issubclass(item, cls) or item == cls:
+                        continue
+                    prefix = cls.__name__.replace('HeaderGenerator', '')
+                    sname = name.replace(prefix, '')
+                    sname = sname.replace('HeaderGenerator', '').lower()
+                    cls._DEVICE_GENERATORS[sname] = item
+        try:
+            # device specific generator
+            return cls._DEVICE_GENERATORS[name.lower()]
+        except KeyError:
+            # default generator
+            return cls
+
 
     def generate_device(self, ofp: TextIO, device: OMDeviceMap,
                         bitsize: Optional[int] = None) -> None:
@@ -308,6 +344,9 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
     HAS_TRAILING_DESC = True
     """Comments may be appended to the current line (vs. prefixing it)."""
 
+    _DEVICE_GENERATORS = {}
+    """This generator supports device-specific generators."""
+
     def generate_device(self, ofp: TextIO, device: OMDeviceMap,
                         bitsize: int) -> None:
         """Generate a SIS header file stream for a device.
@@ -350,7 +389,8 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
            :param template: the template kind
            :return: the pathname to the Jinja file.
         """
-        return joinpath(dirname(__file__), 'templates', f'{template}.j2')
+        return realpath(joinpath(dirname(__file__), pardir,
+                        'templates', f'{template}.j2'))
 
     @classmethod
     def get_reserved_group_info(cls, offset: int, hwx: int) -> Tuple[str, str]:
@@ -662,9 +702,9 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                     bflen = len(vstr)
             if bitcount > regwidth:
                 if self._debug:
-                    pprint(groups[name], stream=stderr)
                     print(f'Fields for {devname}.{name}.{fname} '
                           f'too wide: {bitcount}', file=stderr)
+                    pprint(groups[name], sort_dicts=False, stream=stderr)
                     # there may be a better way to handle this
                     # TBC
                 continue

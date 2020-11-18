@@ -232,7 +232,7 @@ class OMDeviceMap:
         self._features = features
 
 
-class OMRegStruct(list):
+class OMRegStruct(dict):
     """A struct of registers.
     """
 

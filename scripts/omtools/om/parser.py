@@ -1,11 +1,13 @@
+from collections import defaultdict
 from logging import getLogger
 from os.path import commonprefix
 from pprint import pprint
 from re import match as re_match, sub as re_sub
-from sys import stderr
-from typing import Dict, List, Tuple
-from ..model import (HexInt, OMAccess, OMDeviceMap, OMInterrupt, OMMemoryRegion,
-                     OMNode, OMRegField)
+from sys import modules, stderr
+from typing import Dict, List, Tuple, Type, Union
+from .misc import common_desc, flatten
+from .model import (HexInt, OMAccess, OMDeviceMap, OMInterrupt, OMMemoryRegion,
+                    OMNode, OMRegField, OMRegStruct)
 
 
 class OMDeviceParser:
@@ -43,7 +45,6 @@ class OMDeviceParser:
         freggroups = self._fuse_fields(freggroups)
         freggroups = self._scatgat_fields(freggroups)
         freggroups = self._factorize_fields(freggroups)
-        # freggroups = self._factorize_dummy_fields(freggroups)
         return grpdescs, features, freggroups
 
     def _parse_region(self, region: OMNode) \
@@ -284,7 +285,7 @@ class OMDeviceParser:
             -> Dict[str, Dict[str, OMRegField]]:
         """Gather and scatter bitfield in register words.
 
-           Bitfields cannot be longer that a register word. Split them into
+           Bitfields cannot be longer than a register word. Split them into
            consecutive register words whenever necessary.
         """
         outfields = {}
