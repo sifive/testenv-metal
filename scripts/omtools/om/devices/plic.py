@@ -38,8 +38,6 @@ class OMPlicDeviceParser(OMDeviceParser):
         return []
 
     def _rework_fields(self, reggroups: Dict[str, Dict[str, OMRegField]]):
-        #pprint(reggroups, sort_dicts=False)
-        #exit(0)
         ctx_counters = defaultdict(int)
         sub_regs = defaultdict(list)
         src_counters = set()
@@ -236,16 +234,16 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
         else:
             filename = f'sifive_{device.name}.h'
 
-        devname = device.name
         groups = device.fields
         descs = device.descriptors
+        dgroups = self._generate_definitions(device)
         sgroups = self._generate_fields(device)
-        dgroups = self._generate_definitions(devname, device.features)
-        ucomp = devname.upper()
+        ucomp = device.name.upper()
         cyear = self.build_year_string()
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
+        print(text)
         ofp.write(text)
 
     def _generate_fields(self, device):
@@ -269,6 +267,12 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
         encbit = int.bit_length(hioffset)
         hwx = (encbit + 3) // 4
 
+        repeat_str = {
+            'priority': '1U+%s_MAX_INT_SOURCES' % ucomp,
+            'enables': '%s_MAX_CORE_CONTEXTS' % ucomp,
+            'tc':  '%s_MAX_CORE_CONTEXTS' % ucomp,
+        }
+
         for name in fields:
             content = fields[name]
             if isinstance(content, OMRegStruct):
@@ -276,7 +280,8 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
                 size = content.size
                 uname = name.upper()
                 ftype = f'{ucomp}_{uname}'
-                fmtname = f'{uname[:2]}_CTX[{repeat}U];'
+                repstr = repeat_str.get(name, f'{repeat}U')
+                fmtname = f'{uname[:2]}_CTX[{repstr}];'
                 strname = f'{name.upper()}[{word_count}U];'
                 struct = []
                 rsv = 0
@@ -313,7 +318,8 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
                 if stride_word > word_count:
                     uname = name.upper()
                     ftype = f'{ucomp}_{uname}'
-                    fmtname = f'{uname[:2]}_CTX[{repeat}U];'
+                    repstr = repeat_str.get(name, f'{repeat}U')
+                    fmtname = f'{uname[:2]}_CTX[{repstr}];'
                     padbits = stride-word_count*self._regwidth
                     strname = f'{name.upper()}[{word_count}U];'
                     struct = [[perm, type_, strname, reg.desc]]
@@ -324,7 +330,8 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
                     desc = ''
                 else:
                     ftype = type_
-                    fmtname = f'{name.upper()}[{word_size}U];'
+                    wsstr = repeat_str.get(name, f'{word_size}U')
+                    fmtname = f'{name.upper()}[{wsstr}];'
                     desc = reg.desc
             if pos != offset:
                 main.append(self._generate_field_padding(pos, offset-pos, hwx,
@@ -356,15 +363,15 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
         perm, desc = self.get_reserved_group_info(pos, hwx)
         return [perm, type_, rname, desc]
 
-    def _generate_definitions(self, devname: str,
-            features: Dict[str, Dict[str, Union[bool, int]]]) -> Dict[str, int]:
+    def _generate_definitions(self, device: OMDeviceMap) -> Dict[str, int]:
         """Generate constant definitions.
 
-           :param devname: the device name
-           :param features:  map of supported features and subfeatures.
+           :param device: the device
            :return: a map of definition name, values
         """
         # implementation is device specific
+        devname = device.name
+        features = device.features
         defs = {}
         uname = devname.upper()
         for feature, value in features.items():
