@@ -45,6 +45,7 @@ class OMHeaderGenerator:
         self._regwidth = regwidth
         self._test = test
         self._debug = debug
+        self._log = getLogger('om.headgen')
 
     @classproperty
     def generators(cls) -> Dict[str, 'OMHeaderGenerator']:
@@ -368,11 +369,11 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
         else:
             filename = f'sifive_{device.name}.h'
 
-        device, groups = self._transform_groups(device, groups, bitsize)
         cgroups, regwidths = self._generate_device(devname, descs, groups,
                                                    bitsize)
         fgroups = self._generate_fields(devname, descs, groups, regwidths)
         bgroups = self._generate_bits(devname, groups, regwidths)
+        dgroups = self._generate_definitions(devname, device.features)
         tgroups = {name: regwidths[name.lower()] for name in bgroups.keys()}
         enable_assertion = self._test
         ucomp = devname.upper()
@@ -401,22 +402,6 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
            :return: the permission string and the comment string
         """
         return '', ''
-
-    def _transform_groups(self, device: OMDeviceMap,
-                          groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
-                          bitsize: int) \
-            -> Dict[str, Tuple[Dict[str, OMRegField], int]]:
-        """Group transformer.
-
-           This method can be overloaded with specialized generator to tweak
-           how registers and bitfields are presented
-
-           :param device: the device for which to generate the file
-           :param groups: the device registers
-           :param bitsize: the max width of register, in bits
-           :return: the new group registers
-        """
-        return device, groups
 
     def _generate_device(self,
             devname: str, descriptors: Dict[str, str],
@@ -531,6 +516,17 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
         #if devname == 'plic':
         #    pprint(cgroups)
         return cgroups, regsizes
+
+    def _generate_definitions(self, devname: str,
+            features: Dict[str, Dict[str, Union[bool, int]]]) -> Dict[str, int]:
+        """Generate constant definitions.
+
+           :param devname: the device name
+           :param features:  map of supported features and subfeatures.
+           :return: a map of definition name, values
+        """
+        # implementation is device specific
+        return {}
 
     def _generate_fields(self,
             devname: str, descriptors: Dict[str, str],
@@ -701,12 +697,10 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                 if len(vstr) > bflen:
                     bflen = len(vstr)
             if bitcount > regwidth:
-                if self._debug:
-                    print(f'Fields for {devname}.{name}.{fname} '
-                          f'too wide: {bitcount}', file=stderr)
-                    pprint(groups[name], sort_dicts=False, stream=stderr)
-                    # there may be a better way to handle this
-                    # TBC
+                self._log.warning('Fields for %s.%s.%s too wide: %d',
+                                  devname, name, fname, bitcount)
+                # there may be a better way to handle this
+                # TBC
                 continue
             if bits:
                 bgroups[uname] = (type_, bits, [0, 0])

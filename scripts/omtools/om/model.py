@@ -174,8 +174,10 @@ class OMDeviceMap:
         self._name = name
         self._descriptors: Dict[str, str] = {}
         self._fields: Dict[str,
-                                  Tuple[Dict[str, OMRegField], int]] = {}
-        self._features: Dict[str, Dict[str, Union[int, bool]]] = {}
+                           Tuple[Dict[str, OMRegField], int]] = {}
+        self._features: Dict[str,
+                             Union[bool, int, Dict[str, Union[int, bool]]]] = {}
+        self._definitions: Dict[str, Tuple[int, str]] = {}
 
     @property
     def name(self) -> str:
@@ -206,7 +208,8 @@ class OMDeviceMap:
         return self._fields
 
     @property
-    def features(self) -> Dict[str, Dict[str, Union[bool, int]]]:
+    def features(self) -> \
+            Dict[str, Union[bool, int, Dict[str, Union[bool, int]]]]:
         """Return a map of supported features and subfeatures.
 
            :return: a map of subfeature maps.
@@ -233,18 +236,32 @@ class OMDeviceMap:
 
 
 class OMRegStruct(dict):
-    """A struct of registers.
+    """A map of name: (register, stride, repeat) tuples.
     """
 
     @property
-    def first_field(self):
-        for v in self[0].values():
-            return v
+    def stride(self):
+        strides = set()
+        for v in self.values():
+            strides.add(v[1])
+        if len(strides) != 1:
+            raise ValueError('Incoherent strides')
+        return strides.pop()
 
     @property
-    def last_field(self):
-        last = self[-1]
-        for n in reversed(last):
-            v = last[n]
-            return v
+    def repeat(self):
+        repeats = set()
+        for v in self.values():
+            repeats.add(v[2])
+        if len(repeats) != 1:
+            raise ValueError('Incoherent repeats')
+        return repeats.pop()
 
+    @property
+    def size(self):
+        offset = None
+        size = None
+        for v in self.values():
+            if offset is None:
+                offset = v[0].offset
+        return v[0].offset - offset + v[0].size

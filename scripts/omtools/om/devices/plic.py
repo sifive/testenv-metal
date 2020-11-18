@@ -1,14 +1,19 @@
 from collections import defaultdict
-from copy import deepcopy
+from copy import copy
 from logging import getLogger
+from os.path import basename #, dirname, join as joinpath, realpath, splitext
 from pprint import pprint
 from re import match as re_match, sub as re_sub
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, TextIO, Tuple, Union
 from ..misc import common_desc, flatten
 from ..parser import OMDeviceParser
 from ..generator import OMSifiveSisHeaderGenerator
 from ..model import (HexInt, OMAccess, OMDeviceMap, OMInterrupt, OMNode,
                      OMRegField, OMRegStruct)
+try:
+    from jinja2 import Environment as JiEnv
+except ImportError:
+    JiEnv = None
 
 
 class OMPlicDeviceParser(OMDeviceParser):
@@ -25,8 +30,7 @@ class OMPlicDeviceParser(OMDeviceParser):
                           Union[Tuple[OMRegField, int, int],
                                 Tuple[OMRegStruct, int, int]]]]:
         grpdescs, freggroups = self._parse_region(region)
-        features = self._parse_features(node)
-        freggroups = self._rework_fields(freggroups)
+        freggroups, features = self._rework_fields(freggroups)
         return grpdescs, features, freggroups
 
     @classmethod
@@ -41,6 +45,7 @@ class OMPlicDeviceParser(OMDeviceParser):
         src_counters = set()
         radices = []
         sequences = []
+        features = {}
         regmask = self._regwidth - 1
         for gname, gregs in reggroups.items():  # HW group name
             xmo = re_match(r'^(\w+?)(?:_(\d+))?$', gname)
@@ -77,6 +82,8 @@ class OMPlicDeviceParser(OMDeviceParser):
         irq_wrd_count = (irq_src_count+regmask) // self._regwidth
         self._log.info('%d core contexts, %d (%d words) irq sources',
                        core_ctx_count, irq_src_count, irq_wrd_count)
+        features['max_core_contexts'] = core_ctx_count
+        features['max_int_sources'] = irq_src_count
         registers = {}
         for gname in radices:
             if gname in sub_regs:
@@ -123,7 +130,7 @@ class OMPlicDeviceParser(OMDeviceParser):
                 regname = ''.join(n[0] for n in seq)
                 newregs[regname] = struct
         # pprint(newregs, sort_dicts=False)
-        return newregs
+        return newregs, features
 
     def _fuse_registers(self, regs: Dict[str, OMRegField]) -> OMRegField:
         fusereg = None
@@ -199,170 +206,175 @@ class OMPlicDeviceParser(OMDeviceParser):
             while x:
                 common = common_desc(common, x.pop())
             parts.append(common)
-        desc = '. '.join(parts)
+        desc = '. '.join([p for p in parts if p])
         return desc
 
 
 class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
-    """SiFive SIS header generator fpr PLIC interrupt controller.
+    """SiFive SIS header generator for PLIC interrupt controller.
     """
 
     def __init__(self, regwidth: int = 32, test: bool = False,
                  debug: bool = False):
         super().__init__(regwidth, test, debug)
+        self._rsv_field_count = 0
 
-    @classmethod
-    def compare_regfield(cls, reg_a: OMRegField, reg_b: OMRegField,
-                         stride: Optional[int] = None) -> bool:
-        if reg_a.size != reg_b.size:
-            print('size mismatch')
-            return False
-        if reg_a.reset != reg_b.reset:
-            print('reset mismatch')
-            return False
-        if reg_a.access != reg_b.access:
-            print('access mismatch')
-            return False
-        if stride is not None:
-            if reg_a.offset + stride != reg_b.offset:
-                print(f'stride mismatch {reg_a.offset} != '
-                      f'0x{reg_b.offset + stride:x}')
-                return False
-        return True
+    def generate_device(self, ofp: TextIO, device: OMDeviceMap,
+                        bitsize: int) -> None:
+        """Generate a SIS header file stream for a device.
 
-    @classmethod
-    def compare_regfield_group(cls,
-            regs_a: List[OMRegField], regs_b: List[OMRegField],
-            stride: Optional[int] = None) -> bool:
-        if len(regs_a) != len(regs_b):
-            return False
-        for reg_a, reg_b in zip(regs_a, regs_b):
-            if not cls.compare_regfield(reg_a, reg_b, stride):
-                return False
-        return True
+           :param ofp: the output stream
+           :param device: the device for which to generate the file
+           :param bitsize: the max width of register, in bits
+        """
+        env = JiEnv(trim_blocks=False)
+        jinja = self.get_template('device_plic')
+        with open(jinja, 'rt') as jfp:
+            template = env.from_string(jfp.read())
+        if ofp.name and not ofp.name.startswith('<'):
+            filename = basename(ofp.name)
+        else:
+            filename = f'sifive_{device.name}.h'
 
-    def _transform_groups(self, device: OMDeviceMap,
-                          groups: Dict[str, Tuple[Dict[str, OMRegField], int]],
-                          bitsize: int) -> \
-            Tuple[OMDeviceMap, Dict[str, Tuple[Dict[str, OMRegField], int]]]:
-        newgroups = {}
-        gfirsts = []
-        seqcount = 0
-        gdescs = []
-        gseq = 0
-        gcount = 0
-        stride = None
-        blocknames = {
-            'priority': 1,
-            'enables': 0
-        }
-        in_block = ''
-        regsize = 32
-        regmask = regsize-1
-        for name, (group, repeat) in groups.items():
-            D = name.startswith('enables')
-            def debug(*args):
-                if D:
-                    print(*args)
-            def pdebug(obj):
-                if D:
-                    pprint(obj, sort_dicts=False)
-            if in_block:
-                if not name.startswith(in_block):
-                    if gcount:
-                        if seqcount == 1:
-                            ngroup = {f'{bname}_{idx}':
-                                        OMRegField(f.offset, f.size, d,
-                                                   f.reset, f.access)
-                                      for idx, (f, d) in
-                                        enumerate(zip(gfirsts[0], gdescs[0]))}
-                            if len(ngroup) == 1:
-                                ngroup = {bname: ngroup.popitem()[1]}
-                            newgroups[bname] = (ngroup, gcount)
-                        else:
-                            struct = OMRegStruct()
-                            spos = 0
-                            for gfirst, gdesc in zip(gfirsts, gdescs):
-                                ngroup = {}
-                                for f, d in zip(gfirst, gdesc):
-                                    reg = OMRegField(f.offset, f.size, d,
-                                                     f.reset, f.access)
-                                    ngroup[f'{bname}_{spos}'] = reg
-                                    spos += 1
-                                struct.append(ngroup)
-                            first = gfirsts[0][0].offset & ~regmask
-                            last = (gfirsts[-1][-1].offset + regmask) & ~regmask
-                            gsize = last-first
-                            padding = stride-gsize
-                            if padding >= regsize:
-                                preg = OMRegField(HexInt(gsize), padding, '',
-                                                  None, OMAccess.R)
-                                struct.append({'reserved': preg})
-                            print(f'WITH STRIDE {stride:x}')
-                            newgroups[bname] = (struct, gcount)
-                        print(f'block commit w/ {bname}')
-                        # pprint(newgroups[bname])
-                        post_handler = getattr(self, f'_post_{bname}_handler',
-                                               None)
-                        if post_handler:
-                            post_handler(blocknames, newgroups[bname])
-                        pprint(blocknames)
-                        gfirsts = []
-                        gdescs = []
-                        seqcount = 0
-                        gseq = 0
-                        gcount = 0
-                        stride = None
-                    in_block = None
-            if not in_block:
-                for bname in blocknames:
-                    if name.startswith(bname):
-                        debug(f'block enter w/ {bname}')
-                        in_block = bname
-                        seqcount = blocknames[bname]
-                        if not seqcount:
-                            raise RuntimeError(f'Invalid seq for {bname}')
-                        break
+        devname = device.name
+        groups = device.fields
+        descs = device.descriptors
+        sgroups = self._generate_fields(device)
+        dgroups = self._generate_definitions(devname, device.features)
+        ucomp = devname.upper()
+        cyear = self.build_year_string()
+
+        # shallow copy to avoid polluting locals dir
+        text = template.render(copy(locals()))
+        ofp.write(text)
+
+    def _generate_fields(self, device):
+        """
+        """
+        fields = device.fields
+        structures = {}
+        main = []
+        type_ = f'uint{self._regwidth}_t'
+        pos = 0
+        regmask = self._regwidth - 1
+        ucomp = device.name.upper()
+        lastfields = fields
+        while True:
+            lastfield = lastfields[list(lastfields.keys())[-1]]
+            if not isinstance(lastfield, OMRegStruct):
+                lastfield, _, _ = lastfield
+                break
+            lastfields = lastfield
+        hioffset = lastfield.offset//8
+        encbit = int.bit_length(hioffset)
+        hwx = (encbit + 3) // 4
+
+        for name in fields:
+            content = fields[name]
+            if isinstance(content, OMRegStruct):
+                stride, repeat = content.stride, content.repeat
+                size = content.size
+                uname = name.upper()
+                ftype = f'{ucomp}_{uname}'
+                fmtname = f'{uname[:2]}_CTX[{repeat}U];'
+                strname = f'{name.upper()}[{word_count}U];'
+                struct = []
+                rsv = 0
+                offset = None
+                for regname in content:
+                    reg = content[regname][0]
+                    if offset is None:
+                        offset = reg.offset
+                    _, perm = self.SIS_ACCESS_MAP[reg.access]
+                    desc = reg.desc.split('.')[0].strip()
+                    struct.append([perm, type_, regname.upper(), desc])
+                    padbits = stride-size
+                struct.append(self._generate_field_padding(0, padbits,
+                                                           hwx, rsv))
+                rsv += 1
+                structures[ftype] = struct
+                ftype = f'{ftype}_Type'
+                desc = ''
+            else:
+                reg, stride, repeat = content
+                # include IRQ0 in generated arrays
+                bitsize = reg.size
+                if name == 'priority':
+                    offset = reg.offset - self._regwidth
+                    repeat += 1
                 else:
-                    debug(f'find no new block from {name}')
-            if in_block:
-                if len(gfirsts) < seqcount:
-                    # build the first group
-                    gfirst = list(group.values())
-                    gfirsts.append(gfirst)
-                    gdescs.append([f.desc for f in gfirst])
-                    gcount = 1
-                    gseq = 0
-                    continue
-                gregs = list(group.values())
-                # sanity check: all grouped registers should be identical
-                if not self.compare_regfield_group(
-                    gfirsts[gseq], gregs, gcount * stride if stride else None):
-                    raise ValueError(f'Unexpected {bname}:{gseq} deviation')
-                gdescs[gseq] = [common_desc(d, f.desc)
-                                for d, f in zip(gdescs[gseq], gregs)]
-                gseq += 1
-                if gseq == seqcount:
-                    if gcount == 1:
-                        first_field = gfirsts[-1][0]
-                        field = gregs[0]
-                        stride = field.offset - first_field.offset
-                        print(f'STRIDE {bname} 0x{stride:x}')
-                    gcount += 1
-                    gseq = 0
-                continue
-            newgroups[name] = (group, repeat)
-        print('INPUT--------------')
-        pprint(groups['enables_0_0'], sort_dicts=False)
-        print('OUTPUT-------------')
-        pprint(newgroups['enables'], sort_dicts=False)
-        print('-------------------')
-        return device, newgroups
+                    offset = reg.offset - 1
+                    bitsize += 1
+                bitoffset = offset & regmask
+                word_count = (bitoffset+bitsize+regmask) // self._regwidth
+                stride_word = stride // self._regwidth
+                word_size = (bitoffset+stride*repeat+regmask) // self._regwidth
+                _, perm = self.SIS_ACCESS_MAP[reg.access]
+                if stride_word > word_count:
+                    uname = name.upper()
+                    ftype = f'{ucomp}_{uname}'
+                    fmtname = f'{uname[:2]}_CTX[{repeat}U];'
+                    padbits = stride-word_count*self._regwidth
+                    strname = f'{name.upper()}[{word_count}U];'
+                    struct = [[perm, type_, strname, reg.desc]]
+                    struct.append(self._generate_field_padding(0, padbits, hwx,
+                                                               0))
+                    structures[ftype] = struct
+                    ftype = f'{ftype}_Type'
+                    desc = ''
+                else:
+                    ftype = type_
+                    fmtname = f'{name.upper()}[{word_size}U];'
+                    desc = reg.desc
+            if pos != offset:
+                main.append(self._generate_field_padding(pos, offset-pos, hwx,
+                                                         self._rsv_field_count))
+                self._rsv_field_count += 1
+            main.append([perm, ftype, fmtname, desc])
+            pos += repeat * self._regwidth
+        structures[f'{ucomp}'] = main
+        for struct in structures.values():
+            lengths = [0] * len(struct[0])
+            for cregs in struct:
+                lengths = [max(a,len(b)) for a, b in zip(lengths, cregs)]
+            widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
+            widths[-1] = None
+            for cregs in struct:
+                cregs[:] = self.pad_columns(cregs, widths)
+        return structures
 
-    def _post_priority_handler(self, blocknames, groups):
-        # there is one register defined for each priority
-        priority_count = groups[1]
-        # enables requires one bit per priority
-        enables_seqs = (priority_count+self._regwidth-1)//self._regwidth
-        # count of successive enable registers to store all bits
-        blocknames['enables'] = enables_seqs
+    def _generate_field_padding(self, pos: int, bitcount: int, hwx: int,
+                                rsv: int):
+        regmask = self._regwidth - 1
+        word_count = (bitcount+regmask) // self._regwidth
+        type_ = f'uint{self._regwidth}_t'
+        rname = f'_reserved{rsv}'
+        if word_count == 1:
+            rname = f'{rname};'
+        else:
+            rname = f'{rname}[0x{word_count:x}U];'
+        perm, desc = self.get_reserved_group_info(pos, hwx)
+        return [perm, type_, rname, desc]
+
+    def _generate_definitions(self, devname: str,
+            features: Dict[str, Dict[str, Union[bool, int]]]) -> Dict[str, int]:
+        """Generate constant definitions.
+
+           :param devname: the device name
+           :param features:  map of supported features and subfeatures.
+           :return: a map of definition name, values
+        """
+        # implementation is device specific
+        defs = {}
+        uname = devname.upper()
+        for feature, value in features.items():
+            ufeat = feature.upper()
+            defs[f'{uname}_{ufeat}'] = int(value or 0)
+        maxwidth = max([len(c) for c in defs]) + self.EXTRA_SEP_COUNT
+        pdefs = {}
+        for name, value in defs.items():
+            padlen = maxwidth - len(name)
+            if padlen > 0:
+                name = f"{name}{' '*padlen}"
+            pdefs[name] = value
+        return pdefs

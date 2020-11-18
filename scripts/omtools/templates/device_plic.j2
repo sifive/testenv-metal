@@ -1,0 +1,32 @@
+/**
+ * {{ ucomp }} registers
+ * @file {{ filename }}
+ *
+ * @note This file has been automatically generated from the {{ucomp}} object model.
+ *
+ * @copyright (c) {{cyear}} SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+#ifndef SIFIVE_{{ ucomp }}_H_
+#define SIFIVE_{{ ucomp }}_H_
+
+#include <stdint.h>
+#include "sifive_defs.h"
+
+/* clang-format off */
+
+{% if dgroups %}/* {{ucomp}} properties */{% endif -%}
+{%- for name, val in dgroups.items() %}
+#define {{name}} {{val}}
+{%- endfor %}
+
+{% for sname, sval in sgroups.items() %}
+typedef struct _{{ sname }} {
+{%- for perm, type_, name, desc in sval %}
+    {{perm}} {{type_}} {{name}}{%- if desc -%}/**< {{desc}} */{%- endif -%}
+{%- endfor %}
+} {{ sname }}_Type;
+{% endfor %}
+
+#endif /* SIFIVE_{{ ucomp }}_H_ */
