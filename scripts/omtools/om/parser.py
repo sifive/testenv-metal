@@ -1,10 +1,10 @@
 from collections import defaultdict
 from logging import getLogger
 from os.path import commonprefix
-from pprint import pprint
 from re import match as re_match, sub as re_sub
 from sys import modules, stderr
 from typing import Dict, List, Tuple, Type, Union
+from . import pprint
 from .misc import common_desc, flatten
 from .model import (HexInt, OMAccess, OMDeviceMap, OMInterrupt, OMMemoryRegion,
                     OMNode, OMRegField, OMRegStruct)

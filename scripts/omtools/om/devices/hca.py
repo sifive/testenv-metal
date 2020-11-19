@@ -1,6 +1,6 @@
 from typing import Dict, Union
 from ..generator import OMSifiveSisHeaderGenerator
-from pprint import pprint
+from .. import pprint
 
 
 class OMSifiveSisHcaHeaderGenerator(OMSifiveSisHeaderGenerator):

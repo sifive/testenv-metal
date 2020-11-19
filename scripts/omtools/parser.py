@@ -11,11 +11,11 @@ from importlib import import_module
 from json import loads as json_loads
 from logging import getLogger
 from os.path import commonprefix
-from pprint import pprint
 from re import match as re_match, sub as re_sub
 from sys import modules, stderr
 from typing import (Any, DefaultDict, Dict, Iterable, Iterator, List,
                     Optional, Sequence, Set, TextIO, Tuple, Type)
+from .om import pprint
 from .om.devices import Devices
 from .om.model import (HexInt, OMAccess, OMCore, OMDeviceMap, OMInterrupt,
                        OMMemoryRegion, OMNode, OMPath, OMRegField)
