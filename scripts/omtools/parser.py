@@ -52,29 +52,30 @@ class OMParser:
            :param name: the device to parse
            :return: the device parser
         """
+        log = getLogger('om.parser')
         if not cls._DEVICE_PARSERS:
             for modname in Devices.modules:
                 devmod = import_module(modname)
-                for name in dir(devmod):
-                    item = getattr(devmod, name)
+                for iname in dir(devmod):
+                    item = getattr(devmod, iname)
                     if not isinstance(item, Type):
                         continue
                     if not issubclass(item, OMDeviceParser):
                         continue
-                    sname = name.replace('OM', '').replace('DeviceParser', '')
+                    sname = iname.replace('OM', '').replace('DeviceParser', '')
                     cls._DEVICE_PARSERS[sname.lower()] = item
             # default parser
             cls._DEVICE_PARSERS[''] = OMDeviceParser
-            log = getLogger('om.parser')
             for dev, klass in cls._DEVICE_PARSERS.items():
                 log.info("Registered %s for %s device", klass.__name__,
                          dev.upper() if dev else 'default')
         name = name.lower()
         try:
-            # device specific parser
-            return cls._DEVICE_PARSERS[name.lower()]
+            parser = cls._DEVICE_PARSERS[name.lower()]
+            log.warning('Use %s parser for device %s', parser.__name__, name)
+            return parser
         except KeyError:
-            # default parser
+            log.warning('Use default parser for device %s', name)
             return cls._DEVICE_PARSERS['']
 
     def get_core(self, hartid: int) -> OMCore:
