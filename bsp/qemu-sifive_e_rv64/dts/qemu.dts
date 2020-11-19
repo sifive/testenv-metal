@@ -29,47 +29,35 @@
         };
     };
 
-    msel: rom@1000 {
-        device_type = "memory";
-        compatible = "sifive,msel";
-        reg = <0x0 0x00001000 0x0 0x1000>;
-        read-only;
-    };
-
-    maskrom: rom@10000 {
-        device_type = "memory";
-        compatible = "sifive,maskrom";
-        reg = <0x0 0x00010000 0x0 0x2000>;
-        read-only;
-    };
-
-    itim: itim@8000000 {
-       device_type = "memory";
-       compatible = "sifive,itim";
-       reg = <0x0 0x08000000 0x0 0x2000>;
-    };
-
-    dtim: dtim@80000000 {
-       device_type = "memory";
-       compatible = "sifive,dtim";
-       reg = <0x0 0x80000000 0x0 0x100000>;
-    };
-
     soc {
         #address-cells = <2>;
         #size-cells = <2>;
         compatible = "simple-bus";
         ranges;
 
-        test@12000 {
-            compatible = "sifive,test0";
-            reg = <0x0 0x00012000 0x0 0x2000>;
+        msel: rom@1000 {
+            device_type = "memory";
+            compatible = "sifive,msel";
+            reg = <0x0 0x00001000 0x0 0x1000>;
+            read-only;
+        };
+
+        maskrom: rom@10000 {
+            device_type = "memory";
+            compatible = "sifive,maskrom";
+            reg = <0x0 0x00010000 0x0 0x2000>;
+            read-only;
         };
 
         otp@20000 {
             compatible = "sifive,otp,e";
             reg = <0x0 0x20000 0x0 0x2000 0x0 0x10010000 0x0 0x1000>;
             reg-names = "mem", "control";
+        };
+
+        test@100000 {
+            compatible = "sifive,test0";
+            reg = <0x0 0x100000 0x0 0x1000>;
         };
 
         clint@2000000 {
@@ -80,6 +68,12 @@
             clock-frequency = <32768>;
         };
 
+        itim: itim@8000000 {
+           device_type = "memory";
+           compatible = "sifive,itim";
+           reg = <0x0 0x08000000 0x0 0x2000>;
+        };
+
         plic: interrupt-controller@c000000 {
             compatible = "riscv,plic0";
             reg = <0x0 0x0c000000 0x0 0x4000000>;
@@ -87,7 +81,7 @@
             interrupt-controller;
             interrupts-extended = <&hlic0 11>;
             #interrupt-cells = <0x01>;
-            riscv,ndev = <54>;
+            riscv,ndev = <53>;
             riscv,max-priority = <7>;
         };
 
@@ -132,12 +126,12 @@
             };
         };
 
-        hca0: hca@1007000 {
+        hca0: hca@10018000 {
             compatible = "sifive,hca-0.5";
             interrupt-parent = <&plic>;
-            interrupts = <53 54>;
+            interrupts = <52 53>;
             sifive,phyaddrwidth = <34>;
-            reg = <0x0 0x10070000 0x0 0x1000>;
+            reg = <0x0 0x10018000 0x0 0x1000>;
             reg-names = "control";
         };
 
@@ -147,6 +141,12 @@
             interrupts = <4>;
             reg = <0x0 0x10023000 0x0 0x1000>;
             reg-names = "control";
+        };
+
+        dtim: dtim@80000000 {
+           device_type = "memory";
+           compatible = "sifive,dtim";
+           reg = <0x0 0x80000000 0x0 0x100000>;
         };
     };
 };

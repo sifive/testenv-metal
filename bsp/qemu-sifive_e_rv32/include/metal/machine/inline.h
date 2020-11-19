@@ -226,7 +226,7 @@ struct __metal_driver_sifive_spi0 __metal_dt_spi_10014000 = {
 };
 
 /* From test@12000 */
-struct __metal_driver_sifive_test0 __metal_dt_test_12000 = {
+struct __metal_driver_sifive_test0 __metal_dt_test_100000 = {
     .shutdown.vtable = &__metal_driver_vtable_sifive_test0.shutdown,
 };
 

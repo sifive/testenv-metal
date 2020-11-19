@@ -117,8 +117,8 @@ extern struct __metal_driver_sifive_gpio0 __metal_dt_gpio_10012000;
 /* From spi@10014000 */
 extern struct __metal_driver_sifive_spi0 __metal_dt_spi_10014000;
 
-/* From test@12000 */
-extern struct __metal_driver_sifive_test0 __metal_dt_test_12000;
+/* From test@100000 */
+extern struct __metal_driver_sifive_test0 __metal_dt_test_100000;
 
 /* From uart@10013000 */
 extern struct __metal_driver_sifive_uart0 __metal_dt_uart_10013000;
@@ -565,8 +565,8 @@ static __inline__ unsigned long __metal_driver_sifive_spi0_pinmux_source_selecto
 /* --------------------- sifive_test0 ------------ */
 static __inline__ unsigned long __metal_driver_sifive_test0_base(const struct __metal_shutdown *sd)
 {
-	if ((uintptr_t)sd == (uintptr_t)&__metal_dt_test_12000) {
-		return METAL_SIFIVE_TEST0_12000_BASE_ADDRESS;
+	if ((uintptr_t)sd == (uintptr_t)&__metal_dt_test_100000) {
+		return METAL_SIFIVE_TEST0_100000_BASE_ADDRESS;
 	}
 	else {
 		return 0;
@@ -575,8 +575,8 @@ static __inline__ unsigned long __metal_driver_sifive_test0_base(const struct __
 
 static __inline__ unsigned long __metal_driver_sifive_test0_size(const struct __metal_shutdown *sd)
 {
-	if ((uintptr_t)sd == (uintptr_t)&__metal_dt_test_12000) {
-		return METAL_SIFIVE_TEST0_12000_SIZE;
+	if ((uintptr_t)sd == (uintptr_t)&__metal_dt_test_100000) {
+		return METAL_SIFIVE_TEST0_100000_SIZE;
 	}
 	else {
 		return 0;
@@ -822,9 +822,9 @@ struct __metal_driver_sifive_spi0 *__metal_spi_table[] = {
 					&__metal_dt_spi_10014000};
 
 /* From test@12000 */
-#define __METAL_DT_SHUTDOWN_HANDLE (&__metal_dt_test_12000.shutdown)
+#define __METAL_DT_SHUTDOWN_HANDLE (&__metal_dt_test_100000.shutdown)
 
-#define __METAL_DT_TEST_12000_HANDLE (&__metal_dt_test_12000.shutdown)
+#define __METAL_DT_TEST_12000_HANDLE (&__metal_dt_test_100000.shutdown)
 
 #define __METAL_DT_MAX_UARTS 2
 
