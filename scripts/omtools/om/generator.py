@@ -13,7 +13,7 @@ from importlib import import_module
 from logging import getLogger
 from os import pardir
 from os.path import basename, dirname, join as joinpath, realpath, splitext
-from pprint import pprint
+from . import pprint
 from re import match as re_match
 from sys import modules, stderr
 from textwrap import dedent
@@ -94,16 +94,12 @@ class OMHeaderGenerator:
                     log.info('Registered generator %s for device %s',
                              item.__name__, sname)
         try:
-            # device specific generator
             name = name.lower()
-            if name == 'pprint':
-                raise RuntimeError('PPRINT!')
             gen = cls._DEVICE_GENERATORS[name.lower()]
             log.debug('Use %s generator for device %s', gen.__name__, name)
             return gen
-        except KeyError as exc:
+        except KeyError:
             log.debug('Use default generator for device %s', name)
-            # default generator
             return cls
 
     def generate_device(self, ofp: TextIO, device: OMDeviceMap,
@@ -461,7 +457,6 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
             try:
                 padding = (f_field.offset & ~regmask) - last_pos
             except AttributeError:
-                # pprint(fields)
                 raise
             if padding >= regwidth:
                 # padding bit space, defined as reserved words
@@ -522,9 +517,6 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
             widths[-2] = None
         for cregs in cgroups:
             cregs[:] = self.pad_columns(cregs, widths)
-
-        #if devname == 'plic':
-        #    pprint(cgroups)
         return cgroups, regsizes
 
     def _generate_definitions(self, devname: str,
