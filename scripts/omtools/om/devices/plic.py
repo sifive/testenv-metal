@@ -243,7 +243,6 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
 
         # shallow copy to avoid polluting locals dir
         text = template.render(copy(locals()))
-        print(text)
         ofp.write(text)
 
     def _generate_fields(self, device):
@@ -292,7 +291,7 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
                         offset = reg.offset
                     _, perm = self.SIS_ACCESS_MAP[reg.access]
                     desc = reg.desc.split('.')[0].strip()
-                    struct.append([perm, type_, regname.upper(), desc])
+                    struct.append([perm, type_, f'{regname.upper()};', ''])
                     padbits = stride-size
                 struct.append(self._generate_field_padding(0, padbits,
                                                            hwx, rsv))
@@ -338,7 +337,7 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
                                                          self._rsv_field_count))
                 self._rsv_field_count += 1
             main.append([perm, ftype, fmtname, desc])
-            pos += repeat * self._regwidth
+            pos = offset + (word_size * self._regwidth)
         structures[f'{ucomp}'] = main
         for struct in structures.values():
             lengths = [0] * len(struct[0])
@@ -346,6 +345,7 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
                 lengths = [max(a,len(b)) for a, b in zip(lengths, cregs)]
             widths = [l + self.EXTRA_SEP_COUNT for l in lengths]
             widths[-1] = None
+            widths[-2] = None
             for cregs in struct:
                 cregs[:] = self.pad_columns(cregs, widths)
         return structures
@@ -412,11 +412,9 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
                         bdesc = f'IRQ {bit} {desc}'
                         wbit = bit & regmask
                         word = bit // self._regwidth
-                        sgroups[f'b{wbit}'] = OMRegField(
+                        sgroups[f'irq{bit}'] = OMRegField(
                             HexInt(offset), 1, bdesc, reg.reset,
                             reg.access)
-                        #bfields.append(self._make_bitfield(
-                        #    f'{ucomp}_{ufname}_B{wbit}', offset, 1, reg.desc))
                         if wbit == regmask:
                             regname = f'{fname}_{word}'
                             regwidths[regname] = self._regwidth
