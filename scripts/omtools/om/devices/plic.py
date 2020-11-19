@@ -182,6 +182,9 @@ class OMPlicDeviceParser(OMDeviceParser):
         desc = self.common_description(descs)
         reg = OMRegField(basereg.offset, basereg.size, desc, basereg.reset,
                          basereg.access)
+        if stride is None:
+            # single register
+            stride = self._regwidth
         return reg, HexInt(stride), len(regs)
 
     @classmethod
@@ -456,8 +459,10 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
         for feature, value in features.items():
             ufeat = feature.upper()
             defs[f'{uname}_{ufeat}'] = int(value or 0)
-        maxwidth = max([len(c) for c in defs]) + self.EXTRA_SEP_COUNT
         pdefs = {}
+        if not defs:
+            return pdefs
+        maxwidth = max([len(c) for c in defs]) + self.EXTRA_SEP_COUNT
         for name, value in defs.items():
             padlen = maxwidth - len(name)
             if padlen > 0:
