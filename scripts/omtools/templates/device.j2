@@ -16,11 +16,12 @@
 
 /* clang-format off */
 
-{% if dgroups %}/* {{ucomp}} properties */{% endif -%}
+{% if dgroups %}/* {{ucomp}} properties */
 {%- for name, val in dgroups.items() %}
 #define {{name}} {{val}}
 {%- endfor %}
 
+{% endif -%}
 
 typedef struct _{{ ucomp }} {
 {%- for perm, type_, name, desc in cgroups %}
