@@ -2,9 +2,9 @@ from collections import defaultdict
 from copy import copy
 from logging import getLogger
 from os.path import basename #, dirname, join as joinpath, realpath, splitext
-from pprint import pprint
 from re import match as re_match, sub as re_sub
 from typing import Dict, List, Optional, TextIO, Tuple, Union
+from .. import pprint
 from ..misc import common_desc, flatten
 from ..parser import OMDeviceParser
 from ..generator import OMSifiveSisHeaderGenerator
@@ -127,7 +127,6 @@ class OMPlicDeviceParser(OMDeviceParser):
                     raise ValueError('Incoherent sequence')
                 regname = ''.join(n[0] for n in seq)
                 newregs[regname] = struct
-        # pprint(newregs, sort_dicts=False)
         return newregs, features
 
     def _fuse_registers(self, regs: Dict[str, OMRegField]) -> OMRegField:
@@ -238,6 +237,7 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
         descs = device.descriptors
         dgroups = self._generate_definitions(device)
         sgroups = self._generate_fields(device)
+        fgroups, bgroups = self._generate_bits(device)
         ucomp = device.name.upper()
         cyear = self.build_year_string()
 
@@ -362,6 +362,91 @@ class OMSifiveSisPlicHeaderGenerator(OMSifiveSisHeaderGenerator):
             rname = f'{rname}[0x{word_count:x}U];'
         perm, desc = self.get_reserved_group_info(pos, hwx)
         return [perm, type_, rname, desc]
+
+    def _make_bitfield(self, name: str, offset: int, size: int, desc: str):
+        bfields = []
+        regmask = self._regwidth - 1
+        fpos = offset & regmask
+        bfname = f'{name}_Pos'
+        bfields.append([bfname, f'{fpos}U', desc])
+        mask = (1 << size) - 1
+        maskval = f'{mask}U' if mask < 9 else f'0x{mask:X}U'
+        if size < self._regwidth:
+            if fpos:
+                maskval = f'({maskval} << {bfname})'
+        bfields.append([f'{name}_Msk', maskval, desc])
+        return bfields
+
+    def _generate_bits(self, device):
+        """
+        """
+        devname = device.name
+        ucomp = devname.upper()
+        fields = device.fields
+        regwidths = {}
+        bgroups = {}
+        fgroups = {}
+        regmask = self._regwidth - 1
+        for fname, fval in fields.items():
+            ufname = fname.upper()
+            if not isinstance(fval, dict):
+                reg, stride, repeat = fval
+                if fname == 'priority':
+                    bgroups[fname] = ({fname: reg}, repeat)
+                    bfields = self._make_bitfield(
+                        f'{ucomp}_{ufname}', reg.offset, reg.size, reg.desc)
+                    fgroups[ufname] = ([bfields], '')
+                    regwidths[fname] = self._regwidth
+                    continue
+                if fname in ('pending', 'enables'):
+                    sgroups = {}
+                    offset = reg.offset
+                    base = offset & regmask
+                    if fname == 'enables':
+                        repeat = reg.size
+                        desc = '.'.join(reg.desc.split('.')[1:])
+                    else:
+                        desc = reg.desc
+                    bfields = []
+                    for bit in range(base, repeat):
+                        bdesc = f'IRQ {bit} {desc}'
+                        wbit = bit & regmask
+                        word = bit // self._regwidth
+                        sgroups[f'b{wbit}'] = OMRegField(
+                            HexInt(offset), 1, bdesc, reg.reset,
+                            reg.access)
+                        #bfields.append(self._make_bitfield(
+                        #    f'{ucomp}_{ufname}_B{wbit}', offset, 1, reg.desc))
+                        if wbit == regmask:
+                            regname = f'{fname}_{word}'
+                            regwidths[regname] = self._regwidth
+                            bgroups[regname] = (sgroups, 1)
+                            fgroups[regname.upper()] = (bfields, '')
+                            sgroups = {}
+                            bfields = []
+                        offset += 1
+                    if sgroups:
+                        regname = f'{fname}_{word}'
+                        regwidths[regname] = self._regwidth
+                        bgroups[regname] = (sgroups, 1)
+                        fgroups[regname.upper()] = ([], '')
+                        fgroups[regname.upper()] = (bfields, '')
+                    continue
+            else:
+                for sfname, sfval in fval.items():
+                    reg, _, repeat = sfval
+                    if reg.size == self._regwidth:
+                        # full register width, not a bitfield
+                        continue
+                    usfname = sfname.upper()
+                    ubname = f'{ufname}_{usfname}'
+                    bgroups[ubname] = ({sfname: reg}, repeat)
+                    bfields = self._make_bitfield(
+                        f'{ucomp}_{ubname}', reg.offset, reg.size, reg.desc)
+                    fgroups[ubname] = ([bfields], '')
+                    regwidths[ubname] = self._regwidth
+        bgroups = super()._generate_bits(devname, bgroups, regwidths)
+        return fgroups, bgroups
 
     def _generate_definitions(self, device: OMDeviceMap) -> Dict[str, int]:
         """Generate constant definitions.

@@ -130,7 +130,7 @@ def main(args=None) -> None:
                 with open(filename, 'wt') as ofp:
                     if args.verbose:
                         log.info('Generating definition file as %s', filename)
-                    gen.generate_definitions(ofp)
+                    gen.generate_common_definitions(ofp)
                     header_files.append(basename(filename))
             filename = joinpath(args.dir, f'sifive_platform.h')
             with open(filename, 'wt') as ofp:

@@ -672,7 +672,6 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                     desc = bitdesc(last_pos, padding, '(reserved)')
                     tstr, vstr = makebf(f'_reserved{rsv}', regwidth,
                                         last_pos, padding)
-                    # vstr = f'_reserved{rsv}:{padding};'
                     bits.append([tstr, vstr, desc])
                     rsv += 1
                     if len(vstr) > bflen:
@@ -681,7 +680,6 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                 bitcount += field.size
                 tstr, vstr = makebf(ufname, regwidth,
                                     offset, field.size)
-                # vstr = f'{ufname}:{field.size};'
                 bits.append([tstr, vstr, desc])
                 last_pos = offset + field.size
                 if len(vstr) > bflen:
@@ -692,15 +690,13 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                 desc = bitdesc(last_pos, padding, '(reserved)')
                 tstr, vstr = makebf(f'_reserved{rsv}', regwidth,
                                     last_pos, padding)
-                # vstr = f'_reserved{rsv}:{padding};'
                 bits.append([tstr, vstr, desc])
                 if len(vstr) > bflen:
                     bflen = len(vstr)
             if bitcount > regwidth:
                 self._log.warning('Fields for %s.%s.%s too wide: %d',
                                   devname, name, fname, bitcount)
-                # there may be a better way to handle this
-                # TBC
+                # there may be a better way to handle this, TBC
                 continue
             if bits:
                 bgroups[uname] = (type_, bits, [0, 0])
@@ -784,7 +780,7 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
         text = template.render(copy(locals()))
         ofp.write(text)
 
-    def generate_definitions(self, ofp: TextIO) -> None:
+    def generate_common_definitions(self, ofp: TextIO) -> None:
         """Generate a header file stream for the common definitions.
 
            :param ofp: the output stream
