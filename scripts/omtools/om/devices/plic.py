@@ -33,10 +33,6 @@ class OMPlicDeviceParser(OMDeviceParser):
         freggroups, features = self._rework_fields(freggroups)
         return grpdescs, features, freggroups
 
-    @classmethod
-    def _parse_interrupts(cls, node: OMNode) -> List[OMInterrupt]:
-        return []
-
     def _rework_fields(self, reggroups: Dict[str, Dict[str, OMRegField]]):
         ctx_counters = defaultdict(int)
         sub_regs = defaultdict(list)
