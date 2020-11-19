@@ -70,31 +70,41 @@ class OMHeaderGenerator:
         """Get the generator for a specific device, or fallback to the
            default generator if none exists
         """
+        log = getLogger('om.headgen')
         if cls._DEVICE_GENERATORS is None:
             # this generator does not support device-specific generators
+            log.debug('No device-specific generators for %s', cls.__name__)
             return cls
         if not cls._DEVICE_GENERATORS:
             # this generator supports device-specific generators, but they
             # are not loaded yet
             for modname in Devices.modules:
                 devmod = import_module(modname)
-                for name in dir(devmod):
-                    item = getattr(devmod, name)
+                for iname in dir(devmod):
+                    item = getattr(devmod, iname)
                     if not isinstance(item, Type):
                         continue
                     if not issubclass(item, cls) or item == cls:
                         continue
+                    # print(f'{item} is a subclass of {cls}')
                     prefix = cls.__name__.replace('HeaderGenerator', '')
-                    sname = name.replace(prefix, '')
+                    sname = iname.replace(prefix, '')
                     sname = sname.replace('HeaderGenerator', '').lower()
                     cls._DEVICE_GENERATORS[sname] = item
+                    log.info('Registered generator %s for device %s',
+                             item.__name__, sname)
         try:
             # device specific generator
-            return cls._DEVICE_GENERATORS[name.lower()]
-        except KeyError:
+            name = name.lower()
+            if name == 'pprint':
+                raise RuntimeError('PPRINT!')
+            gen = cls._DEVICE_GENERATORS[name.lower()]
+            log.debug('Use %s generator for device %s', gen.__name__, name)
+            return gen
+        except KeyError as exc:
+            log.debug('Use default generator for device %s', name)
             # default generator
             return cls
-
 
     def generate_device(self, ofp: TextIO, device: OMDeviceMap,
                         bitsize: Optional[int] = None) -> None:

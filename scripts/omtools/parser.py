@@ -9,6 +9,7 @@
 
 from importlib import import_module
 from json import loads as json_loads
+from logging import getLogger
 from os.path import commonprefix
 from pprint import pprint
 from re import match as re_match, sub as re_sub
@@ -64,6 +65,10 @@ class OMParser:
                     cls._DEVICE_PARSERS[sname.lower()] = item
             # default parser
             cls._DEVICE_PARSERS[''] = OMDeviceParser
+            log = getLogger('om.parser')
+            for dev, klass in cls._DEVICE_PARSERS.items():
+                log.info("Registered %s for %s device", klass.__name__,
+                         dev.upper() if dev else 'default')
         name = name.lower()
         try:
             # device specific parser
