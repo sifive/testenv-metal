@@ -761,9 +761,15 @@ _test_sha_dma_irq(const uint8_t * refh, const uint8_t * buf, size_t buflen,
 
 TEST_GROUP(dma_sha512_poll);
 
-TEST_SETUP(dma_sha512_poll) {}
+TEST_SETUP(dma_sha512_poll)
+{
+    QEMU_IO_STATS(0);
+}
 
-TEST_TEAR_DOWN(dma_sha512_poll) {}
+TEST_TEAR_DOWN(dma_sha512_poll)
+{
+    QEMU_IO_STATS(1);
+}
 
 TEST(dma_sha512_poll, unaligned)
 {
@@ -810,12 +816,14 @@ TEST_GROUP(dma_sha512_irq);
 
 TEST_SETUP(dma_sha512_irq)
 {
+    QEMU_IO_STATS(0);
     _hca_irq_init(&_work);
 }
 
 TEST_TEAR_DOWN(dma_sha512_irq)
 {
     _hca_irq_fini();
+    QEMU_IO_STATS(1);
 }
 
 TEST(dma_sha512_irq, short_msg)

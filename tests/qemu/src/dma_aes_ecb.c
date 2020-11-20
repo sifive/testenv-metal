@@ -9,7 +9,7 @@
 #include "hca_macro.h"
 #include "unity_fixture.h"
 #include "dma_test.h"
-
+#include "qemu.h"
 
 //-----------------------------------------------------------------------------
 // Constants
@@ -37,7 +37,6 @@ static const uint8_t _CIPHERTEXT_ECB[] ALIGN(DMA_ALIGNMENT) = {
     0XED, 0X03, 0X06, 0X88, 0X7B, 0X0C, 0X78, 0X5E, 0X27, 0XE8, 0XAD,
     0X3F, 0X82, 0X23, 0X20, 0X71, 0X04, 0X72, 0X5D, 0XD4
 };
-
 
 //-----------------------------------------------------------------------------
 // Variables
@@ -540,9 +539,15 @@ _test_dma_irq(const uint8_t * ref_d, const uint8_t * ref_s, uint8_t * dst,
 
 TEST_GROUP(dma_aes_ecb_poll);
 
-TEST_SETUP(dma_aes_ecb_poll) {}
+TEST_SETUP(dma_aes_ecb_poll)
+{
+    QEMU_IO_STATS(0);
+}
 
-TEST_TEAR_DOWN(dma_aes_ecb_poll) {}
+TEST_TEAR_DOWN(dma_aes_ecb_poll)
+{
+    QEMU_IO_STATS(1);
+}
 
 TEST(dma_aes_ecb_poll, short)
 {
@@ -575,12 +580,14 @@ TEST_GROUP(dma_aes_ecb_irq);
 
 TEST_SETUP(dma_aes_ecb_irq)
 {
+    QEMU_IO_STATS(0);
     _hca_irq_init(&_work);
 }
 
 TEST_TEAR_DOWN(dma_aes_ecb_irq)
 {
     _hca_irq_fini();
+    QEMU_IO_STATS(1);
 }
 
 TEST(dma_aes_ecb_irq, short)

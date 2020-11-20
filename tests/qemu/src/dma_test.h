@@ -14,10 +14,6 @@
 
 #define DEBUG_HCA
 
-#define HCA_BASE             (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
-#define HCA_ASD_IRQ_CHANNEL  52u
-#define HCA_TRNG_IRQ_CHANNEL 53u
-
 #define AES_BLOCK_SIZE       16u   // bytes
 
 #define SHA512_BLOCK_SIZE    128u  // bytes

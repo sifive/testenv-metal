@@ -18,6 +18,10 @@ typedef void (* qemu_hart_task_t)(void);
 // Constants
 //-----------------------------------------------------------------------------
 
+#define HCA_BASE             (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
+#define HCA_ASD_IRQ_CHANNEL  52u
+#define HCA_TRNG_IRQ_CHANNEL 53u
+
 #define TIME_BASE            32768u // cannot rely on metal API for now
 #define HEART_BEAT_FREQUENCY 32u
 #define HEART_BEAT_TIME      ((TIME_BASE)/(HEART_BEAT_FREQUENCY))
@@ -79,6 +83,15 @@ typedef void (* qemu_hart_task_t)(void);
 #define TEST_TIMEOUT(_to_, _msg_) \
     TEST_ASSERT_LESS_THAN_UINT64_MESSAGE((_to_), now(), _msg_);
 
+#ifdef ENABLE_QEMU_IO_STATS
+# define METAL_SIFIVE_HCA_QEMU_CR     0x210ul
+# define HCA_REGISTER_QEMU_CR_RESET   (1u<<0u)
+# define HCA_REGISTER_QEMU_CR_DUMP    (1u<<1u)
+# define QEMU_IO_STATS(_s_) hca_qemu_io_stats(_s_)
+#else
+# define QEMU_IO_STATS(_s_)
+#endif
+
 // this is HCA-specific, should be moved...
 #define DMA_ALIGNMENT        32u   // bytes
 #define DMA_BLOCK_SIZE       16u   // bytes
@@ -98,6 +111,10 @@ void qemu_hexdump(const char * func, int line, const char * msg,
 
 void qemu_register_hart_task(unsigned int hartid, qemu_hart_task_t task);
 
+#ifdef ENABLE_QEMU_IO_STATS
+void hca_qemu_io_stats_init(void);
+#endif // ENABLE_QEMU_IO_STATS
+
 //-----------------------------------------------------------------------------
 // Inline helpers
 //-----------------------------------------------------------------------------
@@ -114,5 +131,20 @@ ms_to_ts(unsigned int ms)
 {
     return (TIME_BASE * (uint64_t)ms) / 1000ull;
 }
+
+#ifdef ENABLE_QEMU_IO_STATS
+static inline void
+hca_qemu_io_stats(int show)
+{
+    extern int hca_qemu_io_stat_enabled;
+    if ( ! hca_qemu_io_stat_enabled ) {
+        hca_qemu_io_stats_init();
+    }
+    if ( hca_qemu_io_stat_enabled > 0 ) {
+        METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_QEMU_CR) = show ?
+            HCA_REGISTER_QEMU_CR_DUMP : HCA_REGISTER_QEMU_CR_RESET;
+    }
+}
+#endif // ENABLE_QEMU_IO_STATS
 
 #endif // QEMU_H

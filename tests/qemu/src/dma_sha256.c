@@ -824,9 +824,15 @@ void _test_sha_dma_irq_msg1_size(const uint8_t * hash, size_t length)
 
 TEST_GROUP(dma_sha256_poll);
 
-TEST_SETUP(dma_sha256_poll) {}
+TEST_SETUP(dma_sha256_poll)
+{
+    QEMU_IO_STATS(0);
+}
 
-TEST_TEAR_DOWN(dma_sha256_poll) {}
+TEST_TEAR_DOWN(dma_sha256_poll)
+{
+    QEMU_IO_STATS(1);
+}
 
 TEST(dma_sha256_poll, unaligned)
 {
@@ -893,12 +899,14 @@ TEST_GROUP(dma_sha256_irq);
 
 TEST_SETUP(dma_sha256_irq)
 {
+    QEMU_IO_STATS(0);
     _hca_irq_init(&_work);
 }
 
 TEST_TEAR_DOWN(dma_sha256_irq)
 {
     _hca_irq_fini();
+    QEMU_IO_STATS(1);
 }
 
 TEST(dma_sha256_irq, short_msg1_64)

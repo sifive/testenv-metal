@@ -17,6 +17,8 @@ INCLUDE_DIRECTORIES (include
 IF (NOT DEFINED STATIC_ANALYSIS)
   SET (app test-${component})
 
+  ADD_DEFINITIONS(-DENABLE_QEMU_IO_STATS)
+
   ADD_EXECUTABLE (${app}
      src/dma_aes_ecb.c
      src/dma_aes_gcm.c

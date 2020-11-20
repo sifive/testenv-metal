@@ -933,9 +933,15 @@ _hca_irq_fini(void)
 
 TEST_GROUP(dma_aes_gcm_poll);
 
-TEST_SETUP(dma_aes_gcm_poll) {}
+TEST_SETUP(dma_aes_gcm_poll)
+{
+    QEMU_IO_STATS(0);
+}
 
-TEST_TEAR_DOWN(dma_aes_gcm_poll) {}
+TEST_TEAR_DOWN(dma_aes_gcm_poll)
+{
+    QEMU_IO_STATS(1);
+}
 
 TEST(dma_aes_gcm_poll, aligned)
 {
@@ -1015,12 +1021,14 @@ TEST_GROUP(dma_aes_gcm_irq);
 
 TEST_SETUP(dma_aes_gcm_irq)
 {
+    QEMU_IO_STATS(0);
     _hca_irq_init(&_work);
 }
 
 TEST_TEAR_DOWN(dma_aes_gcm_irq)
 {
     _hca_irq_fini();
+    QEMU_IO_STATS(1);
 }
 
 TEST(dma_aes_gcm_irq, aligned)

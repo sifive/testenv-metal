@@ -10,6 +10,8 @@
 uint8_t ALIGN(DMA_ALIGNMENT) dma_long_buf[4*PAGE_SIZE];
 qemu_hart_task_t _metal_exec_array[MAX_HARTS];
 
+int hca_qemu_io_stat_enabled;
+
 //-----------------------------------------------------------------------------
 // Helpers
 //-----------------------------------------------------------------------------
@@ -48,6 +50,14 @@ qemu_register_hart_task(unsigned int hartid, qemu_hart_task_t task)
     }
 }
 
+void
+hca_qemu_io_stats_init(void)
+{
+    uint32_t reg = METAL_REG32(HCA_BASE, METAL_SIFIVE_HCA_HCA_REV);
+    reg >>= 31u;
+    hca_qemu_io_stat_enabled = reg ? 1: -1;
+}
+
 //-----------------------------------------------------------------------------
 // Unit test main
 //-----------------------------------------------------------------------------
@@ -56,7 +66,7 @@ static void
 _ut_run(void)
 {
     UnityFixture.Verbose = 1;
-    // UnityFixture.GroupFilter = "dma_sha256_poll";
+    // UnityFixture.GroupFilter = "dma_aes_ecb_poll";
     // UnityFixture.NameFilter = "short_msg1_64";
 
     // RUN_TEST_GROUP(time_irq);
