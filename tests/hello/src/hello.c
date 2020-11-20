@@ -22,9 +22,7 @@ int main(int argc, char * argv[])
         printf("argv[%u] = {%s}\n", ix, argv[ix]);
     }
 
-    for (unsigned int ix=0; ix<4; ix++) {
-        _hello();
-    }
+    _hello();
 
     return 0;
 }
