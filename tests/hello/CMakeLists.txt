@@ -9,7 +9,10 @@ IF (NOT DEFINED STATIC_ANALYSIS)
   directory_name (COMPONENT)
   SET (app test-${COMPONENT})
 
+  ADD_DEFINITIONS (-DELFNAME="${app}")
   ADD_EXECUTABLE (${app}
+    src/cmdenv.c
+    src/cmdline.S
     src/hello.c
   )
 
