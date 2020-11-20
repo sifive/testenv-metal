@@ -112,8 +112,9 @@ for ut in ${UNIT_TESTS}; do
     { { { { ${QEMU} ${QEMU_OPTS}; echo $? >&3; } | \
             tee ${TMPDIR}/output.log >&4; } 3>&1; } \
         | (read xs; exit $xs); } 4>&1
-    if [ $? -ne 0 ]; then
-        error "UT failed ($(basename ${ut}))"
+    EXEC_STATUS=$?
+    if [ ${EXEC_STATUS} -ne 0 ]; then
+        error "UT failed ($(basename ${ut})) [$EXEC_STATUS]"
     else
         echo ""
     fi
@@ -126,6 +127,13 @@ for ut in ${UNIT_TESTS}; do
         TOTAL_TESTS="$(expr ${TOTAL_TESTS} + ${tests})"
         TOTAL_FAILURES="$(expr ${TOTAL_FAILURES} + ${failures})"
         TOTAL_IGNORED="$(expr ${TOTAL_IGNORED} + ${ignored})"
+    else
+        if [ ${EXEC_STATUS} -gt 125 ]; then
+            # the test session failed w/o any execution trace,
+            # it may be a serious issue, such as a QEMU VM crash
+            # abort immediately
+            exit ${EXEC_STATUS}
+        fi
     fi
     rm -f ${TMPDIR}/output.log
 done
