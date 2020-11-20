@@ -1,0 +1,39 @@
+/**
+ * Common definitions
+ * @file sifive_defs.h
+ *
+ * @note This file has been automatically generated.
+ *
+ * @copyright (c) {{cyear}} SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+#ifndef SIFIVE_DEFS_H_
+#define SIFIVE_DEFS_H_
+
+/* clang-format off */
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreserved-id-macro"
+
+/* following defines should be used for structure members */
+#define __IM   volatile const   /**< Defines 'read only' structure member permissions */
+#define __OM   volatile         /**< Defines 'write only' structure member permissions */
+#define __IOM  volatile         /**< Defines 'read / write' structure member permissions */
+{% if enable_assertion %}
+#ifndef ASSERT_COMPILE
+/**
+ * Compile-time assertion.
+ * Aborts the compilation if the constant expression expression evaluates
+ * to false
+ */
+# define _JOIN_(_x_,_y_) _DO_JOIN_(_x_,_y_)
+# define _DO_JOIN_(_x_,_y_) _x_##_y_
+# define ASSERT_COMPILE(c) \
+  void _JOIN_(assert_compile, __LINE__)(int assert_compile[(c)?1:-1])
+#endif // ASSERT_COMPILE
+{%- endif %}
+#pragma clang diagnostic pop
+
+#endif /* SIFIVE_DEFS_H_ */
+

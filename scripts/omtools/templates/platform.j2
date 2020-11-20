@@ -1,0 +1,36 @@
+/**
+ * System platform definitions
+ * @file sifive_platform.h
+ *
+ * @note This file has been automatically generated from the platform object model.
+ *
+ * @copyright (c) {{cyear}} SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+#ifndef SIFIVE_PLATFORM_H_
+#define SIFIVE_PLATFORM_H_
+
+/* clang-format off */
+
+/*
+ * Memory map
+ */
+
+{% for desc, items in memoryregions -%}
+/* {{desc}} */
+{% for name, value in items -%}
+#define {{name}} {{value}}U
+{% endfor %}
+{% endfor %}
+/*
+ * Interrupt channels
+ */
+{%- for interrupts in intdomains -%}
+    {%- for name, channel in interrupts %}
+#define {{name}} {{channel}}U
+    {%- endfor %}
+{% endfor %}
+
+#endif /* SIFIVE_PLATFORM_H_ */
+

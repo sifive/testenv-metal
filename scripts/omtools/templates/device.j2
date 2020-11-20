@@ -1,0 +1,60 @@
+/**
+ * {{ ucomp }} registers
+ * @file {{ filename }}
+ *
+ * @note This file has been automatically generated from the {{ucomp}} object model.
+ *
+ * @copyright (c) {{cyear}} SiFive, Inc
+ * @copyright SPDX-License-Identifier: MIT
+ */
+
+#ifndef SIFIVE_{{ ucomp }}_H_
+#define SIFIVE_{{ ucomp }}_H_
+
+#include <stdint.h>
+#include "sifive_defs.h"
+
+/* clang-format off */
+
+{% if dgroups %}/* {{ucomp}} properties */
+{%- for name, val in dgroups.items() %}
+#define {{name}} {{val}}
+{%- endfor %}
+
+{% endif -%}
+
+typedef struct _{{ ucomp }} {
+{%- for perm, type_, name, desc in cgroups %}
+    {{perm}} {{type_}} {{name}}{%- if desc -%}/**< {{desc}} */{%- endif -%}
+{%- endfor %}
+} {{ ucomp }}_Type;
+{% for name, (group, gdesc) in fgroups.items() %}
+{%- if name in bgroups %}
+/**
+ * Structure type to access {{gdesc}} ({{name}})
+ */
+{%- set type_, bitfield, padders = bgroups[name] %}
+typedef union _{{ucomp}}_{{name}} {
+    struct {
+        {%- for (btype, bname, bdesc) in bitfield %}
+        {{btype}} {{bname}} /**< {{bdesc}} */
+        {%- endfor %}
+    } b; {{padders[0]}} /**< Structure used for bit access */
+{%- if not enable_assertion %}
+    {{type_}} w; {{padders[1]}} /**< Structure used for word access */
+{%- endif %}
+} {{ucomp}}_{{name}}_Type;
+{% if enable_assertion %}
+/* Assert the size of generated {{ucomp}}_{{name}} bitfield is valid */
+ASSERT_COMPILE(sizeof({{ucomp}}_{{name}}_Type) == sizeof(uint{{tgroups[name]}}_t));
+{% endif -%}
+{% endif %}
+    {%- for field in group %}
+/* {{ucomp}} {{field[0][2]}} */
+        {%- for name, value, _ in field %}
+#define {{name}} {{value}}
+        {%- endfor %}
+{% endfor -%}
+{% endfor %}
+#endif /* SIFIVE_{{ ucomp }}_H_ */
+
