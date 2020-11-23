@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include "sifive_hca-0.5.x.h"
+#include "metal/platform/metal_platform_sifive_hca0.h"
 #include "hca_macro.h"
 
 //-----------------------------------------------------------------------------
@@ -18,7 +18,7 @@ typedef void (* qemu_hart_task_t)(void);
 // Constants
 //-----------------------------------------------------------------------------
 
-#define HCA_BASE             (METAL_SIFIVE_HCA_0_BASE_ADDRESS)
+#define HCA_BASE             (METAL_SIFIVE_HCA0_0_BASE_ADDRESS)
 #define HCA_ASD_IRQ_CHANNEL  52u
 #define HCA_TRNG_IRQ_CHANNEL 53u
 

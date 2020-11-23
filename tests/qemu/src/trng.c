@@ -2,13 +2,11 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
-#include "metal/machine.h"
 #include "metal/tty.h"
-#include "sifive_hca-0.5.x.h"
 #include "hca_macro.h"
 #include "unity_fixture.h"
 #include "dma_test.h"
-
+#include "qemu.h"
 
 //-----------------------------------------------------------------------------
 // Constants

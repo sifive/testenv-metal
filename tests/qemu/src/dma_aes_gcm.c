@@ -3,11 +3,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <limits.h>
-#include "metal/machine.h"
 #include "metal/tty.h"
 #include "unity_fixture.h"
 #include "dma_test.h"
-
+#include "qemu.h"
 
 //-----------------------------------------------------------------------------
 // Constants

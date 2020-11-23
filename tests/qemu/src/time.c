@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
-#include "metal/machine.h"
 #include "metal/io.h"
 #include "unity_fixture.h"
 #include "qemu.h"

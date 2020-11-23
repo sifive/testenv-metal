@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include "metal/machine.h"
 #include "unity_fixture.h"
 #include "qemu.h"
 

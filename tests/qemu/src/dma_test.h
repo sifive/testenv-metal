@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include "sifive_hca-0.5.x.h"
 #include "hca_macro.h"
 #include "qemu.h"
 
