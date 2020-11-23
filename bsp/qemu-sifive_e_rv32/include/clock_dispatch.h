@@ -1,0 +1,12 @@
+
+#include <metal/drivers/.h>
+
+/* These defines "redirect" the calls to the public Freedom Metal clock API
+ * to the driver for the device at compile time. Since they are the same
+ * as the actual public API symbols, when they aren't defined (for instance,
+ * if the Devicetree doesn't properly describe what clock drives a device)
+ * they will link to the stub functions in src/clock.c
+ */
+
+#define metal_clock_get_rate_hz(clock) _get_rate_hz((clock))
+#define metal_clock_set_rate_hz(clock, rate) _set_rate_hz((clock), (rate))
