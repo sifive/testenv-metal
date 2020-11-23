@@ -133,48 +133,6 @@ MACRO (directory_name component)
   GET_FILENAME_COMPONENT (${component} ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 ENDMACRO ()
 
-#------------------------------------------------------------------------------
-# Define the build properties based on the selected BSP
-# :global: XLEN (either 32 or 64)
-# :global: XTARGET, the target triple
-# :global: XARCH, rvXX
-# :global: XABI
-#------------------------------------------------------------------------------
-MACRO (load_bsp_properties)
-  IF (NOT DEFINED XBSP)
-    MESSAGE (FATAL_ERROR "BSP is not selected; use -DXBSP=...")
-  ENDIF ()
-  IF (NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/bsp/${XBSP})
-    MESSAGE (FATAL_ERROR "Unsupported BSP ${XBSP}")
-  ENDIF ()
-  INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/bsp/${XBSP}/include)
-  SET (XISA imac)
-  STRING (REGEX REPLACE "^(qemu-.*-)([es])([0-9]+).*" "\\2" XSERIES ${XBSP})
-  IF (XSERIES STREQUAL "e")
-    # 32-bit target
-    SET (XLEN 32)
-    # Unity test framework: enable 64-bit types on 32-bit platform
-    ADD_DEFINITIONS (-DUNITY_SUPPORT_64)
-  ELSEIF (XSERIES STREQUAL "s")
-    # 64-bit target
-    SET (XLEN 64)
-  ELSE ()
-    STRING (REGEX MATCH "^qemu-sifive_e_rv(32|64).*$" bsp ${XBSP})
-    IF (NOT bsp)
-      MESSAGE (FATAL_ERROR "Unsupported BSP ${XBSP}")
-    ELSE ()
-      STRING (REGEX REPLACE "^(qemu-sifive_e_rv)(32|64).*$" "\\2" XLEN ${XBSP})
-    ENDIF ()
-  ENDIF ()
-  SET (XTARGET riscv64-unknown-elf)
-  SET (XARCH   rv${XLEN}${XISA})
-  IF (XLEN EQUAL 64)
-    SET (XABI  lp${XLEN})
-  ELSE ()
-    SET (XABI  ilp${XLEN})
-  ENDIF ()
-ENDMACRO ()
-
 #-----------------------------------------------------------------------------
 # Enable most warnings
 #-----------------------------------------------------------------------------
@@ -208,15 +166,6 @@ MACRO (enable_static_analysis)
 ENDMACRO ()
 
 #-----------------------------------------------------------------------------
-# Build and use SiFive metal framework
-#-----------------------------------------------------------------------------
-MACRO (enable_metal)
-  SET (ENABLE_METAL 1)
-  SET (METAL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/metal)
-  INCLUDE_DIRECTORIES (${METAL_SOURCE_DIR}/include)
-ENDMACRO ()
-
-#-----------------------------------------------------------------------------
 # Build and use Unity unit test framework
 #-----------------------------------------------------------------------------
 MACRO (enable_unity)
@@ -243,37 +192,6 @@ MACRO (optional_target)
     SET_PROPERTY (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                   PROPERTY EXCLUDE_FROM_ALL ON)
   ENDIF ()
-ENDMACRO ()
-
-#-----------------------------------------------------------------------------
-# Apply default link options to a final application
-#  :app: the application component
-#  :ld_script: the filename of the linker script
-#-----------------------------------------------------------------------------
-MACRO (link_application app ldscript)
-  # libraries
-  LIST (INSERT PROJECT_LINK_LIBRARIES 0 c clang_rt.builtins-riscv${XLEN})
-  IF ( ENABLE_METAL )
-    LIST (APPEND PROJECT_LINK_LIBRARIES metal metal-gloss)
-  ENDIF ()
-  LIST (APPEND PROJECT_LINK_LIBRARIES ${ARGN})
-  IF ( ENABLE_UNITY )
-    LIST (APPEND PROJECT_LINK_LIBRARIES unity)
-  ENDIF ()
-  # define the link options
-  TARGET_LINK_LIBRARIES (${app}
-                         # ${LDPREFIX}--warn-common
-                         ${LDPREFIX}--gc-sections
-                         ${LDPREFIX}--no-whole-archive
-                         ${LDPREFIX}--warn-once
-                         ${LDPREFIX}-static
-                         --allow-multiple-definition
-                         -T ${CMAKE_SOURCE_DIR}/bsp/${XBSP}/ld/${ldscript}
-                         ${LINK_C_RUNTIME}
-                         ${LDPREFIX}${LDSTARTGROUP}
-                         ${LINK_SYSTEM_LIBS}
-                         ${PROJECT_LINK_LIBRARIES}
-                         ${LDPREFIX}${LDENDGROUP})
 ENDMACRO ()
 
 #-----------------------------------------------------------------------------
