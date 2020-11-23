@@ -1,0 +1,39 @@
+/* Copyright 2020 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef METAL__DRIVERS__SIFIVE_FE310_G000_HFROSC_CLOCK_H
+#define METAL__DRIVERS__SIFIVE_FE310_G000_HFROSC_CLOCK_H
+
+{% include 'template_comment.h.j2' %}
+
+#include <metal/clock.h>
+
+{% if 'sifive,fe310-g000,hfrosc' in devices %}
+{% set sifive_fe310_g000_hfroscs = devices['sifive,fe310-g000,hfrosc'] %}
+
+#define __METAL_DT_NUM_SIFIVE_FE310_G000_HFROSCS {{ sifive_fe310_g000_hfroscs|length }}
+
+{% if sifive_fe310_g000_hfroscs|length > 1 %}
+
+static const struct metal_clock ref_clocks[__METAL_DT_NUM_SIFIVE_FE310_G000_HFROSCS] = {
+{% for clk in sifive_fe310_g000_hfroscs %}
+	.ref = { {{ clk.clocks[0].id }} },
+{% endfor %}
+};
+
+#define get_index(clock) ((clock).__clock_index)
+#define REF_CLOCK(clock) ref_clocks[get_index(clock)]
+
+{% else %}
+
+#define get_index(clock) 0
+#define REF_CLOCK(clock) ((struct metal_clock) { {{ sifive_fe310_g000_hfroscs[0].clocks[0].id }} })
+
+{% endif %}
+
+{% set driver_string = to_snakecase(sifive_fe310_g000_hfroscs[0].clocks[0].compatible[0]) %}
+{% include 'clock_dispatch.h.j2' %}
+
+{% endif %}
+
+#endif

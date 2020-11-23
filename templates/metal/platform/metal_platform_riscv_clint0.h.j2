@@ -1,0 +1,26 @@
+/* Copyright 2020 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef METAL__PLATFORM__RISCV_CLINT0_H
+#define METAL__PLATFORM__RISCV_CLINT0_H
+
+{% if 'riscv,clint0' in devices %}
+
+{% for clint in devices['riscv,clint0'] %}
+    {% if clint.reg_names is defined %}
+#define METAL_RISCV_CLINT0_{{ loop.index0 }}_BASE_ADDRESS {{ "0x%x" % clint.regs_by_name["control"][0] }}
+#define METAL_RISCV_CLINT0_{{ loop.index0 }}_SIZE {{ "0x%x" % clint.regs_by_name["control"][1] }}
+    {% else %}
+#define METAL_RISCV_CLINT0_{{ loop.index0 }}_BASE_ADDRESS {{ "0x%x" % clint.reg[0][0] }}
+#define METAL_RISCV_CLINT0_{{ loop.index0 }}_SIZE {{ "0x%x" % clint.reg[0][1] }}
+    {% endif %}
+{% endfor %}
+
+#define METAL_RISCV_CLINT0
+#define METAL_RISCV_CLINT0_MSIP_BASE 0x0
+#define METAL_RISCV_CLINT0_MTIMECMP_BASE 0x4000
+#define METAL_RISCV_CLINT0_MTIME 0xBFF8
+
+{% endif %}
+
+#endif

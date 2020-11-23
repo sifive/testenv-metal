@@ -1,0 +1,31 @@
+/* Copyright 2020 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef METAL__PLATFORM__SIFIVE_UART0_H
+#define METAL__PLATFORM__SIFIVE_UART0_H
+
+{% if 'sifive,uart0' in devices %}
+{% set sifive_uart0s = devices['sifive,uart0'] %}
+
+{% for uart in sifive_uart0s %}
+    {% if uart.reg_names is defined %}
+#define METAL_SIFIVE_UART0_{{ loop.index0 }}_BASE_ADDRESS {{ '0x%x' % uart.regs_by_name["control"][0] }}
+#define METAL_SIFIVE_UART0_{{ loop.index0 }}_SIZE {{ '0x%x' % uart.regs_by_name["control"][1] }}
+    {% else %}
+#define METAL_SIFIVE_UART0_{{ loop.index0 }}_BASE_ADDRESS {{ '0x%x' % uart.reg[0][0] }}
+#define METAL_SIFIVE_UART0_{{ loop.index0 }}_SIZE {{ '0x%x' % uart.reg[0][1] }}
+    {% endif %}
+{% endfor %}
+
+#define METAL_SIFIVE_UART0
+#define METAL_SIFIVE_UART0_TXDATA 0UL
+#define METAL_SIFIVE_UART0_RXDATA 4UL
+#define METAL_SIFIVE_UART0_TXCTRL 8UL
+#define METAL_SIFIVE_UART0_RXCTRL 12UL
+#define METAL_SIFIVE_UART0_IE 16UL
+#define METAL_SIFIVE_UART0_IP 20UL
+#define METAL_SIFIVE_UART0_DIV 24UL
+
+{% endif %}
+
+#endif
