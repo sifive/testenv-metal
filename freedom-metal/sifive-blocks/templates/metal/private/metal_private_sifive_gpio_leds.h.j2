@@ -1,0 +1,48 @@
+/* Copyright 2020 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef METAL__DRIVERS__SIFIVE_GPIO_LEDS_H
+#define METAL__DRIVERS__SIFIVE_GPIO_LEDS_H
+
+{% include 'template_comment.h.j2' %}
+
+#include <metal/gpio.h>
+#include <metal/platform.h>
+#include <stddef.h>
+#include <stdint.h>
+
+{% if 'sifive,gpio-leds' in devices %}
+{% set leds = devices['sifive,gpio-leds'] %}
+
+#define __METAL_DT_NUM_SIFIVE_GPIO_LEDS {{ leds|length }}
+
+{% if leds|length == 1 %}
+
+/* Only one led exists so all devicetree data is constant */
+#define get_index(led) 0
+#define LED_GPIO(led) {{ leds[0].gpios[0].id }}
+#define LED_GPIO_PIN(led) {{ leds[0].gpios[1] }}
+
+{% else %}
+
+static const struct dt_led_data {
+	struct metal_gpio gpio;
+	uint32_t pin;
+} dt_led_data[__METAL_DT_NUM_SIFIVE_GPIO_LEDS] = {
+	{% for led in leds %}
+	{
+		/* {{ led.gpios[0].compatible[0] }} */
+		.gpio = { {{ led.gpios[0].id }} },
+		.pin = {{ led.gpios[1] }},
+	},
+	{% endfor %}
+};
+
+#define get_index(led) ((led).__led_index)
+#define LED_GPIO(led) (dt_led_data[get_index(led)].gpio)
+#define LED_GPIO_PIN(led) (dt_led_data[get_index(led)].pin)
+
+{% endif %}
+{% endif %}
+
+#endif

@@ -1,0 +1,70 @@
+/* Copyright 2020 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef METAL__DRIVERS__SIFIVE_UART0_H
+#define METAL__DRIVERS__SIFIVE_UART0_H
+
+{% include 'template_comment.h.j2' %}
+
+#include <metal/interrupt.h>
+#include <metal/platform.h>
+#include <stdint.h>
+
+{% if 'riscv,plic0' in devices %}
+{% set riscv_plic0 = devices['riscv,plic0'][0] %}
+
+{% if devices['riscv,plic0']|length > 1 %}
+#pragma warning("Multiple PLICs detected, currently Metal only supports a singleton PLIC.")
+{% endif %}
+#define __METAL_DT_NUM_RISCV_PLIC0S {{ riscv_plic0s|length }}
+
+{#
+   The PLIC has an interrupt context for each non-User privilege mode for each
+   hart. This means that for this design:
+
+     Hart 0 - Machine-mode only
+     Hart 1 - Machine, Supervisor, and User modes
+     Hart 2 - Machine, Supervisor, and User modes
+
+   the PLIC will have the following interrupt contexts:
+
+     Context 0 - Hart 0 M Mode
+     Context 1 - Hart 1 M Mode
+     Context 2 - Hart 1 S Mode
+     Context 3 - Hart 2 M mode
+     Context 4 - Hart 2 S Mode
+
+   and this will be represented in the Devicetree node for the PLIC as:
+
+     interrupts-extended = <&hlic0 11 &hlic1 11 &hlic1 13 &hlic2 11 &hlic2 13>;
+
+   Therefore, the claim/complete context windows will be at:
+
+     BASE + 0 * 0x1000 - Context 0/Hart 0 M mode context window
+     BASE + 1 * 0x1000 - Context 1/Hart 1 M mode context window
+     BASE + 2 * 0x2000 - Context 2/Hart 1 S mode context window
+     BASE + 3 * 0x3000 - Context 3/Hart 2 M mode context window
+     BASE + 4 * 0x4000 - Context 4/Hart 2 S mode context window
+
+   The following template extracts the M mode context ids for each hart.
+#}
+{% set num_contexts = (riscv_plic0.interrupts_extended|length) // 2 %}
+{% if num_contexts == 1 %}
+#define PLIC_CONTEXT_ID(hartid) 0
+{% else %}
+static const uintptr_t plic_context_id[__METAL_DT_NUM_HARTS] = {
+    {% for context in range(num_contexts) %}
+        {% if riscv_plic0.interrupts_extended[2 * context + 1] == 11 %}
+    {{ context }},
+        {% endif %}
+    {% endfor %}
+};
+#define PLIC_CONTEXT_ID(hartid) (plic_context_id[hartid])
+{% endif %}
+
+{% set driver_string = to_snakecase(riscv_plic0.interrupts_extended[0].compatible[0]) %}
+{% include 'interrupt_dispatch.h.j2' %}
+
+{% endif %}
+
+#endif

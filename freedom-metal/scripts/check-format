@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+TOP_LEVEL=$(git rev-parse --show-toplevel)
+
+$TOP_LEVEL/scripts/format
+
+echo "Checking that the sources are properly formatted"
+
+DIFF=$(git diff)
+
+if [ "${DIFF}" != "" ] ; then
+    echo "Formatting errors found! Please run ./scripts/format or apply the"
+    echo "following diff to fix them!"
+    echo ""
+    echo "${DIFF}"
+    exit 1
+else
+    echo "Sources are properly formatted"
+fi
+

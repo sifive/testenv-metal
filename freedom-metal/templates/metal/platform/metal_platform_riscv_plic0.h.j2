@@ -1,0 +1,29 @@
+/* Copyright 2020 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef METAL__PLATFORM__RISCV_PLIC0_H
+#define METAL__PLATFORM__RISCV_PLIC0_H
+
+{% if 'riscv,plic0' in devices %}
+{% set riscv_plic0s = devices['riscv,plic0'] %}
+
+{% for plic in riscv_plic0s %}
+#define METAL_RISCV_PLIC0_{{ loop.index0 }}_BASE_ADDRESS {{ '0x%x' % plic.regs_by_name["control"][0] }}
+#define METAL_RISCV_PLIC0_{{ loop.index0 }}_SIZE {{ '0x%x' % plic.regs_by_name["control"][1] }}
+#define METAL_RISCV_PLIC0_{{ loop.index0 }}_RISCV_MAX_PRIORITY {{ plic.riscv_max_priority[0] }}
+#define METAL_RISCV_PLIC0_{{ loop.index0 }}_RISCV_NDEV {{ plic.riscv_ndev[0] }}
+{% endfor %}
+
+#define METAL_RISCV_PLIC0
+#define METAL_RISCV_PLIC0_PRIORITY_BASE      0x000000UL
+#define METAL_RISCV_PLIC0_PENDING_BASE       0x001000UL
+#define METAL_RISCV_PLIC0_ENABLE_BASE        0x002000UL
+#define METAL_RISCV_PLIC0_ENABLE_PER_CONTEXT 0x000080UL
+#define METAL_RISCV_PLIC0_CONTEXT_BASE       0x200000UL
+#define METAL_RISCV_PLIC0_PER_CONTEXT_OFFSET 0x001000UL
+#define METAL_RISCV_PLIC0_CONTEXT_THRESHOLD  0x000000UL
+#define METAL_RISCV_PLIC0_CONTEXT_CLAIM      0x000004UL
+
+{% endif %}
+
+#endif

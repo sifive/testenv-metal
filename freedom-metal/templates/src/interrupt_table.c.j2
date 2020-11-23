@@ -1,0 +1,80 @@
+/* Copyright 2020 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <metal/interrupt_handlers.h>
+
+const metal_exception_handler_t __metal_exception_table[__METAL_NUM_EXCEPTIONS] = {
+    metal_exception_instruction_address_misaligned_handler,
+    metal_exception_instruction_address_fault_handler,
+    metal_exception_illegal_instruction_handler,
+    metal_exception_breakpoint_handler,
+    metal_exception_load_address_misaligned_handler,
+    metal_exception_load_access_fault_handler,
+    metal_exception_store_amo_address_misaligned_handler,
+    metal_exception_store_amo_access_fault_handler,
+    metal_exception_ecall_from_u_mode_handler,
+    metal_exception_ecall_from_s_mode_handler,
+    metal_exception_default_handler,
+    metal_exception_ecall_from_m_mode_handler,
+#if __METAL_NUM_EXCEPTIONS > 12
+    metal_exception_instruction_page_fault_handler,
+    metal_exception_load_page_fault_handler,
+    metal_exception_default_handler,
+    metal_exception_store_amo_page_fault_handler,
+#endif
+};
+
+__attribute__((aligned(64))) const metal_interrupt_handler_t __metal_local_interrupt_table[__METAL_NUM_LOCAL_INTERRUPTS] = {
+    metal_riscv_cpu_intc_usip_handler,
+    metal_riscv_cpu_intc_ssip_handler,
+    metal_riscv_cpu_intc_default_handler, /* reserved */
+    metal_riscv_cpu_intc_msip_handler,
+    metal_riscv_cpu_intc_utip_handler,
+    metal_riscv_cpu_intc_stip_handler,
+    metal_riscv_cpu_intc_default_handler, /* reserved */
+    metal_riscv_cpu_intc_mtip_handler,
+    metal_riscv_cpu_intc_ueip_handler,
+    metal_riscv_cpu_intc_seip_handler,
+    metal_riscv_cpu_intc_default_handler, /* reserved */
+{% if global_interrupts is defined %}
+    metal_riscv_plic0_source_0_handler,
+{% else %}
+    metal_riscv_cpu_intc_meip_handler,
+{% endif %}
+{% if 'sifive,clic0' in devices %}
+    metal_sifive_clic0_csip_handler,
+{% else %}
+    metal_riscv_cpu_intc_default_handler, /* reserved */
+{% endif %}
+    metal_riscv_cpu_intc_default_handler, /* reserved */
+    metal_riscv_cpu_intc_default_handler, /* reserved */
+    metal_riscv_cpu_intc_default_handler, /* reserved */
+{% if local_interrupts is defined %}
+{% for irq in local_interrupts.irqs %}
+    {% if irq.id >= 16 %}
+        {% if irq.source.compatible != None %}
+    metal_{{ to_snakecase(irq.source.compatible) }}_source_{{ irq.source.id }}_handler,
+        {% else %}
+    metal_riscv_cpu_intc_default_handler, /* IRQ source has no compatible string */
+        {% endif %}
+    {% endif %}
+{% endfor %}
+{% endif %}
+};
+
+{% if global_interrupts is defined %}
+/* The global interrupt table holds function pointers for interrupt handlers called by the PLIC.
+ * It has one more entry than __METAL_NUM_GLOBAL_INTERRUPTS because the PLIC interrupt line 0
+ * is always unused.
+ */
+const metal_interrupt_handler_t __metal_global_interrupt_table[__METAL_NUM_GLOBAL_INTERRUPTS + 1] = {
+    metal_riscv_cpu_intc_default_handler, /* The PLIC has no source at id 0 */
+{% for irq in global_interrupts.irqs %}
+    {% if irq.source.compatible != None %}
+    metal_{{ to_snakecase(irq.source.compatible) }}_source_{{ irq.source.id }}_handler,
+    {% else %}
+    metal_riscv_cpu_intc_default_handler, /* IRQ source has no compatible string */
+    {% endif %}
+{% endfor %}
+};
+{% endif %}

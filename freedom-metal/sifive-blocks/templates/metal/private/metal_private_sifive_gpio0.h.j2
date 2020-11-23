@@ -1,0 +1,60 @@
+/* Copyright 2018 SiFive, Inc */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef METAL__DRIVERS__SIFIVE_GPIO0_H
+#define METAL__DRIVERS__SIFIVE_GPIO0_H
+
+{% include 'template_comment.h.j2' %}
+
+#include <metal/private/metal_private_gpio.h>
+#include <metal/interrupt.h>
+#include <metal/platform.h>
+#include <stddef.h>
+#include <stdint.h>
+
+{% if 'sifive,gpio0' in devices %}
+{% set sifive_gpio0s = devices['sifive,gpio0'] %}
+
+{% if sifive_gpio0s|length == 1 %}
+
+/* Only one sifive,gpio0 exists so all devicetree data is constant */
+#define get_index(gpio) 0
+#define BASE_ADDR(gpio) METAL_SIFIVE_GPIO0_0_BASE_ADDRESS
+#define INTERRUPT_PARENT(gpio) ((struct metal_interrupt) { {{ sifive_gpio0s[0].interrupt_parent[0].id }} })
+#define INTERRUPT_ID_BASE(gpio) {{ sifive_gpio0s[0].interrupts[0] }}
+
+{% else %}
+
+static const struct dt_gpio_data {
+	uintptr_t base_addr;
+	struct metal_interrupt interrupt_parent;
+	uint32_t interrupt_id_base;
+} dt_gpio_data[__METAL_DT_NUM_GPIOS] = {
+	{% for gpio in sifive_gpio0s %}
+	{
+		.base_addr = METAL_SIFIVE_GPIO0_{{ gpio.id }}_BASE_ADDRESS,
+
+	{% if gpio.interrupt_parent is defined %}
+	    /* {{ gpio.interrupt_parent[0].compatible[0] }} */
+		.interrupt_parent = { {{ gpio.interrupt_parent[0].id }} },
+		.interrupt_id_base = {{ gpio.interrupts[0] }},
+	{% endif %}
+	},
+	{% endfor %}
+};
+
+#define get_index(gpio)
+#define BASE_ADDR(gpio) (dt_gpio_data[get_index((gpio))].base_addr)
+#define INTERRUPT_PARENT(gpio) (dt_gpio_data[get_index((gpio))].interrupt_parent)
+#define INTERRUPT_ID_BASE(gpio) (dt_gpio_data[get_index((gpio))].interrupt_id_base)
+
+{% endif %}
+
+{% if sifive_gpio0s[0].interrupt_parent is defined %}
+{% set driver_string = to_snakecase(sifive_gpio0s[0].interrupt_parent[0].compatible[0]) %}
+{% include 'interrupt_dispatch.h.j2' %}
+{% endif %}
+
+{% endif %}
+
+#endif
