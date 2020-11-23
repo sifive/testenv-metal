@@ -17,6 +17,7 @@ SET (CMAKE_EXPORT_COMPILE_COMMANDS=ON)
 
 # SiFive macros
 INCLUDE (macros)
+INCLUDE (testenv)
 
 # get target properties from the selected BSP
 load_bsp_properties ()

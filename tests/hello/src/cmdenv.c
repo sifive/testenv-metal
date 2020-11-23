@@ -8,13 +8,12 @@
  */
 
 #include <stdint.h>
-#include <metal/machine/platform.h>
+#include <metal/platform.h>
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdocumentation"
 #pragma clang diagnostic ignored "-Wunused-parameter"
 #pragma clang diagnostic ignored "-Wmissing-variable-declarations"
 #pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
-#include <metal/machine.h>
 #pragma clang diagnostic pop
 
 static char _cmdline_str[0x100u];

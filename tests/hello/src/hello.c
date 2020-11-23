@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
-#include "metal/machine.h"
 #include "metal/tty.h"
 #include "metal/io.h"
 
