@@ -36,7 +36,7 @@ class OMPlicDeviceParser(OMDeviceParser):
     def _rework_fields(self, reggroups: Dict[str, Dict[str, OMRegField]]):
         ctx_counters = defaultdict(int)
         sub_regs = defaultdict(list)
-        src_counters = set()
+        src_counters = defaultdict(int)
         radices = []
         sequences = []
         features = {}
@@ -57,22 +57,29 @@ class OMPlicDeviceParser(OMDeviceParser):
                         if seq[0] == radix:
                             seq_pos = pos
                             break
+                    if seq_pos is None:
+                        raise RuntimeError('Internal error')
                     sequences, rem = sequences[:-seq_pos], sequences[-seq_pos:]
                     sequences.append(flatten(rem))
-            if xmo.group(2) is not None:
-                # enables_*, threshold_*, claim_complete_*
+            if radix in ('priority', 'pending'):
+                src_counters[radix] += len(gregs)
+                if radix != gname:
+                    # some OM use 'priority': [regs],
+                    # some others use 'priority_N': reg
+                    sub_regs[radix].append(gregs)
+            elif radix in ('enables', 'threshold', 'claim_complete'):
                 ctx_counters[radix] += 1
                 sub_regs[radix].append(gregs)
             else:
-                # priority, pending
-                src_counters.add(len(gregs))
+                raise ValueError(f'Unsupported PLIC group: {radix}')
         core_ctx = set(ctx_counters.values())
         if len(core_ctx) != 1:
-            raise ValueError('Incoherent core sets')
+            raise ValueError(f'Incoherent core sets: {len(core_ctx)}')
         core_ctx_count = core_ctx.pop()
-        if len(src_counters) != 1:
-            raise ValueError('Incoherent source sets')
-        irq_src_count = src_counters.pop()
+        sources = set(src_counters.values())
+        if len(sources) != 1:
+            raise ValueError(f'Incoherent source sets: {len(sources)}')
+        irq_src_count = sources.pop()
         irq_wrd_count = (irq_src_count+regmask) // self._regwidth
         self._log.info('%d core contexts, %d (%d words) irq sources',
                        core_ctx_count, irq_src_count, irq_wrd_count)
