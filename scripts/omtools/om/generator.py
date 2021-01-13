@@ -13,7 +13,6 @@ from importlib import import_module
 from logging import getLogger
 from os import pardir
 from os.path import basename, dirname, join as joinpath, realpath, splitext
-from . import pprint
 from re import match as re_match
 from sys import modules, stderr
 from textwrap import dedent
@@ -24,6 +23,7 @@ try:
 except ImportError:
     JiEnv = None
 from .. import classproperty
+from . import pprint
 from .devices import Devices
 from .model import (OMAccess, OMDeviceMap, OMMemoryRegion, OMRegField,
                     OMRegStruct)
@@ -50,6 +50,7 @@ class OMHeaderGenerator:
     @classproperty
     def generators(cls) -> Dict[str, 'OMHeaderGenerator']:
         """Generate a map of supported generators."""
+        #pylint: disable-msg=no-self-argument
         generators = {}
         for name in dir(modules[__name__]):
             item = getattr(modules[__name__], name)
@@ -380,7 +381,7 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
         fgroups = self._generate_fields(devname, descs, groups, regwidths)
         bgroups = self._generate_bits(devname, groups, regwidths)
         dgroups = self._generate_definitions(devname, device.features)
-        tgroups = {name: regwidths[name.lower()] for name in bgroups.keys()}
+        tgroups = {name: regwidths[name.lower()] for name in bgroups}
         enable_assertion = self._test
         ucomp = devname.upper()
         cyear = self.build_year_string()
@@ -527,6 +528,7 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
            :param features:  map of supported features and subfeatures.
            :return: a map of definition name, values
         """
+        # pylint: disable-msg=no-self-use
         # implementation is device specific
         return {}
 
@@ -637,7 +639,7 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
                 # print(size, bsize)
                 if size == bsize:
                     bmask = bsize - 1
-                    if not (pos & bmask):
+                    if not pos & bmask:
                         tstr = f'uint{bsize}_t'
                         vstr = f'{name};'
                         return tstr, vstr
@@ -813,6 +815,10 @@ class OMSifiveSisHeaderGenerator(OMHeaderGenerator):
 
     @classmethod
     def build_year_string(cls) -> str:
+        """Generate year info.
+
+           :return: a string for copyright year placeholder
+        """
         year = gmtime().tm_year
         return f'2020-{year}' if year > 2020 else '2020'
 
@@ -879,4 +885,3 @@ class OMMetalSisHeaderGenerator(OMSifiveSisHeaderGenerator):
     @classmethod
     def get_reserved_group_info(cls, offset: int, hwx: int) -> Tuple[str, str]:
         return cls.SIS_ACCESS_MAP[OMAccess.R][1], f'Offset: 0x{offset:0{hwx}X}'
-

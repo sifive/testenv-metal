@@ -5,6 +5,8 @@
 #pylint: disable-msg=too-many-arguments
 #pylint: disable-msg=too-many-locals
 #pylint: disable-msg=too-many-nested-blocks
+#pylint: disable-msg=too-many-branches
+#pylint: disable-msg=too-many-statements
 #pylint: disable-msg=cell-var-from-loop
 
 from argparse import ArgumentParser, FileType

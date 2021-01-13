@@ -53,7 +53,6 @@ filter_issues () {
         done
 }
 
-# generate a JSON file with all build commands so that an IDE knows how to build
 CMAKE_OPTS="-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 NINJA_OPTS=""
 SUBDIR=""
