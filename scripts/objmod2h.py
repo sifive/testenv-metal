@@ -332,8 +332,10 @@ class ObjectModelConverter:
         length += cls.EXTRA_SEP_COUNT
         for grpname in grpnames:
             group = reggroups[grpname]
-            desc = groupdesc.get(grpname, '')
-            print(f'// SI5_{grpname}', file=out)
+            if grpname.startswith(prefix):
+                grpname = grpname[len(prefix):]
+            gsep = '' if grpname.startswith('_') else '_'
+            print(f'// SI5_{prefix}{gsep}{grpname}', file=out)
             sorted_names = sorted(group, key=lambda n: group[n].offset)
             base_offset = group[sorted_names[0]].offset
             for regname in sorted_names:
@@ -341,8 +343,14 @@ class ObjectModelConverter:
                 offset = field.offset - base_offset
                 mask = (1 << field.size) - 1
                 # print(f'/* {field.desc} [{field.access.name}] */', file=out)
-                off_str = f'SI5_{prefix}_{grpname}_{regname}_OFFSET'
-                msk_str = f'SI5_{prefix}_{grpname}_{regname}_MASK'
+                if regname.startswith(grpname):
+                    regname = regname[len(grpname):]
+                elif grpname.endswith(regname):
+                    grpname = grpname[:-len(regname)-1]
+                print(grpname, regname)
+                rsep = '' if regname.startswith('_') else '_'
+                off_str = f'SI5_{prefix}{gsep}{grpname}{rsep}{regname}_OFFSET'
+                msk_str = f'SI5_{prefix}{gsep}{grpname}{rsep}{regname}_MASK'
                 padding = max(2, 2*((field.size+7)//8))
                 print(f'#define {off_str:{length}s} {offset}u', file=out)
                 print(f'#define {msk_str:{length}s} 0x{mask:0{padding}X}u',
