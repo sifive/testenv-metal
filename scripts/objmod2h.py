@@ -54,8 +54,8 @@ class ObjectModelConverter:
     def __init__(self, *names: List[str]):
         self._comps: \
             Dict[str, Optional[Tuple[Dict[str, str],
-                                     DefaultDict[str, Dict[str, RegField]]],
-                                     Dict[str, Dict[str, bool]]]] \
+                                     DefaultDict[str, Dict[str, RegField]],
+                                     Dict[str, Dict[str, bool]]]]] \
             = {x.lower(): None for x in names}
 
     def parse(self, mfp: TextIO) -> None:
@@ -305,9 +305,9 @@ class ObjectModelConverter:
             group = reggroups[grpname]
             regname = sorted(group, key=lambda n: group[n].offset)[0]
             address = group[regname].offset//8
-            addr_str = f'{prefix}_REGISTER_{grpname}'
+            addr_str = f'SI5_{prefix}_REGISTER_{grpname}'
             desc = groupdesc.get(grpname, '')
-            print(f'/* {desc} */', file=out)
+            print(f'// {desc}', file=out)
             print(f'#define {addr_str:{length}s} 0x{address:04X}u', file=out)
 
     @classmethod
@@ -333,16 +333,16 @@ class ObjectModelConverter:
         for grpname in grpnames:
             group = reggroups[grpname]
             desc = groupdesc.get(grpname, '')
-            print(f'/*\n * {desc}\n */', file=out)
+            print(f'// SI5_{grpname}', file=out)
             sorted_names = sorted(group, key=lambda n: group[n].offset)
             base_offset = group[sorted_names[0]].offset
             for regname in sorted_names:
                 field = group[regname]
                 offset = field.offset - base_offset
                 mask = (1 << field.size) - 1
-                print(f'/* {field.desc} [{field.access.name}] */', file=out)
-                off_str = f'{prefix}_REGISTER_{grpname}_{regname}_OFFSET'
-                msk_str = f'{prefix}_REGISTER_{grpname}_{regname}_MASK'
+                # print(f'/* {field.desc} [{field.access.name}] */', file=out)
+                off_str = f'SI5_{prefix}_{grpname}_{regname}_OFFSET'
+                msk_str = f'SI5_{prefix}_{grpname}_{regname}_MASK'
                 padding = max(2, 2*((field.size+7)//8))
                 print(f'#define {off_str:{length}s} {offset}u', file=out)
                 print(f'#define {msk_str:{length}s} 0x{mask:0{padding}X}u',
